@@ -137,7 +137,7 @@ class Pointer {
     [[nodiscard]] auto RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
         -> std::optional<RayHit>;
     auto StartGrab(Overlay& overlay) -> void;
-    auto HandleGrabbed(AppState& app, Overlay& overlay) -> void;
+    auto HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& overlay) -> void;
 };
 
 class InputState {

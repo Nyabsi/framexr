@@ -492,7 +492,11 @@ auto OpenXrMainLoop::DispatchTasks(size_t frame) -> void {
                 using TaskType = std::decay_t<decltype(value)>;
                 if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>) {
                     if (auto* overlay = overlays_->BySelector(value.selector)) {
+                        const bool was_visible = overlay->state.want_visible;
                         value.modify(*app_, overlay->state);
+                        if (!was_visible && overlay->state.want_visible) {
+                            overlays_->PlaceShown(*app_, *overlay);
+                        }
                     } else {
                         LOG_WARN("Overlay not found for task: {}", DescribeSelector(value.selector));
                     }

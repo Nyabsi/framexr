@@ -23,7 +23,9 @@
 
 #include <memory>
 #include <optional>
+#include <set>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "Error.hpp"
@@ -57,14 +59,23 @@ class OverlayContainer final {
     auto Update(AppState& app) -> Result<std::vector<std::unique_ptr<Overlay>>>;
     auto ShowHide(AppState& app) -> void;
     auto Recenter(AppState& app) -> void;
+    auto RememberUserPlacement(const AppState& app, Overlay& placed) -> void;
+    auto PlaceShown(const AppState& app, Overlay& shown) -> void;
 
   private:
     OverlayContainer();
+
+    using OverlayPair = std::pair<OverlayId, OverlayId>;
+
+    auto LockedVisible() -> std::vector<Overlay*>;
+    auto FreeVisible(const AppState& app) -> std::vector<Overlay*>;
+    auto ArrangeVisible(const AppState& app) -> void;
 
     auto RemoveAt(size_t index) -> std::unique_ptr<Overlay>;
     auto CreateScreens(AppState& app, std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>>;
 
     std::vector<std::unique_ptr<Overlay>> overlays_;
+    std::set<OverlayPair> user_overlaps_;
 #if FRAMEXR_FEATURE_WAYLAND
     std::unique_ptr<WaylandClient> wayland_;
 #endif

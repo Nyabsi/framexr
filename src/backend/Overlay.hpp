@@ -151,6 +151,7 @@ struct OverlayState {
     RelativeTo relative_to = RelativeTo::None;
     std::optional<float> curvature;
     Eigen::Affine2f interaction_transform = Eigen::Affine2f::Identity();
+    VkExtent2D extent_hint{};
     size_t birth_frame = 0;
 
     static auto NextId() -> OverlayId;

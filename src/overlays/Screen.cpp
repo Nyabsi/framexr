@@ -539,6 +539,7 @@ auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, F
     state.spawn_scale = 1.5f * config.desktop_view_scale;
     state.spawn_point = Eigen::Vector3f(0.0f, 0.0f, -kScreenDistance);
     state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
+    state.extent_hint = VkExtent2D{.width = static_cast<uint32_t>(resolution.x()), .height = static_cast<uint32_t>(resolution.y())};
     state.interaction_transform = interaction_transform;
     return state;
 }

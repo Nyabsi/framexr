@@ -36,6 +36,7 @@ backend_sources = files(
   'backend/Osc.cpp',
   'backend/Overlay.cpp',
   'backend/OverlayContainer.cpp',
+  'backend/OverlayLayout.cpp',
   'backend/Task.cpp',
 )
 

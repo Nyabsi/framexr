@@ -30,6 +30,7 @@
 #include "Keyboard.hpp"
 #include "Modular.hpp"
 #include "OverlayContainer.hpp"
+#include "OverlayLayout.hpp"
 #include "RecordingBackend.hpp"
 #include "Screen.hpp"
 #include "State.hpp"
@@ -48,6 +49,7 @@ class Interaction : public testing::Test {
         app_->config.transform_values.clear();
         app_->config.curve_values.clear();
         app_->config.allow_sliding = true;
+        app_->screens.clear();
         app_->input.hmd = Eigen::Affine3f::Identity();
         overlays_ = OverlayContainer::CreateEmpty();
         AimAway(1);
@@ -88,6 +90,12 @@ class Interaction : public testing::Test {
     }
 
     auto Pointer(size_t index) -> ::Pointer& { return app_->input.pointers[index]; }
+
+    auto Bounds(OverlayId id) -> ViewRect {
+        const auto corners = OverlayLayout::Corners(*overlays_->ById(id));
+        EXPECT_TRUE(corners.has_value());
+        return corners ? OverlayLayout::ViewBounds(*corners, app_->input.hmd) : ViewRect{};
+    }
 
     AppState* app_ = nullptr;
     std::unique_ptr<OverlayContainer> overlays_;
@@ -455,6 +463,127 @@ TEST_F(Interaction, KeyboardSpawnsBelowViewFacingTheHead) {
     EXPECT_LT(state.spawn_point.z(), 0.0f);
     const Eigen::Vector3f facing = state.spawn_rotation * Eigen::Vector3f::UnitZ();
     EXPECT_TRUE(facing.isApprox(-state.spawn_point.normalized(), 1e-4f));
+}
+
+TEST_F(Interaction, DroppingOntoAnotherOverlayKeepsTheOverlap) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto fixed = AddPanel("fixed", {0.0f, 0.0f, -2.0f}, events);
+    const auto moving = AddPanel("moving", {0.3f, 0.0f, -2.0f}, events);
+
+    Aim(0, {0.6f, 0.0f, 0.0f});
+    Frame({.grab = true});
+    ASSERT_TRUE(Pointer(0).interaction.grabbed.has_value());
+    Frame({});
+
+    EXPECT_TRUE(overlays_->ById(moving)->state.transform.translation().isApprox(Eigen::Vector3f(0.3f, 0.0f, -2.0f), 1e-6f));
+    EXPECT_TRUE(Bounds(moving).Overlaps(Bounds(fixed), 0.0f));
+}
+
+TEST_F(Interaction, ShowHideKeepsOverlapsTheUserMade) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
+    app_->screens.push_back(ScreenMeta{.name = "screen", .id = screen});
+    overlays_->ById(screen)->state.saved_transform = overlays_->ById(screen)->state.transform;
+    ASSERT_TRUE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+
+    Aim(0, {0.0f, -0.45f, 0.0f});
+    Frame({.grab = true});
+    ASSERT_EQ(Pointer(0).interaction.grabbed->grabbed_id, keyboard);
+    Frame({});
+
+    overlays_->ShowHide(*app_);
+    app_->input.hmd = Eigen::Translation3f(0.0f, 1.6f, 0.0f) * Eigen::Affine3f::Identity();
+    overlays_->ShowHide(*app_);
+    ASSERT_TRUE(overlays_->ById(keyboard)->state.want_visible);
+    EXPECT_TRUE(overlays_->ById(keyboard)->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 1.3f, -1.0f), 1e-5f));
+    EXPECT_TRUE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+}
+
+TEST_F(Interaction, ShowHideClearsOverlapsTheUserDidNotMake) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
+    app_->screens.push_back(ScreenMeta{.name = "screen", .id = screen});
+    for (const auto id : {screen, keyboard}) {
+        auto& state = overlays_->ById(id)->state;
+        state.saved_transform = state.transform;
+    }
+    ASSERT_TRUE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+
+    overlays_->ShowHide(*app_);
+    overlays_->ShowHide(*app_);
+    ASSERT_TRUE(overlays_->ById(keyboard)->state.want_visible);
+    EXPECT_TRUE(overlays_->ById(screen)->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 0.0f, -1.0f), 1e-6f));
+    EXPECT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+}
+
+TEST_F(Interaction, DraggingAwayForgetsTheOverlap) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
+    app_->screens.push_back(ScreenMeta{.name = "screen", .id = screen});
+    overlays_->ById(screen)->state.saved_transform = overlays_->ById(screen)->state.transform;
+
+    Aim(0, {0.0f, -0.45f, 0.0f});
+    Frame({.grab = true});
+    Frame({});
+    Frame({.grab = true});
+    Aim(0, {0.0f, -0.95f, 0.0f});
+    Frame({.grab = true});
+    Frame({});
+    ASSERT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+
+    overlays_->ById(keyboard)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, -0.3f, -1.0f));
+    overlays_->Recenter(*app_);
+    EXPECT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+}
+
+TEST_F(Interaction, RecenterClearsOverlapsThatWereNotThereBefore) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -1.0f, -1.0f}, events);
+    app_->screens.push_back(ScreenMeta{.name = "screen", .id = screen});
+    overlays_->ById(screen)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, 0.0f, -1.0f));
+    overlays_->ById(keyboard)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, -0.3f, -1.0f));
+    ASSERT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+
+    overlays_->Recenter(*app_);
+    EXPECT_TRUE(overlays_->ById(screen)->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 0.0f, -1.0f), 1e-6f));
+    EXPECT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+    EXPECT_NEAR(overlays_->ById(keyboard)->state.transform.translation().norm(), Eigen::Vector3f(0.0f, -0.3f, -1.0f).norm(), 1e-4f);
+}
+
+TEST_F(Interaction, ShowKeepsKeyboardClearOfScreen) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, 0.0f, -1.0f}, events);
+    app_->screens.push_back(ScreenMeta{.name = "screen", .id = screen});
+    const Eigen::Affine3f screen_spot(Eigen::Translation3f(0.0f, -0.1f, -1.0f));
+    for (const auto id : {screen, keyboard}) {
+        overlays_->ById(id)->state.want_visible = false;
+    }
+    overlays_->ById(screen)->state.saved_transform = screen_spot;
+    overlays_->ById(keyboard)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, -0.4f, -1.0f));
+
+    overlays_->ShowHide(*app_);
+    ASSERT_TRUE(overlays_->ById(keyboard)->state.want_visible);
+    EXPECT_TRUE(overlays_->ById(screen)->state.transform.matrix().isApprox(screen_spot.matrix(), 1e-6f));
+    EXPECT_FALSE(Bounds(keyboard).Overlaps(Bounds(screen), 0.0f));
+    EXPECT_LT(Bounds(keyboard).max_elevation, Bounds(screen).min_elevation);
+}
+
+TEST_F(Interaction, RecenterStepsAroundLockedOverlays) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto locked = AddPanel("locked", {0.0f, 0.0f, -1.0f}, events);
+    const auto free = AddPanel("free", {3.0f, 0.0f, -1.0f}, events);
+    overlays_->ById(locked)->state.recenter = false;
+    overlays_->ById(free)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.1f, 0.0f, -1.0f));
+
+    overlays_->Recenter(*app_);
+    EXPECT_TRUE(overlays_->ById(locked)->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 0.0f, -1.0f), 1e-6f));
+    EXPECT_FALSE(Bounds(free).Overlaps(Bounds(locked), 0.0f));
+    EXPECT_NEAR(overlays_->ById(free)->state.transform.translation().norm(), Eigen::Vector3f(0.1f, 0.0f, -1.0f).norm(), 1e-4f);
 }
 
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {

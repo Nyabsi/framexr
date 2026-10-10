@@ -122,7 +122,7 @@ auto Pointer::StartGrab(Overlay& overlay) -> void {
     LOG_INFO("Hand {}: grabbed {}", index, overlay.state.name);
 }
 
-auto Pointer::HandleGrabbed(AppState& app, Overlay& overlay) -> void {
+auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& overlay) -> void {
     auto& state = overlay.state;
     if (now.grab) {
         if (!interaction.grabbed) {
@@ -152,6 +152,7 @@ auto Pointer::HandleGrabbed(AppState& app, Overlay& overlay) -> void {
     }
 
     if (state.recenter) {
+        overlays.RememberUserPlacement(app, overlay);
         const auto relative = state.RememberRelativeToHead(app);
         if (interaction.grabbed && state.curvature != interaction.grabbed->old_curvature) {
             if (state.curvature) {
@@ -170,7 +171,7 @@ auto Pointer::HandleGrabbed(AppState& app, Overlay& overlay) -> void {
 auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> InteractionResult {
     if (interaction.grabbed) {
         if (auto* grabbed = overlays.ById(interaction.grabbed->grabbed_id)) {
-            HandleGrabbed(app, *grabbed);
+            HandleGrabbed(app, overlays, *grabbed);
         } else {
             LOG_WARN("Grabbed overlay {} does not exist", static_cast<uint64_t>(interaction.grabbed->grabbed_id));
             interaction.grabbed.reset();
