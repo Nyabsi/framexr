@@ -33,6 +33,11 @@
 namespace {
 
 constexpr size_t kResolutionDivider = 4;
+constexpr auto kPressFlashDuration = std::chrono::milliseconds(180);
+
+auto PressFlashColor() -> Eigen::Vector4f {
+    return {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 0.55f};
+}
 
 auto TruncateToIndex(float value) -> size_t {
     return value <= 0.0f ? 0 : static_cast<size_t>(value);
@@ -276,6 +281,11 @@ auto Canvas::ShouldRender(AppState& app) -> Result<RenderReadiness> {
             control->background_dirty = false;
         }
     }
+    const auto now = std::chrono::steady_clock::now();
+    std::erase_if(released_, [now](const PressFlash& flash) -> bool { return now - flash.released > kPressFlashDuration; });
+    if (!released_.empty()) {
+        highlight_dirty_ = true;
+    }
     if (background_dirty_ || foreground_dirty_ || highlight_dirty_) {
         return RenderReadiness::Should;
     }
@@ -286,28 +296,46 @@ auto Canvas::RenderRoundedRect(
     CommandBuffer& command_buffer,
     Pipeline& pipeline,
     const Control& control,
-    const Eigen::Vector4f& color
+    const Eigen::Vector4f& color,
+    const std::optional<HighlightOutline>& outline
 ) -> Result<> {
     const auto& rect = control.rect;
     ASSIGN_OR_RETURN(auto vertices, device_->UploadVertices({width_, height_}, rect.x, rect.y, rect.w, rect.h));
     const float radius = std::min({control.corner_radius, rect.w / 2.0f, rect.h / 2.0f});
+    const Eigen::Vector4f outline_color = outline ? outline->color : Eigen::Vector4f::Zero();
+    const float outline_width = outline ? outline->width : 0.0f;
     const std::array uniform{
         color.x(),
         color.y(),
         color.z(),
         color.w(),
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
+        outline_color.x(),
+        outline_color.y(),
+        outline_color.z(),
+        outline_color.w(),
         rect.w,
         rect.h,
         radius,
-        0.0f,
+        outline_width,
     };
     ASSIGN_OR_RETURN(auto set, pipeline.CreateUniformSet(0, uniform));
     command_buffer.Draw(pipeline.CreatePass({width_, height_}, std::move(vertices), {std::move(set)}));
     return {};
+}
+
+auto Canvas::PressStrength(size_t index, std::chrono::steady_clock::time_point now) const -> float {
+    if (std::ranges::find(pressed_, std::optional<size_t>(index)) != pressed_.end()) {
+        return 1.0f;
+    }
+    float strength = 0.0f;
+    for (const auto& flash : released_) {
+        if (flash.index == index) {
+            const std::chrono::duration<float> elapsed = now - flash.released;
+            const std::chrono::duration<float> duration = kPressFlashDuration;
+            strength = std::max(strength, 1.0f - (elapsed / duration));
+        }
+    }
+    return std::clamp(strength, 0.0f, 1.0f);
 }
 
 auto Canvas::RenderSprite(CommandBuffer& command_buffer, Pipeline& pipeline, const Control& control, const Eigen::Vector4f& color)
@@ -376,7 +404,9 @@ auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, Command
         command_buffer.BeginRendering(background_);
         for (const auto& control : controls_) {
             if (control->background == BackgroundStyle::RoundedRect) {
-                RETURN_IF_ERROR(RenderRoundedRect(command_buffer, *pipelines_.background_color, *control, control->bg_color));
+                RETURN_IF_ERROR(
+                    RenderRoundedRect(command_buffer, *pipelines_.background_color, *control, control->bg_color, std::nullopt)
+                );
             } else if (control->background == BackgroundStyle::Sprite) {
                 RETURN_IF_ERROR(RenderSprite(command_buffer, *pipelines_.background_sprite, *control, control->fg_color));
             }
@@ -407,22 +437,31 @@ auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, Command
     command_buffer.BeginRendering(target);
     command_buffer.Draw(background_pass);
 
+    const auto now = std::chrono::steady_clock::now();
     for (size_t index = 0; index < controls_.size(); ++index) {
         auto& control = *controls_[index];
         if (control.highlight == HighlightStyle::None) {
             continue;
         }
-        const auto render_highlight = [&](const Eigen::Vector4f& color) -> Result<> {
+        const auto render_highlight = [&](const Eigen::Vector4f& color,
+                                          const std::optional<HighlightOutline>& outline) -> Result<> {
             if (control.highlight == HighlightStyle::Sprite) {
                 return RenderSprite(command_buffer, *pipelines_.highlight_sprite, control, color);
             }
-            return RenderRoundedRect(command_buffer, *pipelines_.highlight_color, control, color);
+            return RenderRoundedRect(command_buffer, *pipelines_.highlight_color, control, color, outline);
         };
-        if (const auto color = control.HighlightColor(app)) {
-            RETURN_IF_ERROR(render_highlight(*color));
+        const auto color = control.HighlightColor(app);
+        const auto outline = control.Outline(app);
+        if (color || outline) {
+            RETURN_IF_ERROR(render_highlight(color.value_or(Eigen::Vector4f::Zero()), outline));
+        }
+        if (const float strength = PressStrength(index, now); strength > 0.0f) {
+            Eigen::Vector4f flash = PressFlashColor();
+            flash.w() *= strength;
+            RETURN_IF_ERROR(render_highlight(flash, std::nullopt));
         }
         if (std::ranges::find(hovered_, std::optional<size_t>(index)) != hovered_.end()) {
-            RETURN_IF_ERROR(render_highlight(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.3f)));
+            RETURN_IF_ERROR(render_highlight(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.3f), std::nullopt));
         }
     }
 
@@ -457,11 +496,13 @@ auto Canvas::OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> vo
         return;
     }
     auto& control = *controls_[*index];
+    highlight_dirty_ = true;
     if (pressed) {
         pressed_[hit.pointer] = index;
         control.OnPress(app, hit.mode);
     } else {
         pressed_[hit.pointer].reset();
+        released_.push_back({.index = *index, .released = std::chrono::steady_clock::now()});
         control.OnRelease(app);
     }
 }

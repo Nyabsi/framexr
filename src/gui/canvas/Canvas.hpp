@@ -22,6 +22,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -61,6 +62,11 @@ struct CanvasPipelines {
     std::shared_ptr<Pipeline> composite;
 };
 
+struct PressFlash {
+    size_t index = 0;
+    std::chrono::steady_clock::time_point released;
+};
+
 class Canvas : public OverlayBackend {
   public:
     static auto Create(std::shared_ptr<Device> device, uint32_t width, uint32_t height, VkFormat format)
@@ -74,6 +80,8 @@ class Canvas : public OverlayBackend {
 
     [[nodiscard]] auto Width() const -> uint32_t { return width_; }
     [[nodiscard]] auto Height() const -> uint32_t { return height_; }
+    [[nodiscard]] auto ControlCount() const -> size_t { return controls_.size(); }
+    [[nodiscard]] auto ControlAt(size_t index) -> Control& { return *controls_[index]; }
 
     auto Panel(float x, float y, float w, float h, float radius) -> Control&;
     auto Label(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
@@ -126,8 +134,14 @@ class Canvas : public OverlayBackend {
     auto MarkInteractive(float x, float y, float w, float h, size_t index) -> void;
     [[nodiscard]] auto InteractiveAt(const Eigen::Vector2f& uv) const -> std::optional<size_t>;
 
-    auto RenderRoundedRect(CommandBuffer& command_buffer, Pipeline& pipeline, const Control& control, const Eigen::Vector4f& color)
-        -> Result<>;
+    auto RenderRoundedRect(
+        CommandBuffer& command_buffer,
+        Pipeline& pipeline,
+        const Control& control,
+        const Eigen::Vector4f& color,
+        const std::optional<HighlightOutline>& outline
+    ) -> Result<>;
+    [[nodiscard]] auto PressStrength(size_t index, std::chrono::steady_clock::time_point now) const -> float;
     auto RenderSprite(CommandBuffer& command_buffer, Pipeline& pipeline, const Control& control, const Eigen::Vector4f& color)
         -> Result<>;
     auto RenderText(AppState& app, CommandBuffer& command_buffer, const Control& control, bool centered) -> Result<>;
@@ -142,6 +156,7 @@ class Canvas : public OverlayBackend {
     std::vector<std::unique_ptr<Control>> controls_;
     std::array<std::optional<size_t>, 2> hovered_;
     std::array<std::optional<size_t>, 2> pressed_;
+    std::vector<PressFlash> released_;
     std::vector<std::optional<uint16_t>> interact_map_;
     size_t interact_stride_;
     size_t interact_rows_;

@@ -58,6 +58,11 @@ enum class HighlightStyle : uint8_t {
     Sprite,
 };
 
+struct HighlightOutline {
+    Eigen::Vector4f color = Eigen::Vector4f::Zero();
+    float width = 0.0f;
+};
+
 class Control {
   public:
     virtual ~Control() = default;
@@ -86,4 +91,5 @@ class Control {
     virtual auto OnRelease(AppState& app) -> void;
     virtual auto OnScroll(AppState& app, float delta_y, float delta_x) -> void;
     virtual auto HighlightColor(AppState& app) -> std::optional<Eigen::Vector4f>;
+    virtual auto Outline(AppState& app) -> std::optional<HighlightOutline>;
 };

@@ -56,8 +56,19 @@ constexpr float kKeyboardDrop = 0.5f;
 constexpr float kKeyboardReach = 0.8f;
 constexpr std::array<uint8_t, 5> kAutoReleaseModifiers{kModShift, kModCtrl, kModAlt, kModSuper, kModMeta};
 
-auto PressColor() -> Eigen::Vector4f {
+constexpr auto kLatchingKeys = std::to_array<VirtualKey>({VirtualKey::Caps, VirtualKey::NumLock, VirtualKey::Scroll});
+constexpr float kLatchedOutlineWidth = 3.0f;
+
+auto ActiveColor() -> Eigen::Vector4f {
     return {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 0.5f};
+}
+
+auto LatchedColor() -> Eigen::Vector4f {
+    return {1.0f, 1.0f, 1.0f, 0.16f};
+}
+
+auto LatchedOutline() -> HighlightOutline {
+    return {.color = {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 1.0f}, .width = kLatchedOutlineWidth};
 }
 
 constexpr char kKeychronV1Yaml[] = {
@@ -314,7 +325,17 @@ auto KeyboardState::ReapProcesses() -> void {
     });
 }
 
-KeyControl::KeyControl(std::shared_ptr<KeyboardState> state, VirtualKey key) : state_(std::move(state)), key_(key) {
+auto KeyboardState::RefreshLetterCase() -> void {
+    const bool upper = caps_lock != ((modifiers & kModShift) != 0);
+    for (const auto& letter : letters) {
+        letter.label->SetText(upper ? letter.upper : letter.lower);
+    }
+}
+
+KeyControl::KeyControl(std::shared_ptr<KeyboardState> state, VirtualKey key)
+    : state_(std::move(state)),
+      key_(key),
+      latches_(Keyboard::IsLatchingKey(key)) {
 }
 
 auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
@@ -326,22 +347,31 @@ auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
     }
     app.hid->SetModifiers(state_->modifiers);
     Keyboard::SendKey(app, key_, true);
-    pressed_ = true;
+    if (latches_) {
+        latched_ = !latched_;
+        if (key_ == VirtualKey::Caps) {
+            state_->caps_lock = latched_;
+        }
+    }
 }
 
 auto KeyControl::OnRelease(AppState& app) -> void {
     Keyboard::SendKey(app, key_, false);
-    pressed_ = false;
     for (const uint8_t modifier : kAutoReleaseModifiers) {
         if ((state_->modifiers & modifier) != 0) {
             state_->modifiers &= static_cast<uint8_t>(~modifier);
             Keyboard::SetModifiers(app, state_->modifiers);
         }
     }
+    state_->RefreshLetterCase();
 }
 
 auto KeyControl::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
-    return pressed_ ? std::optional(PressColor()) : std::nullopt;
+    return latched_ ? std::optional(LatchedColor()) : std::nullopt;
+}
+
+auto KeyControl::Outline(AppState&) -> std::optional<HighlightOutline> {
+    return latched_ ? std::optional(LatchedOutline()) : std::nullopt;
 }
 
 ModifierControl::ModifierControl(std::shared_ptr<KeyboardState> state, uint8_t modifier)
@@ -354,17 +384,19 @@ auto ModifierControl::OnPress(AppState& app, PointerMode) -> void {
     state_->modifiers |= modifier_;
     Keyboard::Click(app);
     Keyboard::SetModifiers(app, state_->modifiers);
+    state_->RefreshLetterCase();
 }
 
 auto ModifierControl::OnRelease(AppState& app) -> void {
     if (!sticky_) {
         state_->modifiers &= static_cast<uint8_t>(~modifier_);
         Keyboard::SetModifiers(app, state_->modifiers);
+        state_->RefreshLetterCase();
     }
 }
 
 auto ModifierControl::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
-    return (state_->modifiers & modifier_) != 0 ? std::optional(PressColor()) : std::nullopt;
+    return (state_->modifiers & modifier_) != 0 ? std::optional(ActiveColor()) : std::nullopt;
 }
 
 ProfileControl::ProfileControl(std::shared_ptr<const Keymap> keymap, std::string current)
@@ -431,6 +463,7 @@ auto KeyboardBackend::Init(AppState& app) -> Result<> {
 
 auto KeyboardBackend::Pause(AppState& app) -> Result<> {
     state_->modifiers = 0;
+    state_->RefreshLetterCase();
     Keyboard::SetModifiers(app, 0);
     return canvas_->Pause(app);
 }
@@ -466,6 +499,10 @@ auto KeyboardBackend::OnPointer(AppState& app, const PointerHit& hit, bool press
 
 auto KeyboardBackend::OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void {
     canvas_->OnScroll(app, hit, delta_y, delta_x);
+}
+
+auto Keyboard::IsLatchingKey(VirtualKey key) -> bool {
+    return std::ranges::contains(kLatchingKeys, key);
 }
 
 auto Keyboard::SendKey(AppState& app, VirtualKey key, bool down) -> void {
@@ -548,6 +585,7 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
             std::vector<std::string> labels;
             std::unique_ptr<Control> control;
             auto cap_type = KeyCapType::Regular;
+            std::optional<std::string> upper_case;
 
             if (*key == kProfileSwitchKey) {
                 control = std::make_unique<ProfileControl>(keymap, layout.name);
@@ -558,7 +596,8 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
                         auto label0 = label_keymap->LabelForKey(*virtual_key, 0);
                         auto label1 = label_keymap->LabelForKey(*virtual_key, kModShift);
                         if (StartsWithLetter(label0)) {
-                            labels.push_back(std::move(label1));
+                            labels.push_back(std::move(label0));
+                            upper_case = std::move(label1);
                             if (has_altgr) {
                                 cap_type = KeyCapType::RegularAltGr;
                                 labels.push_back(label_keymap->LabelForKey(*virtual_key, kModMeta));
@@ -580,7 +619,7 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
                     }
                 }
 
-                if (const auto modifier = VirtualKeys::ModifierOf(*virtual_key)) {
+                if (const auto modifier = VirtualKeys::ModifierOf(*virtual_key); modifier && !IsLatchingKey(*virtual_key)) {
                     control = std::make_unique<ModifierControl>(state, *modifier);
                 } else {
                     control = std::make_unique<KeyControl>(state, *virtual_key);
@@ -607,8 +646,17 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
 
             if (labels.empty()) {
                 labels = layout.LabelForKey(*key);
+                if (labels.size() == 1 && labels.front().size() == 1 && StartsWithLetter(labels.front())) {
+                    upper_case = std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(labels.front().front()))));
+                }
             }
+            const size_t first_label = canvas->ControlCount() + 1;
             canvas->KeyButton(x, y, key_width, key_height, kKeyRadius, cap_type, labels, std::move(control));
+            if (upper_case && first_label < canvas->ControlCount()) {
+                state->letters.push_back(
+                    {.label = &canvas->ControlAt(first_label), .lower = labels.front(), .upper = std::move(*upper_case)}
+                );
+            }
         }
     }
 

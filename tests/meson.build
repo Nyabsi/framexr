@@ -46,6 +46,7 @@ test('unit', unit_tests, env: test_env, protocol: 'gtest')
 integration_tests = executable(
   'framexr-integration-tests',
   'InteractionTest.cpp',
+  'KeyStateTest.cpp',
   'OverlayRenderTest.cpp',
   'ScreenCaptureTest.cpp',
   'support/FakeCapture.cpp',

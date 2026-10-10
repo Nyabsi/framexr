@@ -65,3 +65,7 @@ auto Control::OnScroll(AppState&, float, float) -> void {
 auto Control::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
     return std::nullopt;
 }
+
+auto Control::Outline(AppState&) -> std::optional<HighlightOutline> {
+    return std::nullopt;
+}

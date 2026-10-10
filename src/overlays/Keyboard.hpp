@@ -86,12 +86,21 @@ class KeyboardProfiles final {
 auto from_json(const nlohmann::json& json, AltModifier& value) -> void;
 auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void;
 
+struct LetterLabel {
+    Control* label = nullptr;
+    std::string lower;
+    std::string upper;
+};
+
 struct KeyboardState {
     uint8_t modifiers = 0;
     uint8_t alt_modifier = 0;
+    bool caps_lock = false;
     std::vector<Process> processes;
+    std::vector<LetterLabel> letters;
 
     auto ReapProcesses() -> void;
+    auto RefreshLetterCase() -> void;
 };
 
 class KeyControl final : public Control {
@@ -101,11 +110,15 @@ class KeyControl final : public Control {
     auto OnPress(AppState& app, PointerMode mode) -> void override;
     auto OnRelease(AppState& app) -> void override;
     auto HighlightColor(AppState& app) -> std::optional<Eigen::Vector4f> override;
+    auto Outline(AppState& app) -> std::optional<HighlightOutline> override;
+
+    [[nodiscard]] auto Latched() const -> bool { return latched_; }
 
   private:
     std::shared_ptr<KeyboardState> state_;
     VirtualKey key_;
-    bool pressed_ = false;
+    bool latches_;
+    bool latched_ = false;
 };
 
 class ModifierControl final : public Control {
@@ -186,6 +199,7 @@ class Keyboard final {
   public:
     static auto Create(AppState& app, const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Overlay>>;
     static auto SwitchProfile(AppState& app, std::shared_ptr<const Keymap> keymap, std::string profile) -> void;
+    static auto IsLatchingKey(VirtualKey key) -> bool;
     static auto SendKey(AppState& app, VirtualKey key, bool down) -> void;
     static auto SetModifiers(AppState& app, uint8_t modifiers) -> void;
     static auto Click(AppState& app) -> void;
