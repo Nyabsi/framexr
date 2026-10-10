@@ -269,9 +269,10 @@ TEST_F(Interaction, GrabMovesRealignsAndSavesOverlay) {
     auto* overlay = overlays_->ById(id);
     ASSERT_NE(overlay, nullptr);
     EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.5f, 0.0f, -2.0f)));
-    const Eigen::Vector3f facing = overlay->state.transform.linear().col(2).normalized();
+    const Eigen::Matrix3f linear = overlay->state.transform.linear();
+    const Eigen::Vector3f facing = linear.col(2).normalized();
     EXPECT_TRUE(facing.isApprox(-Eigen::Vector3f(0.5f, 0.0f, -2.0f).normalized(), 1e-4f));
-    EXPECT_NEAR(overlay->state.transform.linear().col(1).normalized().dot(Eigen::Vector3f::UnitY()), 1.0f, 1e-4f);
+    EXPECT_NEAR(linear.col(1).normalized().dot(Eigen::Vector3f::UnitY()), 1.0f, 1e-4f);
 
     Frame({});
     EXPECT_FALSE(Pointer(0).interaction.grabbed.has_value());
