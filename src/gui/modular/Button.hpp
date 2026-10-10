@@ -65,6 +65,7 @@ enum class HighlightTest : uint8_t {
 enum class SystemAction : uint8_t {
     ToggleAllowSliding,
     Recenter,
+    ShowHide,
     ToggleNotificationSounds,
     ToggleNotifications,
     ToggleRotateLock,

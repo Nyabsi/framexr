@@ -71,9 +71,21 @@ elements:
       - type: System
         action: Recenter
 
+  # Show/hide button: hide or bring back your screens and keyboard
+  - type: Button
+    rect: [134, 162, 48, 36]
+    corner_radius: 4
+    font_size: 15
+    fg_color: "#24273a"
+    bg_color: "#a6da95"
+    text: Vis
+    click_up:
+      - type: System
+        action: ShowHide
+
   # bottom row, of keyboard + overlays
   - type: OverlayList
-    rect: [134, 160, 266, 40]
+    rect: [186, 160, 214, 40]
     corner_radius: 4
     font_size: 15
     fg_color: "#cad3f5"

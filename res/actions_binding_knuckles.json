@@ -26,9 +26,6 @@
          "sources" : [
             {
                "inputs" : {
-                  "double" : {
-                     "output" : "/actions/default/in/showhide"
-                  },
                   "touch" : {
                      "output": "/actions/default/in/clickmodifierright"
                   }

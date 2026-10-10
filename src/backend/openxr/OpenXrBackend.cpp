@@ -321,15 +321,6 @@ auto OpenXrMainLoop::UpdateInput() -> Result<> {
         blocker_->Update(*app_, watch_id_, *monado_);
     }
 
-    const auto pressed = [&](auto member) -> bool {
-        return std::ranges::any_of(app_->input.pointers, [&](const Pointer& pointer) -> bool {
-            return pointer.now.*member && !(pointer.before.*member);
-        });
-    };
-    if (pressed(&PointerState::show_hide)) {
-        overlays_->ShowHide(*app_);
-    }
-
     Watch::Fade(*app_, WatchOverlay());
     if (playspace_) {
         playspace_->Update(*overlays_, *app_, *monado_);

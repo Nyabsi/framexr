@@ -56,7 +56,6 @@ struct OpenXrActionProfile {
     std::optional<OpenXrActionBinding> click;
     std::optional<OpenXrActionBinding> grab;
     std::optional<OpenXrActionBinding> alt_click;
-    std::optional<OpenXrActionBinding> show_hide;
     std::optional<OpenXrActionBinding> space_drag;
     std::optional<OpenXrActionBinding> space_rotate;
     std::optional<OpenXrActionBinding> space_reset;
@@ -120,7 +119,6 @@ struct OpenXrHandActions {
     OpenXrClickAction click;
     OpenXrClickAction grab;
     OpenXrClickAction alt_click;
-    OpenXrClickAction show_hide;
     OpenXrClickAction space_drag;
     OpenXrClickAction space_rotate;
     OpenXrClickAction space_reset;

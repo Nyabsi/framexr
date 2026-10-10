@@ -85,15 +85,6 @@
                }
             },
             {
-               "path": "/user/hand/left/input/application_menu",
-               "mode": "button",
-               "inputs": {
-                  "double": {
-                     "output": "/actions/default/in/showhide"
-                  }
-               }
-            },
-            {
                "path": "/user/hand/right/input/trackpad",
                "mode": "dpad",
                "parameters": {

@@ -275,7 +275,6 @@ auto InputState::LogChanges(const Pointer& pointer) const -> void {
     log("click", pointer.now.click, pointer.before.click);
     log("grab", pointer.now.grab, pointer.before.grab);
     log("alt_click", pointer.now.alt_click, pointer.before.alt_click);
-    log("show_hide", pointer.now.show_hide, pointer.before.show_hide);
     log("space_drag", pointer.now.space_drag, pointer.before.space_drag);
     log("space_rotate", pointer.now.space_rotate, pointer.before.space_rotate);
     log("space_reset", pointer.now.space_reset, pointer.before.space_reset);

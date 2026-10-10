@@ -123,7 +123,6 @@ auto OpenVrInput::Create() -> Result<OpenVrInput> {
     ASSIGN_OR_RETURN(actions.grab, ActionHandle("/actions/default/in/Grab"));
     ASSIGN_OR_RETURN(actions.scroll, ActionHandle("/actions/default/in/Scroll"));
     ASSIGN_OR_RETURN(actions.alt_click, ActionHandle("/actions/default/in/AltClick"));
-    ASSIGN_OR_RETURN(actions.show_hide, ActionHandle("/actions/default/in/ShowHide"));
     ASSIGN_OR_RETURN(actions.space_drag, ActionHandle("/actions/default/in/SpaceDrag"));
     ASSIGN_OR_RETURN(actions.space_rotate, ActionHandle("/actions/default/in/SpaceRotate"));
     ASSIGN_OR_RETURN(actions.click_modifier_right, ActionHandle("/actions/default/in/ClickModifierRight"));
@@ -187,7 +186,6 @@ auto OpenVrInput::Update(vr::ETrackingUniverseOrigin universe, AppState& app) ->
         pointer.now.click = Digital(actions_.click, hand.input);
         pointer.now.grab = Digital(actions_.grab, hand.input);
         pointer.now.alt_click = Digital(actions_.alt_click, hand.input);
-        pointer.now.show_hide = Digital(actions_.show_hide, hand.input);
         pointer.now.space_drag = Digital(actions_.space_drag, hand.input);
         pointer.now.space_rotate = Digital(actions_.space_rotate, hand.input);
         pointer.now.click_modifier_right = Digital(actions_.click_modifier_right, hand.input);

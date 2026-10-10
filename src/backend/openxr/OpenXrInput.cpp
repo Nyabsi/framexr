@@ -51,7 +51,6 @@ constexpr auto
         {"click", &OpenXrActionProfile::click},
         {"grab", &OpenXrActionProfile::grab},
         {"alt_click", &OpenXrActionProfile::alt_click},
-        {"show_hide", &OpenXrActionProfile::show_hide},
         {"space_drag", &OpenXrActionProfile::space_drag},
         {"space_rotate", &OpenXrActionProfile::space_rotate},
         {"space_reset", &OpenXrActionProfile::space_reset},
@@ -271,7 +270,6 @@ auto OpenXrHandActions::Create(const OpenXrInstance& instance, XrActionSet actio
         {"click", &OpenXrHandActions::click},
         {"grab", &OpenXrHandActions::grab},
         {"alt_click", &OpenXrHandActions::alt_click},
-        {"show_hide", &OpenXrHandActions::show_hide},
         {"space_drag", &OpenXrHandActions::space_drag},
         {"space_rotate", &OpenXrHandActions::space_rotate},
         {"space_reset", &OpenXrHandActions::space_reset},
@@ -315,7 +313,6 @@ auto OpenXrHand::Update(Pointer& pointer, const OpenXrState& xr, const Config& c
     pointer.now.scroll_y = scroll.currentState.y;
 
     ASSIGN_OR_RETURN(pointer.now.alt_click, actions.alt_click.State(pointer.before.alt_click, xr, config));
-    ASSIGN_OR_RETURN(pointer.now.show_hide, actions.show_hide.State(pointer.before.show_hide, xr, config));
     ASSIGN_OR_RETURN(
         pointer.now.click_modifier_right,
         actions.modifier_right.State(pointer.before.click_modifier_right, xr, config)
@@ -509,7 +506,6 @@ auto OpenXrInput::SuggestBindings(const OpenXrInstance& instance, const std::arr
         {&OpenXrActionProfile::click, &OpenXrHandActions::click},
         {&OpenXrActionProfile::alt_click, &OpenXrHandActions::alt_click},
         {&OpenXrActionProfile::grab, &OpenXrHandActions::grab},
-        {&OpenXrActionProfile::show_hide, &OpenXrHandActions::show_hide},
         {&OpenXrActionProfile::space_drag, &OpenXrHandActions::space_drag},
         {&OpenXrActionProfile::space_rotate, &OpenXrHandActions::space_rotate},
         {&OpenXrActionProfile::space_reset, &OpenXrHandActions::space_reset},

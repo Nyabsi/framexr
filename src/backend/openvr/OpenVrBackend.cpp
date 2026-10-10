@@ -290,6 +290,7 @@ auto OpenVrSession::RunSystemTask(const SystemTask& task) -> void {
             } else if constexpr (std::is_same_v<TaskType, ResetPlayspaceTask>) {
                 playspace_.ResetOffset(app_->input);
             } else if constexpr (std::is_same_v<TaskType, ShowHideTask>) {
+                lines_.MarkDirty();
                 overlays_->ShowHide(*app_);
             } else {
                 overlays_->Recenter(*app_);
@@ -347,17 +348,6 @@ auto OpenVrSession::UpdateInput() -> void {
     app_->input.PreUpdate();
     input_.Update(playspace_.Universe(), *app_);
     app_->input.PostUpdate(app_->config);
-
-    const auto pressed = [&](auto member) -> bool {
-        return std::ranges::any_of(app_->input.pointers, [&](const Pointer& pointer) -> bool {
-            return pointer.now.*member && !(pointer.before.*member);
-        });
-    };
-
-    if (pressed(&PointerState::show_hide)) {
-        lines_.MarkDirty();
-        overlays_->ShowHide(*app_);
-    }
 }
 
 auto OpenVrSession::RenderOverlays() -> Result<> {

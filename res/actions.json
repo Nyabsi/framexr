@@ -16,11 +16,6 @@
       "requirement": "mandatory"
     },
     {
-      "name": "/actions/default/in/ShowHide",
-      "type": "boolean",
-      "requirement": "mandatory"
-    },
-    {
       "name": "/actions/default/in/AltClick",
       "type": "boolean",
       "requirement": "optional"

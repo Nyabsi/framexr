@@ -44,7 +44,6 @@ struct OpenVrActions {
     vr::VRActionHandle_t grab = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t scroll = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t alt_click = vr::k_ulInvalidActionHandle;
-    vr::VRActionHandle_t show_hide = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t space_drag = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t space_rotate = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t click_modifier_right = vr::k_ulInvalidActionHandle;

@@ -82,7 +82,6 @@ struct PointerState {
     bool click = false;
     bool grab = false;
     bool alt_click = false;
-    bool show_hide = false;
     bool space_drag = false;
     bool space_rotate = false;
     bool space_reset = false;
