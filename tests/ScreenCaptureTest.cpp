@@ -111,6 +111,74 @@ TEST(ScreenCapture, ScreenPipelineBlendsLikeOriginal) {
     }
 }
 
+TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
+    constexpr uint32_t kSize = 64;
+    std::vector<std::byte> stripes(size_t{kSize} * kSize * 4);
+    for (size_t y = 0; y < kSize; ++y) {
+        for (size_t x = 0; x < kSize; ++x) {
+            const auto value = x % 2 == 0 ? std::byte{255} : std::byte{0};
+            const size_t offset = (y * kSize + x) * 4;
+            stripes[offset] = value;
+            stripes[offset + 1] = value;
+            stripes[offset + 2] = value;
+            stripes[offset + 3] = std::byte{255};
+        }
+    }
+    ScreenRenderer renderer("stripes", std::make_unique<FakeCapture>(kSize, kSize, std::move(stripes)));
+    RenderUntilReady(renderer, "stripes");
+
+    auto& app = TestApp::Get();
+    const auto render = [&](const TexelFootprint& footprint) -> std::vector<unsigned char> {
+        renderer.SetTexelFootprint(footprint);
+        bool ready = false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!ready && std::chrono::steady_clock::now() < deadline) {
+            const auto readiness = renderer.ShouldRender(app);
+            ready = readiness && *readiness == RenderReadiness::Should;
+            if (!ready) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+        }
+        EXPECT_TRUE(ready);
+        auto target = app.device
+                          ->CreateRenderTexture(kSize, kSize, app.device->NativeFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        EXPECT_TRUE(target.has_value());
+        CommandBatch batch;
+        const auto rendered = renderer.Render(app, *target, batch, 1.0f);
+        EXPECT_TRUE(rendered.has_value() && *rendered);
+        EXPECT_TRUE(batch.Submit().has_value());
+        app.device->GraphicsQueue().WaitIdle();
+        return GpuReadback::Read(*app.device, **target);
+    };
+    const auto contrast = [](const std::vector<unsigned char>& pixels, size_t x) -> int {
+        const size_t row = size_t{kSize} / 2 * kSize;
+        return std::abs(static_cast<int>(pixels[(row + x) * 4]) - static_cast<int>(pixels[(row + x + 1) * 4]));
+    };
+    const auto facing = [](float distance) -> TexelFootprint {
+        return {
+            .eye = Eigen::Vector3f(0.0f, 0.0f, distance),
+            .size = Eigen::Vector2f::Ones(),
+            .display_pixels_per_radian = Eigen::Vector2f::Constant(static_cast<float>(kSize)),
+        };
+    };
+
+    const int sharp = contrast(render(facing(0.9f)), 32);
+    const int soft = contrast(render(facing(2.5f)), 32);
+    app.config.screen_lowpass_filter = false;
+    const int unfiltered = contrast(render(facing(2.5f)), 32);
+    app.config.screen_lowpass_filter = true;
+
+    EXPECT_GT(sharp, 200);
+    EXPECT_LT(soft, sharp / 4);
+    EXPECT_GT(unfiltered, 200);
+
+    TexelFootprint slanted = facing(0.3f);
+    slanted.eye.x() = -0.45f;
+    const auto pixels = render(slanted);
+    EXPECT_GT(contrast(pixels, 4), 200);
+    EXPECT_LT(contrast(pixels, 58), 60);
+}
+
 #if FRAMEXR_FEATURE_WAYLAND
 TEST(ScreenCapture, PipewireFrameGoesThroughScreenPipeline) {
     const char* token = std::getenv("FRAMEXR_TEST_PW_TOKEN");

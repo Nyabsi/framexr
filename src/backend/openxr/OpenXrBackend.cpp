@@ -22,6 +22,7 @@
 #include "OpenXrBackend.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
 #include <limits>
@@ -45,6 +46,31 @@
 namespace {
 
 constexpr XrViewConfigurationType kViewType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+
+auto DisplayDensity(const OpenXrInstance& instance, const XrFovf& fov) -> Eigen::Vector2f {
+    std::array<XrViewConfigurationView, 2> views{
+        XrViewConfigurationView{.type = XR_TYPE_VIEW_CONFIGURATION_VIEW},
+        XrViewConfigurationView{.type = XR_TYPE_VIEW_CONFIGURATION_VIEW},
+    };
+    uint32_t count = 0;
+    const XrResult result = xrEnumerateViewConfigurationViews(
+        instance.Handle(),
+        instance.System(),
+        kViewType,
+        static_cast<uint32_t>(views.size()),
+        &count,
+        views.data()
+    );
+    const float horizontal = std::tan(fov.angleRight) - std::tan(fov.angleLeft);
+    const float vertical = std::tan(fov.angleUp) - std::tan(fov.angleDown);
+    if (XR_FAILED(result) || count == 0 || horizontal <= 0.0f || vertical <= 0.0f) {
+        return Eigen::Vector2f::Zero();
+    }
+    return {
+        static_cast<float>(views.front().recommendedImageRectWidth) / horizontal,
+        static_cast<float>(views.front().recommendedImageRectHeight) / vertical,
+    };
+}
 
 auto SessionStateName(XrSessionState state) -> std::string_view {
     switch (state) {
@@ -354,6 +380,15 @@ auto OpenXrMainLoop::UpdateIpd(XrTime display_time) -> Result<> {
         xrLocateViews(xr_.session, &locate_info, &view_state, static_cast<uint32_t>(views.size()), &count, views.data())
     ));
 
+    if (app_->display_pixels_per_radian.minCoeff() <= 0.0f && count > 0) {
+        app_->display_pixels_per_radian = DisplayDensity(*instance_, views.front().fov);
+        LOG_INFO(
+            "Display density: {:.0f} x {:.0f} px/rad",
+            app_->display_pixels_per_radian.x(),
+            app_->display_pixels_per_radian.y()
+        );
+    }
+
     const float ipd = OpenXrPose::Ipd(std::span(views).first(count));
     if (std::abs(app_->input.ipd - ipd) > 0.01f) {
         LOG_INFO("IPD changed: {} -> {}", app_->input.ipd, ipd);
@@ -607,6 +642,7 @@ auto OpenXrMainLoop::Run(std::atomic<bool>& running) -> Result<> {
         RETURN_IF_ERROR(EndFrame(headers));
 
         ASSIGN_OR_RETURN(auto removed, overlays_->Update(*app_));
+        overlays_->UpdateTexelFootprints(*app_);
         for (auto& overlay : removed) {
             QueueDelete(std::move(overlay), frame + 5);
         }

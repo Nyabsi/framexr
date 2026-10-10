@@ -84,6 +84,7 @@ struct Config {
     float xr_click_sensitivity_release = 0.5f;
     float xr_alt_click_sensitivity_release = 0.5f;
     bool allow_sliding = true;
+    bool screen_lowpass_filter = true;
     bool focus_follows_mouse_mode = false;
     bool block_game_input = false;
     bool block_game_input_ignore_watch = true;
@@ -153,6 +154,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     xr_click_sensitivity_release,
     xr_alt_click_sensitivity_release,
     allow_sliding,
+    screen_lowpass_filter,
     focus_follows_mouse_mode,
     block_game_input,
     block_game_input_ignore_watch,

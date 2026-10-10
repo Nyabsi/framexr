@@ -21,6 +21,11 @@ keyboard_profile: keychron-v1-ansi
 # Default: true
 allow_sliding: true
 
+# Smooth screens with a low-pass filter sized to how many screen pixels land on each headset pixel,
+# reducing shimmer and moire on small text
+# Default: true
+screen_lowpass_filter: true
+
 # When enabled, the mouse pointer will not be moved on the screen, unless the trigger is touched
 # allowing for moving both pointers off the screens to the keyboard, while keeping the cursor position
 # unchanged, for when the desktop is configured to move the focus with the mouse cursor

@@ -84,6 +84,29 @@ auto OverlayLayout::ViewBounds(const std::array<Eigen::Vector3f, 4>& corners, co
     return rect;
 }
 
+auto OverlayLayout::MeasureFootprint(Overlay& overlay, const Eigen::Affine3f& head, const Eigen::Vector2f& display_pixels_per_radian)
+    -> std::optional<TexelFootprint> {
+    const auto corners = Corners(overlay);
+    if (!corners || display_pixels_per_radian.minCoeff() <= 0.0f) {
+        return std::nullopt;
+    }
+    const Eigen::Vector3f across = (*corners)[1] - (*corners)[0];
+    const Eigen::Vector3f up = (*corners)[3] - (*corners)[0];
+    if (across.norm() <= 0.0f || up.norm() <= 0.0f) {
+        return std::nullopt;
+    }
+    const Eigen::Vector3f across_unit = across.normalized();
+    const Eigen::Vector3f up_unit = up.normalized();
+    const Eigen::Vector3f normal = across_unit.cross(up_unit);
+    const Eigen::Vector3f center = ((*corners)[0] + (*corners)[2]) * 0.5f;
+    const Eigen::Vector3f eye = head.translation() - center;
+    return TexelFootprint{
+        .eye = Eigen::Vector3f(eye.dot(across_unit), eye.dot(up_unit), eye.dot(normal)),
+        .size = Eigen::Vector2f(across.norm(), up.norm()),
+        .display_pixels_per_radian = display_pixels_per_radian,
+    };
+}
+
 auto OverlayLayout::RotateAroundHead(Overlay& overlay, const Eigen::Affine3f& head, const Eigen::Vector3f& axis, float angle)
     -> void {
     const Eigen::Matrix3f rotation = Eigen::AngleAxisf(angle, axis).toRotationMatrix();

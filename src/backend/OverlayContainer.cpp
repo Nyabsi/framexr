@@ -375,6 +375,20 @@ auto OverlayContainer::PlaceShown(const AppState& app, Overlay& shown) -> void {
     OverlayLayout::NudgeClear(shown, others, app.input.hmd);
 }
 
+auto OverlayContainer::UpdateTexelFootprints(const AppState& app) -> void {
+    if (app.display_pixels_per_radian.minCoeff() <= 0.0f) {
+        return;
+    }
+    for (auto& overlay : overlays_) {
+        if (!overlay->state.want_visible) {
+            continue;
+        }
+        if (const auto footprint = OverlayLayout::MeasureFootprint(*overlay, app.input.hmd, app.display_pixels_per_radian)) {
+            overlay->backend->SetTexelFootprint(*footprint);
+        }
+    }
+}
+
 auto OverlayContainer::ArrangeVisible(const AppState& app) -> void {
     auto placed = LockedVisible();
     for (auto* overlay : FreeVisible(app)) {

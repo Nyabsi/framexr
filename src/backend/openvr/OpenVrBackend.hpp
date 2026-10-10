@@ -74,6 +74,7 @@ class OpenVrSession final {
 
     static auto AdjustGain(ColorChannel channel, float delta) -> void;
     static auto ReadIpd() -> std::optional<float>;
+    static auto ReadDisplayDensity() -> Eigen::Vector2f;
 
     std::unique_ptr<AppState> app_;
     std::unique_ptr<OverlayContainer> overlays_;

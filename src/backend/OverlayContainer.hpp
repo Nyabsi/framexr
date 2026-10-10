@@ -61,6 +61,7 @@ class OverlayContainer final {
     auto Recenter(AppState& app) -> void;
     auto RememberUserPlacement(const AppState& app, Overlay& placed) -> void;
     auto PlaceShown(const AppState& app, Overlay& shown) -> void;
+    auto UpdateTexelFootprints(const AppState& app) -> void;
 
   private:
     OverlayContainer();

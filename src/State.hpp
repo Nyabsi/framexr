@@ -93,6 +93,7 @@ class AppState final {
     std::unique_ptr<HidProvider> hid;
     AudioOutput audio;
     std::vector<ScreenMeta> screens;
+    Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
     std::map<std::string, std::shared_ptr<Image>, std::less<>> sprites;
     std::vector<std::byte> toast_sound;
     std::unique_ptr<OscSender> osc;

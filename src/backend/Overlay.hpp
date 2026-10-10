@@ -55,6 +55,12 @@ enum class RenderReadiness : uint8_t {
     Unable,
 };
 
+struct TexelFootprint {
+    Eigen::Vector3f eye = Eigen::Vector3f::UnitZ();
+    Eigen::Vector2f size = Eigen::Vector2f::Ones();
+    Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
+};
+
 struct FrameMeta {
     VkExtent2D extent{};
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
@@ -71,6 +77,7 @@ class OverlayRenderer {
     virtual auto ShouldRender(AppState& app) -> Result<RenderReadiness> = 0;
     virtual auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> = 0;
     virtual auto Meta() -> std::optional<FrameMeta> = 0;
+    virtual auto SetTexelFootprint(const TexelFootprint& footprint) -> void;
 };
 
 class InteractionHandler {
@@ -121,6 +128,7 @@ class SplitOverlayBackend final : public OverlayBackend {
     auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
     auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
+    auto SetTexelFootprint(const TexelFootprint& footprint) -> void override;
 
     auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
     auto OnLeft(AppState& app, size_t pointer) -> void override;

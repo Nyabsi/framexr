@@ -137,6 +137,21 @@ auto OpenVrSession::ReadIpd() -> std::optional<float> {
     return std::round(ipd * 10000.0f) * 0.1f;
 }
 
+auto OpenVrSession::ReadDisplayDensity() -> Eigen::Vector2f {
+    uint32_t width = 0;
+    uint32_t height = 0;
+    vr::VRSystem()->GetRecommendedRenderTargetSize(&width, &height);
+    float left = 0.0f;
+    float right = 0.0f;
+    float top = 0.0f;
+    float bottom = 0.0f;
+    vr::VRSystem()->GetProjectionRaw(vr::Eye_Left, &left, &right, &top, &bottom);
+    if (right - left <= 0.0f || std::abs(bottom - top) <= 0.0f) {
+        return Eigen::Vector2f::Zero();
+    }
+    return {static_cast<float>(width) / (right - left), static_cast<float>(height) / std::abs(bottom - top)};
+}
+
 auto OpenVrSession::Create(bool show_by_default) -> Result<std::unique_ptr<OpenVrSession>> {
     DeviceCreateInfo device_info;
     device_info.instance_extensions = InstanceExtensions();
@@ -154,6 +169,8 @@ auto OpenVrSession::Create(bool show_by_default) -> Result<std::unique_ptr<OpenV
         app->input.ipd = *ipd;
         LOG_INFO("IPD: {:.1f} mm", *ipd);
     }
+    app->display_pixels_per_radian = ReadDisplayDensity();
+    LOG_INFO("Display density: {:.0f} x {:.0f} px/rad", app->display_pixels_per_radian.x(), app->display_pixels_per_radian.y());
 
     if (auto installed = OpenVrManifest::Install(); !installed) {
         LOG_DEBUG("{}", installed.error().Message());
@@ -401,6 +418,7 @@ auto OpenVrSession::Run(std::atomic<bool>& running) -> Result<> {
         notifications_->SubmitPending(*app_);
 
         ASSIGN_OR_RETURN(auto removed, overlays_->Update(*app_));
+        overlays_->UpdateTexelFootprints(*app_);
         for (const auto& overlay : removed) {
             DestroyOverlay(*overlay);
         }

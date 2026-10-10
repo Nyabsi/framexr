@@ -108,6 +108,10 @@ auto SplitOverlayBackend::Meta() -> std::optional<FrameMeta> {
     return renderer_->Meta();
 }
 
+auto SplitOverlayBackend::SetTexelFootprint(const TexelFootprint& footprint) -> void {
+    renderer_->SetTexelFootprint(footprint);
+}
+
 auto SplitOverlayBackend::OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> {
     return interaction_->OnHover(app, hit);
 }
@@ -178,6 +182,9 @@ auto OverlayState::RememberRelativeToHead(const AppState& app) -> Eigen::Affine3
     const Eigen::Affine3f relative(app.input.hmd.matrix().inverse() * transform.matrix());
     saved_transform = relative;
     return relative;
+}
+
+auto OverlayRenderer::SetTexelFootprint(const TexelFootprint&) -> void {
 }
 
 Overlay::Overlay(OverlayState overlay_state, std::unique_ptr<OverlayBackend> overlay_backend)

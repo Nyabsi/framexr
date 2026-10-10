@@ -87,8 +87,14 @@ class ScreenPipeline final {
   public:
     static auto Create(AppState& app, VkExtent2D extent) -> Result<ScreenPipeline>;
 
-    auto Render(AppState& app, const CapturedFrame& frame, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha)
-        -> Result<>;
+    auto Render(
+        AppState& app,
+        const CapturedFrame& frame,
+        const std::shared_ptr<Image>& target,
+        CommandBatch& batch,
+        float alpha,
+        const TexelFootprint& footprint
+    ) -> Result<>;
 
   private:
     ScreenPipeline(std::shared_ptr<Pipeline> pipeline, std::shared_ptr<Image> mouse, VkExtent2D extent);
@@ -108,6 +114,7 @@ class ScreenRenderer final : public OverlayRenderer {
     auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
     auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
+    auto SetTexelFootprint(const TexelFootprint& footprint) -> void override;
 
   private:
     auto Start(AppState& app) -> void;
@@ -119,6 +126,7 @@ class ScreenRenderer final : public OverlayRenderer {
     std::optional<ScreenPipeline> pipeline_;
     std::unique_ptr<CapturedFrame> current_;
     std::optional<FrameMeta> meta_;
+    TexelFootprint footprint_;
 };
 
 class ScreenInteraction final : public InteractionHandler {

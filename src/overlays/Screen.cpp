@@ -61,6 +61,8 @@
 namespace {
 
 constexpr float kCursorSize = 16.0f / 1440.0f;
+constexpr float kLowpassCutoff = 1.0f;
+constexpr float kLowpassShape = 4.0f;
 constexpr float kScreenDistance = 1.0f;
 constexpr float kScreenGap = 0.05f;
 constexpr float kScreenTilt = 0.1745f;
@@ -303,10 +305,25 @@ auto ScreenPipeline::Render(
     const CapturedFrame& frame,
     const std::shared_ptr<Image>& target,
     CommandBatch& batch,
-    float alpha
+    float alpha,
+    const TexelFootprint& footprint
 ) -> Result<> {
     auto& device = *app.device;
-    const std::array uniform{alpha};
+    const float filtered = app.config.screen_lowpass_filter ? 1.0f : 0.0f;
+    const std::array uniform{
+        footprint.size.x(),
+        footprint.size.y(),
+        footprint.display_pixels_per_radian.x(),
+        footprint.display_pixels_per_radian.y(),
+        footprint.eye.x(),
+        footprint.eye.y(),
+        footprint.eye.z(),
+        kLowpassCutoff,
+        kLowpassShape,
+        alpha,
+        filtered,
+    };
+    const std::array cursor_uniform{1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, kLowpassCutoff, kLowpassShape, alpha, 0.0f};
 
     ASSIGN_OR_RETURN(auto texture_set, pipeline_->CreateTextureSet(0, frame.image, device.TextureFilter()));
     ASSIGN_OR_RETURN(auto alpha_set, pipeline_->CreateUniformSet(1, uniform));
@@ -333,7 +350,7 @@ auto ScreenPipeline::Render(
             )
         );
         ASSIGN_OR_RETURN(auto mouse_set, pipeline_->CreateTextureSet(0, mouse_, VK_FILTER_NEAREST));
-        ASSIGN_OR_RETURN(auto mouse_alpha_set, pipeline_->CreateUniformSet(1, uniform));
+        ASSIGN_OR_RETURN(auto mouse_alpha_set, pipeline_->CreateUniformSet(1, cursor_uniform));
         command_buffer.Draw(
             pipeline_->CreatePass(target->Extent(), std::move(vertices), {std::move(mouse_set), std::move(mouse_alpha_set)})
         );
@@ -432,7 +449,7 @@ auto ScreenRenderer::Render(AppState& app, const std::shared_ptr<Image>& target,
     if (!pipeline_) {
         FatalError("Screen pipeline missing while a frame is pending");
     }
-    RETURN_IF_ERROR(pipeline_->Render(app, *frame, target, batch, alpha));
+    RETURN_IF_ERROR(pipeline_->Render(app, *frame, target, batch, alpha, footprint_));
     capture_->RequestNewFrame();
     return true;
 }
@@ -449,6 +466,10 @@ auto ScreenRenderer::Resume(AppState&) -> Result<> {
 
 auto ScreenRenderer::Meta() -> std::optional<FrameMeta> {
     return meta_;
+}
+
+auto ScreenRenderer::SetTexelFootprint(const TexelFootprint& footprint) -> void {
+    footprint_ = footprint;
 }
 
 ScreenInteraction::ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform) {

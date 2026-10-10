@@ -664,6 +664,19 @@ TEST_F(Interaction, RecenterStepsAroundLockedOverlays) {
     EXPECT_NEAR(overlays_->ById(free)->state.transform.translation().norm(), Eigen::Vector3f(0.1f, 0.0f, -1.0f).norm(), 1e-4f);
 }
 
+TEST_F(Interaction, FootprintDescribesTheEyeRelativeToTheScreen) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.5f, 0.0f, -2.0f}, events);
+    const Eigen::Vector2f density(800.0f, 800.0f);
+
+    const auto footprint = OverlayLayout::MeasureFootprint(*overlays_->ById(id), app_->input.hmd, density);
+    ASSERT_TRUE(footprint.has_value());
+    EXPECT_TRUE(footprint->eye.isApprox(Eigen::Vector3f(-0.5f, 0.0f, 2.0f), 1e-5f));
+    EXPECT_TRUE(footprint->size.isApprox(Eigen::Vector2f(1.0f, 0.5f), 1e-5f));
+    EXPECT_TRUE(footprint->display_pixels_per_radian.isApprox(density));
+    EXPECT_FALSE(OverlayLayout::MeasureFootprint(*overlays_->ById(id), app_->input.hmd, Eigen::Vector2f::Zero()).has_value());
+}
+
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
