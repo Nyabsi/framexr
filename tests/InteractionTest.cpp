@@ -44,7 +44,7 @@ class Interaction : public testing::Test {
         app_->config.transform_values.clear();
         app_->config.curve_values.clear();
         app_->config.allow_sliding = true;
-        app_->anchor = Eigen::Affine3f::Identity();
+        app_->input.hmd = Eigen::Affine3f::Identity();
         overlays_ = OverlayContainer::CreateEmpty();
         AimAway(1);
     }
@@ -56,7 +56,8 @@ class Interaction : public testing::Test {
         state.want_visible = true;
         state.interactable = true;
         state.grabbable = true;
-        state.anchored = true;
+        state.recenter = true;
+        state.show_hide = true;
         state.transform = Eigen::Translation3f(position) * Eigen::Affine3f::Identity();
         state.interaction_transform = OverlayState::UiTransform(kPanelExtent);
         const auto id = state.id;
@@ -87,6 +88,17 @@ class Interaction : public testing::Test {
     AppState* app_ = nullptr;
     std::unique_ptr<OverlayContainer> overlays_;
 };
+
+auto Pose(const Eigen::Vector3f& position, const Eigen::Quaternionf& rotation) -> Eigen::Affine3f {
+    Eigen::Affine3f pose = Eigen::Affine3f::Identity();
+    pose.linear() = rotation.toRotationMatrix();
+    pose.translation() = position;
+    return pose;
+}
+
+auto Compose(const Eigen::Affine3f& first, const Eigen::Affine3f& second) -> Eigen::Affine3f {
+    return Eigen::Affine3f(first.matrix() * second.matrix());
+}
 
 auto Events(const std::shared_ptr<std::vector<RecordedEvent>>& events, RecordedKind kind) -> std::vector<RecordedEvent> {
     std::vector<RecordedEvent> filtered;
@@ -248,7 +260,7 @@ TEST_F(Interaction, RecentlyClickedRightPointerGoesFirstAndLowerIndexTakesPrimar
     EXPECT_EQ(overlays_->ById(id)->primary_pointer, 0U);
 }
 
-TEST_F(Interaction, GrabMovesRealignsAndSavesOverlay) {
+TEST_F(Interaction, GrabFollowsControllerRotationFreely) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -256,50 +268,140 @@ TEST_F(Interaction, GrabMovesRealignsAndSavesOverlay) {
     const auto grab = Frame({.grab = true});
     ASSERT_TRUE(Pointer(0).interaction.grabbed.has_value());
     EXPECT_EQ(Pointer(0).interaction.grabbed->grabbed_id, id);
-    EXPECT_TRUE(Pointer(0).interaction.grabbed->offset.isApprox(Eigen::Vector3f(0.0f, 0.0f, -2.0f)));
     ASSERT_TRUE(grab[0].haptics.has_value());
     EXPECT_FLOAT_EQ(grab[0].haptics->intensity, 0.25f);
-    EXPECT_FLOAT_EQ(grab[0].haptics->duration, 0.1f);
-    EXPECT_FLOAT_EQ(grab[0].haptics->frequency, 0.1f);
     EXPECT_TRUE(Events(events, RecordedKind::Hover).empty());
 
-    Aim(0, {0.5f, 0.0f, 0.0f});
+    const Eigen::Affine3f turned = Pose(
+        Eigen::Vector3f(0.5f, 0.2f, 0.0f),
+        Eigen::Quaternionf(Eigen::AngleAxisf(0.7f, Eigen::Vector3f::UnitY()))
+            * Eigen::Quaternionf(Eigen::AngleAxisf(0.3f, Eigen::Vector3f::UnitX()))
+    );
+    Pointer(0).pose = turned;
     const auto held = Frame({.grab = true});
     EXPECT_FLOAT_EQ(held[0].length, 0.1f);
-    auto* overlay = overlays_->ById(id);
-    ASSERT_NE(overlay, nullptr);
-    EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.5f, 0.0f, -2.0f)));
-    const Eigen::Matrix3f linear = overlay->state.transform.linear();
-    const Eigen::Vector3f facing = linear.col(2).normalized();
-    EXPECT_TRUE(facing.isApprox(-Eigen::Vector3f(0.5f, 0.0f, -2.0f).normalized(), 1e-4f));
-    EXPECT_NEAR(linear.col(1).normalized().dot(Eigen::Vector3f::UnitY()), 1.0f, 1e-4f);
 
+    const auto* overlay = overlays_->ById(id);
+    ASSERT_NE(overlay, nullptr);
+    const Eigen::Affine3f expected = Compose(turned, Eigen::Affine3f(Eigen::Translation3f(0.0f, 0.0f, -2.0f)));
+    EXPECT_TRUE(overlay->state.transform.matrix().isApprox(expected.matrix(), 1e-4f));
+}
+
+TEST_F(Interaction, DropRemembersPositionRelativeToHead) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+    app_->input.hmd = Pose(Eigen::Vector3f(0.0f, 1.6f, 0.0f), Eigen::Quaternionf(Eigen::AngleAxisf(0.4f, Eigen::Vector3f::UnitY())));
+
+    Frame({.grab = true});
+    Aim(0, {0.3f, 0.0f, 0.0f});
+    Frame({.grab = true});
     Frame({});
-    EXPECT_FALSE(Pointer(0).interaction.grabbed.has_value());
+
+    const auto* overlay = overlays_->ById(id);
     ASSERT_TRUE(overlay->state.saved_transform.has_value());
+    const Eigen::Affine3f expected = Compose(Eigen::Affine3f(app_->input.hmd.matrix().inverse()), overlay->state.transform);
+    EXPECT_TRUE(overlay->state.saved_transform->matrix().isApprox(expected.matrix(), 1e-4f));
     const auto saved = std::ranges::find(
         app_->config.transform_values,
         std::string("panel"),
         &std::pair<std::string, Eigen::Affine3f>::first
     );
     ASSERT_NE(saved, app_->config.transform_values.end());
-    EXPECT_TRUE(saved->second.isApprox(overlay->state.transform, 1e-5f));
+    EXPECT_TRUE(saved->second.matrix().isApprox(expected.matrix(), 1e-4f));
 }
 
-TEST_F(Interaction, GrabWithClickScalesAndGrabWithScrollSlides) {
+TEST_F(Interaction, StickPushesAwayAndScalesWithDistance) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
 
     Frame({.grab = true});
-    Frame({.scroll_y = 1.0f, .click = true, .grab = true});
-    auto* overlay = overlays_->ById(id);
-    EXPECT_NEAR(overlay->state.transform.linear().col(0).norm(), 0.975f, 1e-5f);
-    EXPECT_EQ(Pointer(0).interaction.mode, PointerMode::Special);
+    Frame({.scroll_y = 1.0f, .grab = true});
+    const auto* overlay = overlays_->ById(id);
+    const Eigen::Matrix3f pushed = overlay->state.transform.linear();
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.05f, 1e-5f);
+    EXPECT_NEAR(pushed.col(0).norm(), 1.025f, 1e-5f);
 
-    Frame({.scroll_y = 2.0f, .grab = true});
-    EXPECT_NEAR(Pointer(0).interaction.grabbed->offset.z(), -2.1f, 1e-5f);
-    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.1f, 1e-5f);
+    Frame({.scroll_y = -1.0f, .grab = true});
+    Frame({.scroll_y = -1.0f, .click = true, .grab = true});
+    const Eigen::Matrix3f pulled = overlay->state.transform.linear();
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -1.95f, 1e-5f);
+    EXPECT_NEAR(pulled.col(0).norm(), 0.975f, 1e-5f);
+    EXPECT_NE(Pointer(0).interaction.mode, PointerMode::Special);
+}
+
+TEST_F(Interaction, StickScalesWithDistanceFromTheHead) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, {0.0f, 0.0f, -0.5f});
+
+    Frame({.grab = true});
+    Frame({.scroll_y = 1.0f, .grab = true});
+    const auto* overlay = overlays_->ById(id);
+    const Eigen::Matrix3f pushed = overlay->state.transform.linear();
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.05f, 1e-5f);
+    EXPECT_NEAR(pushed.col(0).norm(), 2.05f / 2.0f, 1e-5f);
+}
+
+TEST_F(Interaction, StickDriftDoesNotMoveOrResize) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+
+    Frame({.grab = true});
+    for (int frame = 0; frame < 100; ++frame) {
+        Frame({.scroll_y = frame % 2 == 0 ? 0.15f : -0.1f, .grab = true});
+    }
+    const auto* overlay = overlays_->ById(id);
+    const Eigen::Matrix3f linear = overlay->state.transform.linear();
+    EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 0.0f, -2.0f), 1e-6f));
+    EXPECT_NEAR(linear.col(0).norm(), 1.0f, 1e-6f);
+}
+
+TEST_F(Interaction, ShowPlacesOverlaysRelativeToCurrentHead) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -1.0f}, events);
+    auto* overlay = overlays_->ById(id);
+    overlay->state.want_visible = false;
+    overlay->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.2f, -0.1f, -1.5f));
+
+    app_->input.hmd = Eigen::Translation3f(0.0f, 1.6f, 0.0f) * Eigen::Affine3f::Identity();
+    overlays_->ShowHide(*app_);
+    ASSERT_TRUE(overlay->state.want_visible);
+    EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.2f, 1.5f, -1.5f), 1e-5f));
+
+    overlays_->ShowHide(*app_);
+    EXPECT_FALSE(overlay->state.want_visible);
+
+    const Eigen::Affine3f turned = Pose(
+        Eigen::Vector3f(1.0f, 1.6f, 2.0f),
+        Eigen::Quaternionf(Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitY()))
+    );
+    app_->input.hmd = turned;
+    overlays_->ShowHide(*app_);
+    const Eigen::Affine3f expected = Compose(turned, *overlay->state.saved_transform);
+    EXPECT_TRUE(overlay->state.transform.matrix().isApprox(expected.matrix(), 1e-5f));
+    const Eigen::Vector3f to_overlay = overlay->state.transform.translation() - turned.translation();
+    EXPECT_NEAR(to_overlay.norm(), Eigen::Vector3f(0.2f, -0.1f, -1.5f).norm(), 1e-5f);
+    const Eigen::Matrix3f overlay_linear = overlay->state.transform.linear();
+    const Eigen::Matrix3f head_linear = turned.linear();
+    EXPECT_TRUE(overlay_linear.col(2).isApprox(head_linear.col(2), 1e-5f));
+}
+
+TEST_F(Interaction, ShowWhileLyingDownPlacesOverlayWhereYouLook) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -1.0f}, events);
+    auto* overlay = overlays_->ById(id);
+    overlay->state.want_visible = false;
+    overlay->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, 0.0f, -1.0f));
+
+    app_->input.hmd = Pose(
+        Eigen::Vector3f(0.0f, 0.5f, 0.0f),
+        Eigen::Quaternionf(Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitX()))
+    );
+    overlays_->ShowHide(*app_);
+    EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 1.5f, 0.0f), 1e-5f));
 }
 
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {

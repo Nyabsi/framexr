@@ -149,10 +149,6 @@ auto OverlayState::ParentTransform(const AppState& app) const -> std::optional<E
     return std::nullopt;
 }
 
-auto OverlayState::AnchorTransform(const AppState& app) const -> Eigen::Affine3f {
-    return anchored ? app.anchor : app.input.hmd;
-}
-
 auto OverlayState::LocalTransform() const -> Eigen::Affine3f {
     if (saved_transform) {
         return *saved_transform;
@@ -174,47 +170,14 @@ auto OverlayState::Reset(const AppState& app, bool hard_reset) -> void {
     if (hard_reset) {
         saved_transform.reset();
     }
-    transform = ParentTransform(app).value_or(AnchorTransform(app)) * LocalTransform();
-    if (grabbable && hard_reset) {
-        Realign(app.input.hmd);
-    }
+    transform = ParentTransform(app).value_or(app.input.hmd) * LocalTransform();
     dirty = true;
 }
 
-auto OverlayState::Realign(const Eigen::Affine3f& hmd) -> void {
-    constexpr float kEpsilon = std::numeric_limits<float>::epsilon();
-    const Eigen::Vector3f to_hmd = hmd.translation() - transform.translation();
-
-    Eigen::Vector3f up = Eigen::Vector3f::UnitY();
-    if (std::abs(hmd.linear().col(0).dot(Eigen::Vector3f::UnitY())) > 0.2f) {
-        up = hmd.linear().col(1);
-    } else {
-        const float dot = to_hmd.normalized().dot(hmd.linear().col(2));
-        const float z_dist = to_hmd.norm();
-        const float y_dist = std::abs(transform.translation().y() - hmd.translation().y());
-        const float x_angle = std::asin(y_dist / z_dist);
-        if (dot < -kEpsilon) {
-            const Eigen::Vector3f up_point = hmd.translation() + z_dist / std::cos(x_angle) * Eigen::Vector3f::UnitY();
-            up = (up_point - transform.translation()).normalized();
-        } else if (dot > kEpsilon) {
-            const Eigen::Vector3f down_point = hmd.translation() - z_dist / std::cos(x_angle) * Eigen::Vector3f::UnitY();
-            up = (transform.translation() - down_point).normalized();
-        }
-    }
-
-    const float scale = transform.linear().col(0).norm();
-    const Eigen::Vector3f column_z = (transform.translation() - hmd.translation()).normalized();
-    const Eigen::Vector3f column_x = up.cross(column_z);
-    const Eigen::Vector3f column_y = column_z.cross(column_x).normalized();
-
-    Eigen::Matrix3f basis;
-    basis.col(0) = column_x.normalized();
-    basis.col(1) = column_y;
-    basis.col(2) = column_z;
-
-    const Eigen::Matrix3f rotation = spawn_rotation.toRotationMatrix()
-                                   * Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitY()).toRotationMatrix();
-    transform.linear() = basis * scale * rotation;
+auto OverlayState::RememberRelativeToHead(const AppState& app) -> Eigen::Affine3f {
+    const Eigen::Affine3f relative(app.input.hmd.matrix().inverse() * transform.matrix());
+    saved_transform = relative;
+    return relative;
 }
 
 Overlay::Overlay(OverlayState overlay_state, std::unique_ptr<OverlayBackend> overlay_backend)

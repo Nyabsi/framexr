@@ -38,11 +38,6 @@ constexpr char kSettingsYaml[] = {
     ,
     '\0'
 };
-constexpr char kAnchorYaml[] = {
-#embed "anchor.yaml"
-    ,
-    '\0'
-};
 constexpr char kConfigYaml[] = {
 #embed "config.yaml"
     ,
@@ -75,10 +70,6 @@ TEST(BundledResources, WatchParsesIntoModularUi) {
 
 TEST(BundledResources, SettingsParsesIntoModularUi) {
     ExpectModularUi("settings.yaml", kSettingsYaml);
-}
-
-TEST(BundledResources, AnchorParsesIntoModularUi) {
-    ExpectModularUi("anchor.yaml", kAnchorYaml);
 }
 
 TEST(BundledResources, ExampleConfigIsValidYaml) {

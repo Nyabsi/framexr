@@ -532,10 +532,9 @@ auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, F
     state.name = std::move(name);
     state.grabbable = true;
     state.recenter = true;
-    state.anchored = true;
     state.interactable = true;
     state.spawn_scale = 1.5f * config.desktop_view_scale;
-    state.spawn_point = Eigen::Vector3f(0.0f, 0.5f, 0.0f);
+    state.spawn_point = Eigen::Vector3f(0.0f, 0.0f, -1.0f);
     state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
     state.interaction_transform = interaction_transform;
     return state;

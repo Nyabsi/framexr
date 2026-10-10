@@ -23,7 +23,6 @@
 
 #include <gtest/gtest.h>
 
-#include "Anchor.hpp"
 #include "CommandBuffer.hpp"
 #include "CustomUi.hpp"
 #include "Device.hpp"
@@ -73,12 +72,6 @@ TEST(OverlayRender, Watch) {
     ASSERT_TRUE(watch.has_value());
     EXPECT_TRUE((*watch)->state.want_visible);
     RenderOverlay(**watch, "watch");
-}
-
-TEST(OverlayRender, Anchor) {
-    auto anchor = Anchor::Create(TestApp::Get());
-    ASSERT_TRUE(anchor.has_value());
-    RenderOverlay(**anchor, "anchor");
 }
 
 TEST(OverlayRender, KeyboardWithSessionKeymap) {

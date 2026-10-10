@@ -515,10 +515,9 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     overlay.name = kKeyboardName;
     overlay.grabbable = true;
     overlay.recenter = true;
-    overlay.anchored = true;
     overlay.interactable = true;
     overlay.spawn_scale = layout.row_size * 0.05f * app.config.keyboard_scale;
-    overlay.spawn_point = Eigen::Vector3f(0.0f, -0.5f, 0.0f);
+    overlay.spawn_point = Eigen::Vector3f(0.0f, -0.5f, -1.0f);
     overlay.interaction_transform = Eigen::Translation2f(0.5f, 0.5f) * Eigen::Scaling(1.0f, -width / height);
 
     return std::make_unique<Overlay>(std::move(overlay), std::make_unique<KeyboardBackend>(std::move(canvas), std::move(state)));

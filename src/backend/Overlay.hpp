@@ -39,7 +39,6 @@ class AppState;
 constexpr uint32_t kZOrderToast = 70;
 constexpr uint32_t kZOrderLines = 69;
 constexpr uint32_t kZOrderWatch = 68;
-constexpr uint32_t kZOrderAnchor = 67;
 constexpr uint32_t kZOrderDefault = 0;
 
 enum class RelativeTo : uint8_t {
@@ -141,7 +140,6 @@ struct OverlayState {
     bool grabbable = false;
     bool interactable = false;
     bool recenter = false;
-    bool anchored = false;
     bool dirty = true;
     float alpha = 1.0f;
     uint32_t z_order = kZOrderDefault;
@@ -159,12 +157,11 @@ struct OverlayState {
     static auto UiTransform(VkExtent2D extent) -> Eigen::Affine2f;
 
     [[nodiscard]] auto ParentTransform(const AppState& app) const -> std::optional<Eigen::Affine3f>;
-    [[nodiscard]] auto AnchorTransform(const AppState& app) const -> Eigen::Affine3f;
     [[nodiscard]] auto LocalTransform() const -> Eigen::Affine3f;
 
     auto AutoMovement(const AppState& app) -> void;
     auto Reset(const AppState& app, bool hard_reset) -> void;
-    auto Realign(const Eigen::Affine3f& hmd) -> void;
+    auto RememberRelativeToHead(const AppState& app) -> Eigen::Affine3f;
 };
 
 class Overlay {

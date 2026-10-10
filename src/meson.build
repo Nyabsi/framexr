@@ -55,7 +55,6 @@ hid_sources = files(
 )
 
 overlay_sources = files(
-  'overlays/Anchor.cpp',
   'overlays/CustomUi.cpp',
   'overlays/Keyboard.cpp',
   'overlays/Screen.cpp',

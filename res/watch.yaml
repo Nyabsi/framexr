@@ -40,10 +40,6 @@ elements:
       - type: Overlay
         target: "kbd"
         action: ToggleVisible
-    long_click_up:
-      - type: Overlay
-        target: "kbd"
-        action: Reset
     right_up:
       - type: Overlay
         target: "kbd"
@@ -72,7 +68,6 @@ elements:
     bg_color: "#1e2030"
     layout: Horizontal
     click_up: ToggleVisible
-    long_click_up: Reset
     right_up: ToggleImmovable
     middle_up: ToggleInteraction
     scroll_up:

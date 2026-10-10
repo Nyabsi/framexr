@@ -59,7 +59,6 @@ auto ParseEnum(const nlohmann::json& json, const std::array<std::pair<Enum, std:
 
 constexpr auto kSystemActions = std::to_array<std::pair<SystemAction, std::string_view>>({
     {SystemAction::ToggleAllowSliding, "ToggleAllowSliding"},
-    {SystemAction::ToggleAutoRealign, "ToggleAutoRealign"},
     {SystemAction::ToggleNotificationSounds, "ToggleNotificationSounds"},
     {SystemAction::ToggleNotifications, "ToggleNotifications"},
     {SystemAction::ToggleRotateLock, "ToggleRotateLock"},
@@ -72,7 +71,6 @@ constexpr auto kSystemActions = std::to_array<std::pair<SystemAction, std::strin
 
 constexpr auto kHighlightTests = std::to_array<std::pair<HighlightTest, std::string_view>>({
     {HighlightTest::AllowSliding, "AllowSliding"},
-    {HighlightTest::AutoRealign, "AutoRealign"},
     {HighlightTest::NotificationSounds, "NotificationSounds"},
     {HighlightTest::Notifications, "Notifications"},
     {HighlightTest::RotateLock, "RorateLock"},
@@ -182,9 +180,7 @@ auto from_json(const nlohmann::json& json, OverlaySelector& value) -> void {
 
 auto from_json(const nlohmann::json& json, OverlayAction& value) -> void {
     const auto name = Json::VariantName(json);
-    if (name == "Reset") {
-        value = OverlayReset{};
-    } else if (name == "ToggleVisible") {
+    if (name == "ToggleVisible") {
         value = OverlayToggleVisible{};
     } else if (name == "ToggleImmovable") {
         value = OverlayToggleImmovable{};
@@ -310,7 +306,6 @@ auto ModularButton::HighlightColor(AppState& app) -> std::optional<Eigen::Vector
     bool lit = false;
     switch (*data_.highlight) {
     case HighlightTest::AllowSliding: lit = app.config.allow_sliding; break;
-    case HighlightTest::AutoRealign: lit = app.config.realign_on_showhide; break;
     case HighlightTest::NotificationSounds: lit = app.config.notifications_sound_enabled; break;
     case HighlightTest::Notifications: lit = app.config.notifications_enabled; break;
     case HighlightTest::RotateLock: lit = !app.config.space_rotate_unlocked; break;
@@ -412,10 +407,6 @@ auto ModularButton::RunSystem(AppState& app, SystemAction action) -> void {
     case SystemAction::ToggleAllowSliding:
         config.allow_sliding = !config.allow_sliding;
         SubmitSystemToast(app, std::format("Sliding is {}.", state_name(config.allow_sliding)));
-        break;
-    case SystemAction::ToggleAutoRealign:
-        config.realign_on_showhide = !config.realign_on_showhide;
-        SubmitSystemToast(app, std::format("Auto realign is {}.", state_name(config.realign_on_showhide)));
         break;
     case SystemAction::ToggleRotateLock:
         config.space_rotate_unlocked = !config.space_rotate_unlocked;
@@ -571,17 +562,7 @@ auto ModularButton::RunOverlay(AppState& app, const OverlaySelector& target, con
     std::visit(
         [&](const auto& item) -> void {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, OverlayReset>) {
-                app.tasks.Enqueue(
-                    ModifyOverlayTask{
-                        .selector = target,
-                        .modify = [](AppState& state, OverlayState& overlay) -> void {
-                            overlay.Reset(state, true);
-                            SubmitSystemToast(state, std::format("{} has been reset!", overlay.name));
-                        },
-                    }
-                );
-            } else if constexpr (std::is_same_v<Item, OverlayToggleVisible>) {
+            if constexpr (std::is_same_v<Item, OverlayToggleVisible>) {
                 app.tasks.Enqueue(
                     ModifyOverlayTask{
                         .selector = target,

@@ -26,7 +26,6 @@
 #include <map>
 #include <utility>
 
-#include "Anchor.hpp"
 #include "Hid.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
@@ -91,9 +90,6 @@ auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayCo
         container->Add(std::make_unique<Overlay>(std::move(screen.state), std::move(screen.backend)));
         app.screens.push_back(std::move(screen.meta));
     }
-
-    ASSIGN_OR_RETURN(auto anchor, Anchor::Create(app));
-    container->Add(std::move(anchor));
 
     ASSIGN_OR_RETURN(auto watch, Watch::Create(app));
     watch->state.want_visible = true;
@@ -281,16 +277,11 @@ auto OverlayContainer::ShowHide(AppState& app) -> void {
         return overlay->state.show_hide && overlay->state.want_visible;
     });
 
-    if (!any_shown) {
-        const Eigen::Affine3f hmd = Raycast::SnapUpright(app.input.hmd, Eigen::Vector3f::UnitY());
-        app.anchor = hmd * Eigen::Translation3f(-Eigen::Vector3f::UnitZ());
-    }
-
     for (auto& overlay : overlays_) {
         auto& state = overlay->state;
         if (state.show_hide) {
             state.want_visible = !any_shown;
-            if (state.want_visible && app.config.realign_on_showhide && state.recenter) {
+            if (state.want_visible && state.recenter) {
                 state.Reset(app, false);
             }
         }

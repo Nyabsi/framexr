@@ -617,18 +617,6 @@ elements:
     font_size: 12
     fg_color: "#24273a"
     bg_color: "#e64553"
-    text: "Auto-Realign"
-    click_down:
-      - type: System
-        action: ToggleAutoRealign
-    highlight: AutoRealign
-
-  - type: Button
-    rect: [30, 555, 220, 30]
-    corner_radius: 6
-    font_size: 12
-    fg_color: "#24273a"
-    bg_color: "#e64553"
     text: "Grab+Scroll Slide"
     click_down:
       - type: System

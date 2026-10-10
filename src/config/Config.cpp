@@ -247,7 +247,6 @@ auto Config::SaveSettings() const -> Result<> {
     settings["watch_view_angle_max"] = Json::ShortestFloat(watch_view_angle_max);
     settings["notifications_enabled"] = notifications_enabled;
     settings["notifications_sound_enabled"] = notifications_sound_enabled;
-    settings["realign_on_showhide"] = realign_on_showhide;
     settings["allow_sliding"] = allow_sliding;
     settings["space_drag_multiplier"] = Json::ShortestFloat(space_drag_multiplier);
     return WriteJson(Config::ConfD() / "zz-saved-config.json", settings);

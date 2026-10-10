@@ -93,7 +93,6 @@ class AppState final {
     std::unique_ptr<HidProvider> hid;
     AudioOutput audio;
     std::vector<ScreenMeta> screens;
-    Eigen::Affine3f anchor = Eigen::Affine3f::Identity();
     std::map<std::string, std::shared_ptr<Image>, std::less<>> sprites;
     std::vector<std::byte> toast_sound;
     std::unique_ptr<OscSender> osc;

@@ -88,24 +88,6 @@ auto ReferenceCylinder(
     return std::pair{t, Eigen::Vector2f(hit_local.x(), hit_local.y())};
 }
 
-auto ReferenceSnapUpright(const Eigen::Affine3f& transform, const Eigen::Vector3f& up) -> Eigen::Affine3f {
-    const Eigen::Vector3f x_axis = Linear(transform).col(0);
-    if (std::abs(x_axis.dot(up)) >= 0.2f) {
-        return transform;
-    }
-    const float scale = x_axis.norm();
-    const Eigen::Vector3f col_z = Linear(transform).col(2).normalized();
-    const Eigen::Vector3f col_x_raw = up.cross(col_z);
-    const Eigen::Vector3f col_y = col_z.cross(col_x_raw).normalized();
-    const Eigen::Vector3f col_x = col_x_raw.normalized();
-    Eigen::Affine3f result = Eigen::Affine3f::Identity();
-    result.linear().col(0) = col_x * scale;
-    result.linear().col(1) = col_y * scale;
-    result.linear().col(2) = col_z * scale;
-    result.translation() = transform.translation();
-    return result;
-}
-
 auto RandomPose(std::mt19937& rng, float spread, float min_scale, float max_scale) -> Eigen::Affine3f {
     std::uniform_real_distribution<float> unit(-1.0f, 1.0f);
     std::uniform_real_distribution<float> scale(min_scale, max_scale);
@@ -167,14 +149,4 @@ TEST(Raycast, CylinderMatchesOriginalImplementation) {
         ++hits;
     }
     EXPECT_GT(hits, 500);
-}
-
-TEST(Raycast, SnapUprightMatchesOriginalImplementation) {
-    std::mt19937 rng(91011);
-    for (int i = 0; i < 2000; ++i) {
-        const auto transform = RandomPose(rng, 2.0f, 0.5f, 2.0f);
-        const auto expected = ReferenceSnapUpright(transform, Eigen::Vector3f::UnitY());
-        const auto actual = Raycast::SnapUpright(transform, Eigen::Vector3f::UnitY());
-        ASSERT_TRUE(actual.matrix().isApprox(expected.matrix(), 1e-4f)) << "case " << i;
-    }
 }

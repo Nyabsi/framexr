@@ -57,7 +57,6 @@ enum class Axis : uint8_t {
 
 enum class HighlightTest : uint8_t {
     AllowSliding,
-    AutoRealign,
     NotificationSounds,
     Notifications,
     RotateLock,
@@ -65,7 +64,6 @@ enum class HighlightTest : uint8_t {
 
 enum class SystemAction : uint8_t {
     ToggleAllowSliding,
-    ToggleAutoRealign,
     ToggleNotificationSounds,
     ToggleNotifications,
     ToggleRotateLock,
@@ -102,7 +100,6 @@ struct WatchPosition {
 
 using WatchAction = std::variant<WatchHide, WatchSwitchHands, WatchViewAngle, WatchRotation, WatchPosition>;
 
-struct OverlayReset {};
 struct OverlayToggleVisible {};
 struct OverlayToggleImmovable {};
 struct OverlayToggleInteraction {};
@@ -111,8 +108,7 @@ struct OverlayOpacity {
     float delta = 0.0f;
 };
 
-using OverlayAction = std::
-    variant<OverlayReset, OverlayToggleVisible, OverlayToggleImmovable, OverlayToggleInteraction, OverlayOpacity>;
+using OverlayAction = std::variant<OverlayToggleVisible, OverlayToggleImmovable, OverlayToggleInteraction, OverlayOpacity>;
 
 struct ExecButtonAction {
     std::vector<std::string> command;

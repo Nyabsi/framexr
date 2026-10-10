@@ -92,7 +92,7 @@ struct PointerState {
 };
 
 struct GrabData {
-    Eigen::Vector3f offset = Eigen::Vector3f::Zero();
+    Eigen::Affine3f offset = Eigen::Affine3f::Identity();
     OverlayId grabbed_id{};
     std::optional<float> old_curvature;
     bool grab_all = false;
@@ -136,7 +136,7 @@ class Pointer {
     [[nodiscard]] auto NearestHit(OverlayContainer& overlays) const -> std::optional<PointerHit>;
     [[nodiscard]] auto RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
         -> std::optional<RayHit>;
-    auto StartGrab(AppState& app, Overlay& overlay) -> void;
+    auto StartGrab(Overlay& overlay) -> void;
     auto HandleGrabbed(AppState& app, Overlay& overlay) -> void;
 };
 
@@ -171,5 +171,4 @@ class Raycast {
         const Eigen::Affine3f& plane,
         float curvature
     ) -> std::optional<std::pair<float, Eigen::Vector2f>>;
-    static auto SnapUpright(const Eigen::Affine3f& transform, const Eigen::Vector3f& up) -> Eigen::Affine3f;
 };

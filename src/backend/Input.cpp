@@ -26,12 +26,26 @@
 #include <limits>
 #include <numbers>
 
-#include "Anchor.hpp"
 #include "Logger.hpp"
 #include "OverlayContainer.hpp"
 #include "State.hpp"
 
 namespace {
+
+constexpr float kGrabSlideSpeed = 0.05f;
+constexpr float kGrabSlideDeadzone = 0.2f;
+constexpr float kMinGrabDistance = 0.1f;
+constexpr float kMaxGrabDistance = 20.0f;
+constexpr float kMinOverlayScale = 0.1f;
+constexpr float kMaxOverlayScale = 20.0f;
+
+auto SlideAmount(float stick) -> float {
+    if (!std::isfinite(stick)) {
+        return 0.0f;
+    }
+    const float beyond = std::max(std::abs(stick) - kGrabSlideDeadzone, 0.0f) / (1.0f - kGrabSlideDeadzone);
+    return std::copysign(beyond, stick);
+}
 
 template <typename Value>
 auto SetNamed(std::vector<std::pair<std::string, Value>>& entries, const std::string& name, Value value) -> void {
@@ -98,23 +112,13 @@ auto Pointer::NearestHit(OverlayContainer& overlays) const -> std::optional<Poin
     return std::nullopt;
 }
 
-auto Pointer::StartGrab(AppState& app, Overlay& overlay) -> void {
+auto Pointer::StartGrab(Overlay& overlay) -> void {
     interaction.grabbed = GrabData{
-        .offset = Eigen::Affine3f(pose.matrix().inverse()) * overlay.state.transform.translation(),
+        .offset = Eigen::Affine3f(pose.matrix().inverse()) * overlay.state.transform,
         .grabbed_id = overlay.state.id,
         .old_curvature = overlay.state.curvature,
         .grab_all = interaction.mode == PointerMode::Right,
     };
-    app.tasks.Enqueue(
-        ModifyOverlayTask{
-            .selector = std::string(kAnchorName),
-            .modify = [](AppState& state, OverlayState& anchor) -> void {
-                anchor.transform = state.anchor * anchor.LocalTransform();
-                anchor.dirty = true;
-                anchor.want_visible = true;
-            },
-        }
-    );
     LOG_INFO("Hand {}: grabbed {}", index, overlay.state.name);
 }
 
@@ -125,26 +129,30 @@ auto Pointer::HandleGrabbed(AppState& app, Overlay& overlay) -> void {
             LOG_ERROR("Grabbed overlay {} does not exist", static_cast<uint64_t>(state.id));
             return;
         }
-        if (now.click) {
-            interaction.mode = PointerMode::Special;
-            const float current_scale = state.transform.linear().col(0).norm();
-            if ((current_scale < 0.1f && now.scroll_y > 0.0f) || (current_scale > 20.0f && now.scroll_y < 0.0f)) {
-                return;
+        auto& offset = interaction.grabbed->offset;
+        if (const float slide = SlideAmount(now.scroll_y); app.config.allow_sliding && slide != 0.0f) {
+            const float distance = offset.translation().norm();
+            const Eigen::Matrix3f linear = offset.linear();
+            const float scale = linear.col(0).norm();
+            if (distance > 0.0f && scale > 0.0f) {
+                const float wanted = std::clamp(std::fma(slide, kGrabSlideSpeed, distance), kMinGrabDistance, kMaxGrabDistance);
+                const Eigen::Vector3f head = app.input.hmd.translation();
+                const float old_reach = (pose * offset.translation() - head).norm();
+                offset.translation() *= wanted / distance;
+                const float new_reach = (pose * offset.translation() - head).norm();
+                if (old_reach > 0.0f) {
+                    offset.linear() = linear
+                                    * std::clamp(new_reach / old_reach, kMinOverlayScale / scale, kMaxOverlayScale / scale);
+                }
             }
-            state.transform.linear() *= std::fma(0.025f, -now.scroll_y, 1.0f);
-        } else if (app.config.allow_sliding && std::isfinite(now.scroll_y)) {
-            interaction.grabbed->offset.z() -= now.scroll_y * 0.05f;
         }
-        state.transform.translation() = pose * interaction.grabbed->offset;
-        state.Realign(app.input.hmd);
+        state.transform = pose * offset;
         state.dirty = true;
         return;
     }
 
-    if (state.anchored) {
-        const auto saved = Eigen::Affine3f(Raycast::SnapUpright(app.anchor, Eigen::Vector3f::UnitY()).matrix().inverse())
-                         * state.transform;
-        state.saved_transform = saved;
+    if (state.recenter) {
+        const auto relative = state.RememberRelativeToHead(app);
         if (interaction.grabbed && state.curvature != interaction.grabbed->old_curvature) {
             if (state.curvature) {
                 SetNamed(app.config.curve_values, state.name, *state.curvature);
@@ -152,16 +160,10 @@ auto Pointer::HandleGrabbed(AppState& app, Overlay& overlay) -> void {
                 std::erase_if(app.config.curve_values, [&](const auto& entry) -> bool { return entry.first == state.name; });
             }
         }
-        SetNamed(app.config.transform_values, state.name, saved);
+        SetNamed(app.config.transform_values, state.name, relative);
     }
 
     interaction.grabbed.reset();
-    app.tasks.Enqueue(
-        ModifyOverlayTask{
-            .selector = std::string(kAnchorName),
-            .modify = [](AppState&, OverlayState& anchor) -> void { anchor.want_visible = false; },
-        }
-    );
     LOG_INFO("Hand {}: dropped {}", index, state.name);
 }
 
@@ -217,7 +219,7 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
     LOG_TRACE("Hit: {} uv=({}, {}) dist={}", hovered->state.name, hit->uv.x(), hit->uv.y(), hit->dist);
 
     if (now.grab && !before.grab && hovered->state.grabbable) {
-        StartGrab(app, *hovered);
+        StartGrab(*hovered);
         return {.length = hit->dist, .haptics = Haptics{.intensity = 0.25f, .duration = 0.1f, .frequency = 0.1f}};
     }
 
@@ -397,22 +399,4 @@ auto Raycast::Cylinder(
     const float max_angle = 2.0f * (size / (2.0f * radius));
     const float x_angle = std::asin(hit_local.x() / radius);
     return std::pair{t, Eigen::Vector2f(x_angle / max_angle, hit_local.y() / size)};
-}
-
-auto Raycast::SnapUpright(const Eigen::Affine3f& transform, const Eigen::Vector3f& up) -> Eigen::Affine3f {
-    const Eigen::Matrix3f linear = transform.linear();
-    if (std::abs(linear.col(0).dot(up)) >= 0.2f) {
-        return transform;
-    }
-    const float scale = linear.col(0).norm();
-    const Eigen::Vector3f column_z = linear.col(2).normalized();
-    const Eigen::Vector3f column_x = up.cross(column_z);
-    const Eigen::Vector3f column_y = column_z.cross(column_x).normalized();
-
-    Eigen::Matrix3f snapped;
-    snapped << column_x.normalized() * scale, column_y * scale, column_z * scale;
-    Eigen::Affine3f result = Eigen::Affine3f::Identity();
-    result.linear() = snapped;
-    result.translation() = transform.translation();
-    return result;
 }
