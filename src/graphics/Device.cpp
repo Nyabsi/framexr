@@ -346,14 +346,17 @@ auto Device::CreateLogicalDevice(const DeviceCreateInfo& create_info) -> Result<
         }
     }
 
-    graphics_queue_ = std::move(queues[0]);
+    if (queues.empty()) {
+        return Unexpected("The selected device exposes no queues");
+    }
+    graphics_queue_ = std::move(queues.front());
     transfer_queue_ = graphics_queue_.get();
     if (queues.size() == 3) {
         transfer_queue_owned_ = std::move(queues[1]);
         transfer_queue_ = transfer_queue_owned_.get();
-        capture_queue_ = std::move(queues[2]);
+        capture_queue_ = std::move(queues.back());
     } else if (queues.size() == 2) {
-        capture_queue_ = std::move(queues[1]);
+        capture_queue_ = std::move(queues.back());
     }
     return {};
 }
