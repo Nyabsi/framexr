@@ -51,6 +51,7 @@ gui_sources = files(
 
 hid_sources = files(
   'hid/Hid.cpp',
+  'hid/KeyTranslator.cpp',
   'hid/Keymap.cpp',
   'hid/VirtualKey.cpp',
 )

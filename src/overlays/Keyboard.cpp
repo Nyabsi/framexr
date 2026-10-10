@@ -178,6 +178,9 @@ auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void {
     if (const auto it = json.find("auto_labels"); it != json.end() && !it->is_null()) {
         value.auto_labels = it->get<bool>();
     }
+    if (const auto it = json.find("region"); it != json.end() && !it->is_null()) {
+        value.region = it->get<std::string>();
+    }
 }
 
 auto KeyboardLayout::Parse(std::string_view text) -> Result<KeyboardLayout> {
@@ -335,6 +338,7 @@ auto KeyboardState::RefreshLetterCase() -> void {
 KeyControl::KeyControl(std::shared_ptr<KeyboardState> state, VirtualKey key)
     : state_(std::move(state)),
       key_(key),
+      sent_(key),
       latches_(Keyboard::IsLatchingKey(key)) {
 }
 
@@ -345,8 +349,18 @@ auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
     } else if (mode == PointerMode::Middle) {
         state_->modifiers |= state_->alt_modifier;
     }
-    app.hid->SetModifiers(state_->modifiers);
-    Keyboard::SendKey(app, key_, true);
+    sent_ = key_;
+    translated_ = false;
+    uint8_t modifiers = state_->modifiers;
+    if (state_->translator && !latches_) {
+        if (const auto target = state_->translator->Translate(key_, state_->modifiers, state_->caps_lock)) {
+            sent_ = target->key;
+            translated_ = true;
+            modifiers = static_cast<uint8_t>((state_->modifiers & ~(kModShift | kModMeta)) | target->modifiers);
+        }
+    }
+    app.hid->SetModifiers(modifiers);
+    Keyboard::SendKey(app, sent_, true);
     if (latches_) {
         latched_ = !latched_;
         if (key_ == VirtualKey::Caps) {
@@ -356,7 +370,10 @@ auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
 }
 
 auto KeyControl::OnRelease(AppState& app) -> void {
-    Keyboard::SendKey(app, key_, false);
+    Keyboard::SendKey(app, sent_, false);
+    if (translated_) {
+        Keyboard::SetModifiers(app, state_->modifiers);
+    }
     for (const uint8_t modifier : kAutoReleaseModifiers) {
         if ((state_->modifiers & modifier) != 0) {
             state_->modifiers &= static_cast<uint8_t>(~modifier);
@@ -561,8 +578,21 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
     canvas->fg_color = Color("#cad3f5");
     canvas->bg_color = Color("#1e2030");
 
-    const bool has_altgr = keymap && keymap->HasAltGr();
-    const Keymap* label_keymap = layout.auto_labels.value_or(true) ? keymap.get() : nullptr;
+    std::shared_ptr<const Keymap> region_keymap;
+    if (const auto region_name = layout.region.value_or(app.config.keyboard_region); !region_name.empty()) {
+        const auto region = KeyboardRegion::Parse(region_name);
+        if (auto loaded = Keymap::FromNames(region.layout, region.variant)) {
+            region_keymap = std::make_shared<const Keymap>(std::move(*loaded));
+            if (keymap) {
+                state->translator = std::make_shared<const KeyTranslator>(KeyTranslator::Create(region_keymap, keymap));
+            }
+        } else {
+            LOG_ERROR("Keyboard region {}: {}", region_name, loaded.error().Message());
+        }
+    }
+    const Keymap* typing_keymap = region_keymap ? region_keymap.get() : keymap.get();
+    const bool has_altgr = typing_keymap != nullptr && typing_keymap->HasAltGr();
+    const Keymap* label_keymap = layout.auto_labels.value_or(true) ? typing_keymap : nullptr;
 
     const float unit_size = kPixelsPerUnit;
     const float key_height = std::fma(-2.0f, kButtonPadding, unit_size);

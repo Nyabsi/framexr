@@ -30,6 +30,7 @@ unit_tests = executable(
   'framexr-tests',
   'ConfigTest.cpp',
   'KeyboardTest.cpp',
+  'KeyTranslatorTest.cpp',
   'LabelTest.cpp',
   'OscTest.cpp',
   'RaycastTest.cpp',

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "Error.hpp"
 #include "VirtualKey.hpp"
@@ -57,9 +58,11 @@ class Keymap final {
   public:
     static auto FromWayland() -> Result<Keymap>;
     static auto FromX11() -> Result<Keymap>;
+    static auto FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap>;
 
     [[nodiscard]] auto LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string;
     [[nodiscard]] auto HasAltGr() const -> bool;
+    [[nodiscard]] auto KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t;
 
   private:
     Keymap(std::unique_ptr<xkb_context, XkbContextDeleter> context, std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap);

@@ -45,6 +45,11 @@ main_layout:
     - ["LShift", "Oem102", "Z", "X", "C", "V", "B", "N", "M", "Comma", "Period", "Oem2", "RShift", ~, "Up", ~, "KP_1", "KP_2", "KP_3", "KP_Enter"]
     - ["LCtrl", "LSuper", "LAlt", "Space", "Meta", "RSuper", "Menu", "RCtrl", ~, "Left", "Down", "Right", ~, "KP_0", "KP_Decimal", ~]
 
+# Region of this keyboard, as an xkb layout like fi, de or fi(classic).
+# Labels follow it, and keys type its characters on whatever layout your desktop uses.
+# Leave it out to follow keyboard_region from the config, or the desktop layout.
+# region: fi
+
 # When using the purple pointer...
 # None   - No special functionality when using purple pointer (Default)
 # Shift  - Use same functionality as the orange pointer

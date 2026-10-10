@@ -24,8 +24,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
+#include <format>
 #include <memory>
+#include <string_view>
+#include <utility>
 
 #include <xkbcommon/xkbcommon.h>
 
@@ -133,6 +137,27 @@ constexpr wl_registry_listener kRegistryListener{
 
 #endif
 
+constexpr auto kDeadKeyLabels = std::to_array<std::pair<xkb_keysym_t, std::string_view>>({
+    {XKB_KEY_dead_grave, "`"},
+    {XKB_KEY_dead_acute, "´"},
+    {XKB_KEY_dead_circumflex, "^"},
+    {XKB_KEY_dead_tilde, "~"},
+    {XKB_KEY_dead_macron, "¯"},
+    {XKB_KEY_dead_breve, "˘"},
+    {XKB_KEY_dead_abovedot, "˙"},
+    {XKB_KEY_dead_diaeresis, "¨"},
+    {XKB_KEY_dead_abovering, "˚"},
+    {XKB_KEY_dead_doubleacute, "˝"},
+    {XKB_KEY_dead_caron, "ˇ"},
+    {XKB_KEY_dead_cedilla, "¸"},
+    {XKB_KEY_dead_ogonek, "˛"},
+});
+
+auto DeadKeyLabel(xkb_keysym_t symbol) -> std::string {
+    const auto* found = std::ranges::find(kDeadKeyLabels, symbol, &std::pair<xkb_keysym_t, std::string_view>::first);
+    return found == kDeadKeyLabels.end() ? std::string() : std::string(found->second);
+}
+
 } // namespace
 
 auto XkbContextDeleter::operator()(xkb_context* context) const -> void {
@@ -223,6 +248,41 @@ auto Keymap::FromX11() -> Result<Keymap> {
 #endif
 }
 
+auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
+    std::unique_ptr<xkb_context, XkbContextDeleter> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS));
+    if (!context) {
+        return Unexpected("Could not create xkb context");
+    }
+    const std::string layout_name(layout);
+    const std::string variant_name(variant);
+    const xkb_rule_names names{
+        .rules = nullptr,
+        .model = nullptr,
+        .layout = layout_name.c_str(),
+        .variant = variant_name.empty() ? nullptr : variant_name.c_str(),
+        .options = nullptr,
+    };
+    std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap(
+        xkb_keymap_new_from_names(context.get(), &names, XKB_KEYMAP_COMPILE_NO_FLAGS)
+    );
+    if (!keymap) {
+        return Unexpected(std::format("Unknown keyboard region '{}'", layout));
+    }
+    return Keymap(std::move(context), std::move(keymap));
+}
+
+auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
+    std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
+    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
+        if ((modifiers & modifier) != 0) {
+            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
+                xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
+            }
+        }
+    }
+    return xkb_state_key_get_one_sym(state.get(), static_cast<xkb_keycode_t>(key));
+}
+
 auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
     std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
     if (modifier > 0) {
@@ -233,7 +293,7 @@ auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string 
     const auto keycode = static_cast<xkb_keycode_t>(key);
     const auto size = xkb_state_key_get_utf8(state.get(), keycode, nullptr, 0);
     if (size <= 0) {
-        return {};
+        return DeadKeyLabel(xkb_state_key_get_one_sym(state.get(), keycode));
     }
     std::string label(static_cast<size_t>(size) + 1, '\0');
     xkb_state_key_get_utf8(state.get(), keycode, label.data(), label.size());

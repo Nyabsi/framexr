@@ -37,6 +37,7 @@
 #include "Canvas.hpp"
 #include "Control.hpp"
 #include "Error.hpp"
+#include "KeyTranslator.hpp"
 #include "Keymap.hpp"
 #include "Overlay.hpp"
 #include "Process.hpp"
@@ -66,6 +67,7 @@ struct KeyboardLayout {
     std::map<std::string, std::vector<std::string>, std::less<>> macros;
     std::map<std::string, std::vector<std::string>, std::less<>> labels;
     std::optional<bool> auto_labels;
+    std::optional<std::string> region;
 
     static auto Parse(std::string_view text) -> Result<KeyboardLayout>;
 
@@ -96,6 +98,7 @@ struct KeyboardState {
     uint8_t modifiers = 0;
     uint8_t alt_modifier = 0;
     bool caps_lock = false;
+    std::shared_ptr<const KeyTranslator> translator;
     std::vector<Process> processes;
     std::vector<LetterLabel> letters;
 
@@ -117,8 +120,10 @@ class KeyControl final : public Control {
   private:
     std::shared_ptr<KeyboardState> state_;
     VirtualKey key_;
+    VirtualKey sent_;
     bool latches_;
     bool latched_ = false;
+    bool translated_ = false;
 };
 
 class ModifierControl final : public Control {

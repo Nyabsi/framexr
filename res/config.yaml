@@ -17,6 +17,12 @@ watch_scale: 1.0
 # Default: keychron-v1-ansi
 keyboard_profile: keychron-v1-ansi
 
+# Region of the keyboard, as an xkb layout like fi, de or fi(classic). Labels follow it, and keys type
+# its characters by sending whatever keys produce them on your desktop layout. A profile's own region
+# wins over this. Empty follows the desktop layout.
+# Default: ""
+keyboard_region: ""
+
 # Enable / disable sliding windows back and forth with the scroll action
 # Default: true
 allow_sliding: true

@@ -99,6 +99,15 @@ TEST(OverlayRender, KeyboardWithSessionKeymap) {
     RenderOverlay(**keyboard, "keyboard");
 }
 
+TEST(OverlayRender, KeyboardWithFinnishRegion) {
+    auto& app = TestApp::Get();
+    app.config.keyboard_region = "fi";
+    auto keyboard = Keyboard::Create(app, nullptr);
+    app.config.keyboard_region.clear();
+    ASSERT_TRUE(keyboard.has_value());
+    RenderOverlay(**keyboard, "keyboard-fi");
+}
+
 TEST(OverlayRender, SettingsPanel) {
     auto settings = CustomUi::Create(TestApp::Get(), "settings");
     ASSERT_TRUE(settings.has_value());
