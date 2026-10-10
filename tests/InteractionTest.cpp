@@ -326,7 +326,7 @@ TEST_F(Interaction, GrabFollowsControllerRotationFreely) {
     );
     Pointer(0).pose = turned;
     const auto held = Frame({.grab = true});
-    EXPECT_FLOAT_EQ(held[0].length, 0.1f);
+    EXPECT_NEAR(held[0].length, 2.0f, 1e-4f);
 
     const auto* overlay = overlays_->ById(id);
     ASSERT_NE(overlay, nullptr);
@@ -744,6 +744,27 @@ TEST_F(Interaction, FootprintDescribesTheEyeRelativeToTheScreen) {
     EXPECT_TRUE(footprint->size.isApprox(Eigen::Vector2f(1.0f, 0.5f), 1e-5f));
     EXPECT_TRUE(footprint->display_pixels_per_radian.isApprox(density));
     EXPECT_FALSE(OverlayLayout::MeasureFootprint(*overlays_->ById(id), app_->input.hmd, Eigen::Vector2f::Zero()).has_value());
+}
+
+TEST_F(Interaction, GrabbedLaserPointsAtTheOverlayCenter) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.3f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+    Frame({.grab = true});
+    const auto results = Frame({.grab = true});
+
+    const Eigen::Vector3f center(0.3f, 0.0f, -2.0f);
+    ASSERT_TRUE(results[0].target.has_value());
+    EXPECT_TRUE(results[0].target->isApprox(center, 1e-5f));
+    EXPECT_NEAR(results[0].length, center.norm(), 1e-5f);
+    const Eigen::Affine3f line = results[0].LinePose(Pointer(0).pose);
+    const Eigen::Matrix3f line_linear = line.linear();
+    EXPECT_TRUE((line_linear * -Eigen::Vector3f::UnitZ()).isApprox(center.normalized(), 1e-5f));
+    EXPECT_TRUE(line.translation().isApprox(Pointer(0).pose.translation()));
+    EXPECT_TRUE(overlays_->ById(id)->state.transform.translation().isApprox(center, 1e-6f));
+
+    const auto released = Frame({});
+    EXPECT_FALSE(released[0].target.has_value());
 }
 
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {

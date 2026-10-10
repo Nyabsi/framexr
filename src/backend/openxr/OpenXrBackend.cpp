@@ -612,7 +612,7 @@ auto OpenXrMainLoop::Run(std::atomic<bool>& running) -> Result<> {
             const auto& pointer = app_->input.pointers.at(i);
             lines_->DrawFrom(
                 pointer_lines_.at(i),
-                pointer.pose,
+                results.at(i).LinePose(pointer.pose),
                 results.at(i).length,
                 static_cast<size_t>(pointer.interaction.mode) + 1,
                 app_->input.hmd

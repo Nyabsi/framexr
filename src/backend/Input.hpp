@@ -116,6 +116,9 @@ struct InteractionState {
 struct InteractionResult {
     float length = 0.0f;
     std::optional<Haptics> haptics;
+    std::optional<Eigen::Vector3f> target;
+
+    [[nodiscard]] auto LinePose(const Eigen::Affine3f& pointer) const -> Eigen::Affine3f;
 };
 
 class Pointer {

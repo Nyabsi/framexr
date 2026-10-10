@@ -58,6 +58,31 @@ auto SetNamed(std::vector<std::pair<std::string, Value>>& entries, const std::st
 
 } // namespace
 
+auto InteractionResult::LinePose(const Eigen::Affine3f& pointer) const -> Eigen::Affine3f {
+    if (!target) {
+        return pointer;
+    }
+    const Eigen::Vector3f aim = *target;
+    const Eigen::Vector3f origin = pointer.translation();
+    const Eigen::Vector3f direction = aim - origin;
+    if (direction.dot(direction) <= 0.0f) {
+        return pointer;
+    }
+    const Eigen::Matrix3f linear = pointer.linear();
+    const Eigen::Vector3f forward = linear * -Eigen::Vector3f::UnitZ();
+    Eigen::Affine3f line = Eigen::Affine3f::Identity();
+    const Eigen::Vector3f aim_direction = direction.normalized();
+    const Eigen::Vector3f axis = forward.cross(aim_direction);
+    const float turn = std::atan2(axis.norm(), forward.dot(aim_direction));
+    Eigen::Vector3f turn_axis = linear.col(1);
+    if (axis.norm() > 1e-6f) {
+        turn_axis = axis.normalized();
+    }
+    line.linear() = Eigen::AngleAxisf(turn, turn_axis).toRotationMatrix() * linear;
+    line.translation() = origin;
+    return line;
+}
+
 Pointer::Pointer(size_t pointer_index)
     : index(pointer_index),
       last_click(std::chrono::steady_clock::now()),
@@ -185,6 +210,15 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
     if (interaction.grabbed) {
         if (auto* grabbed = overlays.ById(interaction.grabbed->grabbed_id)) {
             HandleGrabbed(app, overlays, *grabbed);
+            if (interaction.grabbed) {
+                const auto meta = grabbed->backend->Meta();
+                const Eigen::Matrix4f frame = meta ? meta->transform.matrix() : Eigen::Matrix4f::Identity();
+                const Eigen::Matrix4f placed = grabbed->state.transform.matrix() * frame;
+                const Eigen::Vector3f center = placed.block<3, 1>(0, 3);
+                const Eigen::Vector3f origin = pose.translation();
+                const Eigen::Vector3f reach = center - origin;
+                return {.length = std::sqrt(reach.dot(reach)), .target = center};
+            }
         } else {
             LOG_WARN("Grabbed overlay {} does not exist", static_cast<uint64_t>(interaction.grabbed->grabbed_id));
             interaction.grabbed.reset();

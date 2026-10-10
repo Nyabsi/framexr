@@ -440,7 +440,7 @@ auto OpenVrSession::Run(std::atomic<bool>& running) -> Result<> {
             const auto& pointer = app_->input.pointers[i];
             lines_.DrawFrom(
                 pointer_lines_[i],
-                pointer.pose,
+                results[i].LinePose(pointer.pose),
                 results[i].length,
                 static_cast<size_t>(pointer.interaction.mode) + 1,
                 app_->input.hmd
