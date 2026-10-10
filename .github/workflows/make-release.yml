@@ -1,0 +1,72 @@
+name: Make Release
+
+on:
+  push:
+    tags:
+      - 'v**'
+
+env:
+  APPDIR: FrameXR.AppDir
+
+jobs:
+  make_release:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Prepare Environment
+        run: |
+          dnf install -y git gcc-c++ meson ninja-build glslang clang-tools-extra pkgconf-pkg-config vulkan-loader-devel wayland-devel wayland-protocols-devel libxkbcommon-devel libxkbcommon-x11-devel libxcb-devel dbus-devel freetype-devel fontconfig-devel pipewire-devel openxr-devel mesa-libgbm-devel libdrm-devel mesa-libEGL-devel mesa-libGLES-devel libX11-devel libXext-devel libXrandr-devel wget file desktop-file-utils
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test -f linuxdeploy-x86_64.AppImage || wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage
+          test -d ${APPDIR} && rm -rf ${APPDIR}
+          mkdir -p ${APPDIR}/usr/bin
+          meson setup build --buildtype=release
+          ninja -C build
+          cp build/src/framexr ${APPDIR}/usr/bin
+          chmod +x ${APPDIR}/usr/bin/framexr
+
+      - name: Package AppImage
+        run: |
+          export VERSION=$GITHUB_REF_NAME
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run -dframexr.desktop -iframexr.png --appdir=${APPDIR} --output appimage --exclude-library '*libpipewire*'
+          mv FrameXR-$VERSION-x86_64.AppImage FrameXR-x86_64.AppImage
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_KEY }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: FrameXR ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+
+      - name: Upload ELF
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_KEY }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/src/framexr
+          asset_name: framexr
+          asset_content_type: application/octet-stream
+
+      - name: Upload AppImage
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_KEY }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./FrameXR-x86_64.AppImage
+          asset_name: FrameXR-${{ github.ref_name }}-x86_64.AppImage
+          asset_content_type: application/octet-stream

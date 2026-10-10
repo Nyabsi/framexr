@@ -1,0 +1,48 @@
+name: Build AppImage
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+
+env:
+  APPDIR: FrameXR.AppDir
+
+jobs:
+  build_appimage:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Prepare Environment
+        run: |
+          dnf install -y git gcc-c++ meson ninja-build glslang clang-tools-extra pkgconf-pkg-config vulkan-loader-devel wayland-devel wayland-protocols-devel libxkbcommon-devel libxkbcommon-x11-devel libxcb-devel dbus-devel freetype-devel fontconfig-devel pipewire-devel openxr-devel mesa-libgbm-devel libdrm-devel mesa-libEGL-devel mesa-libGLES-devel libX11-devel libXext-devel libXrandr-devel wget file desktop-file-utils
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test -f linuxdeploy-x86_64.AppImage || wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy-x86_64.AppImage
+          test -d ${APPDIR} && rm -rf ${APPDIR}
+          mkdir -p ${APPDIR}/usr/bin
+          meson setup build --buildtype=release
+          ninja -C build
+          mv build/src/framexr ${APPDIR}/usr/bin
+          chmod +x ${APPDIR}/usr/bin/framexr
+
+      - name: Package AppImage
+        run: |
+          export VERSION=$GITHUB_REF_NAME
+          ./linuxdeploy-x86_64.AppImage --appimage-extract-and-run -dframexr.desktop -iframexr.png --appdir=${APPDIR} --output appimage --exclude-library '*libpipewire*'
+          mv FrameXR-$VERSION-x86_64.AppImage FrameXR-x86_64.AppImage
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrameXR-${{ github.ref_name }}-x86_64.AppImage
+          path: ./FrameXR-x86_64.AppImage

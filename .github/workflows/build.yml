@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [ "main", "staging" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            options: ""
+          - name: wayland-openvr
+            options: "-Dx11=disabled -Dopenxr=disabled -Dosc=disabled"
+          - name: wayland-openxr
+            options: "-Dx11=disabled -Dopenvr=disabled -Dosc=disabled"
+          - name: wayland-openxr-openvr
+            options: "-Dx11=disabled -Dosc=disabled"
+          - name: x11-openvr
+            options: "-Dwayland=disabled -Dopenxr=disabled -Dosc=disabled"
+          - name: x11-openxr
+            options: "-Dwayland=disabled -Dopenvr=disabled -Dosc=disabled"
+    name: ${{ matrix.name }}
+    steps:
+    - name: Prepare Environment
+      run: dnf install -y git gcc-c++ meson ninja-build glslang clang-tools-extra pkgconf-pkg-config vulkan-loader-devel wayland-devel wayland-protocols-devel libxkbcommon-devel libxkbcommon-x11-devel libxcb-devel dbus-devel freetype-devel fontconfig-devel pipewire-devel openxr-devel mesa-libgbm-devel libdrm-devel mesa-libEGL-devel mesa-libGLES-devel libX11-devel libXext-devel libXrandr-devel
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Configure
+      run: meson setup build ${{ matrix.options }}
+    - name: Build
+      run: ninja -C build
+    - name: Run tests and format check
+      run: meson test -C build --print-errorlogs --no-suite integration
+    - name: Run clang-tidy
+      if: matrix.name == 'default'
+      run: find src tests -name '*.cpp' | xargs -P "$(nproc)" -n 1 clang-tidy -p build --quiet
