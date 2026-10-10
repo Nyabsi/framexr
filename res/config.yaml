@@ -27,6 +27,10 @@ keyboard_region: ""
 # Default: true
 allow_sliding: true
 
+# Smooth out hand tremor while holding an overlay, without slowing down deliberate moves
+# Default: true
+grab_smoothing: true
+
 # Smooth screens with a low-pass filter sized to how many screen pixels land on each headset pixel,
 # reducing shimmer and moire on small text
 # Default: true

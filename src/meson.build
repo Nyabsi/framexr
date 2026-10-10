@@ -32,6 +32,7 @@ state_sources = files(
 
 backend_sources = files(
   'backend/Input.cpp',
+  'backend/OneEuroFilter.cpp',
   'backend/Notifications.cpp',
   'backend/Osc.cpp',
   'backend/Overlay.cpp',

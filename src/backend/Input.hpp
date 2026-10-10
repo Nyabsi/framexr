@@ -30,6 +30,7 @@
 
 #include <Eigen/Geometry>
 
+#include "OneEuroFilter.hpp"
 #include "Process.hpp"
 
 class AppState;
@@ -127,6 +128,7 @@ class Pointer {
     PointerState now;
     PointerState before;
     std::chrono::steady_clock::time_point last_click;
+    PoseFilter grab_filter;
     InteractionState interaction;
 
     auto Interact(AppState& app, OverlayContainer& overlays) -> InteractionResult;
@@ -145,6 +147,8 @@ class InputState {
 
     Eigen::Affine3f hmd = Eigen::Affine3f::Identity();
     float ipd = 0.0f;
+    std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
+    float delta_seconds = 0.0f;
     std::array<Pointer, 2> pointers;
     std::vector<TrackedDevice> devices;
 

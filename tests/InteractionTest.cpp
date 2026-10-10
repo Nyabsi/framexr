@@ -43,6 +43,7 @@
 namespace {
 
 constexpr VkExtent2D kPanelExtent{200, 100};
+constexpr float kFrameSeconds = 1.0f / 90.0f;
 
 class Interaction : public testing::Test {
   protected:
@@ -52,6 +53,7 @@ class Interaction : public testing::Test {
         app_->config.transform_values.clear();
         app_->config.curve_values.clear();
         app_->config.allow_sliding = true;
+        app_->config.grab_smoothing = false;
         app_->screens.clear();
         app_->input.hmd = Eigen::Affine3f::Identity();
         overlays_ = OverlayContainer::CreateEmpty();
@@ -86,6 +88,7 @@ class Interaction : public testing::Test {
 
     auto Frame(const PointerState& left, const PointerState& right = {}) -> std::array<InteractionResult, 2> {
         app_->input.PreUpdate();
+        app_->input.delta_seconds = kFrameSeconds;
         app_->input.pointers[0].now = left;
         app_->input.pointers[1].now = right;
         app_->input.PostUpdate(app_->config);
@@ -400,6 +403,43 @@ TEST_F(Interaction, StickDriftDoesNotMoveOrResize) {
     const Eigen::Matrix3f linear = overlay->state.transform.linear();
     EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 0.0f, -2.0f), 1e-6f));
     EXPECT_NEAR(linear.col(0).norm(), 1.0f, 1e-6f);
+}
+
+TEST_F(Interaction, GrabSmoothingRemovesHandTremor) {
+    app_->config.grab_smoothing = true;
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+    Frame({.grab = true});
+
+    float wobble = 0.0f;
+    for (int frame = 0; frame < 90; ++frame) {
+        Aim(0, {frame % 2 == 0 ? 0.002f : -0.002f, 0.0f, 0.0f});
+        Frame({.grab = true});
+        if (frame > 30) {
+            wobble = std::max(wobble, std::abs(overlays_->ById(id)->state.transform.translation().x()));
+        }
+    }
+    EXPECT_LT(wobble, 0.0005f);
+}
+
+TEST_F(Interaction, GrabSmoothingKeepsUpWithDeliberateMoves) {
+    app_->config.grab_smoothing = true;
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+    Frame({.grab = true});
+
+    for (int frame = 1; frame <= 30; ++frame) {
+        Aim(0, {0.5f * static_cast<float>(frame) / 30.0f, 0.0f, 0.0f});
+        Frame({.grab = true});
+    }
+    const float lag = 0.5f - overlays_->ById(id)->state.transform.translation().x();
+    EXPECT_LT(lag, 0.05f);
+    for (int frame = 0; frame < 30; ++frame) {
+        Frame({.grab = true});
+    }
+    EXPECT_NEAR(overlays_->ById(id)->state.transform.translation().x(), 0.5f, 0.001f);
 }
 
 TEST_F(Interaction, ShowPlacesOverlaysRelativeToCurrentHead) {

@@ -33,6 +33,9 @@
 namespace {
 
 constexpr float kGrabSlideSpeed = 0.05f;
+constexpr OneEuroSettings kGrabPositionSmoothing{.min_cutoff = 1.5f, .beta = 10.0f, .derivative_cutoff = 1.0f};
+constexpr OneEuroSettings kGrabRotationSmoothing{.min_cutoff = 1.5f, .beta = 3.0f, .derivative_cutoff = 1.0f};
+constexpr float kMaxDeltaSeconds = 0.1f;
 constexpr float kGrabSlideDeadzone = 0.2f;
 constexpr float kMinGrabDistance = 0.1f;
 constexpr float kMaxGrabDistance = 20.0f;
@@ -55,7 +58,10 @@ auto SetNamed(std::vector<std::pair<std::string, Value>>& entries, const std::st
 
 } // namespace
 
-Pointer::Pointer(size_t pointer_index) : index(pointer_index), last_click(std::chrono::steady_clock::now()) {
+Pointer::Pointer(size_t pointer_index)
+    : index(pointer_index),
+      last_click(std::chrono::steady_clock::now()),
+      grab_filter(kGrabPositionSmoothing, kGrabRotationSmoothing) {
 }
 
 auto Pointer::RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
@@ -119,6 +125,8 @@ auto Pointer::StartGrab(Overlay& overlay) -> void {
         .old_curvature = overlay.state.curvature,
         .grab_all = interaction.mode == PointerMode::Right,
     };
+    grab_filter.Reset();
+    grab_filter.Filter(pose, 0.0f);
     LOG_INFO("Hand {}: grabbed {}", index, overlay.state.name);
 }
 
@@ -130,6 +138,7 @@ auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& 
             return;
         }
         auto& offset = interaction.grabbed->offset;
+        const Eigen::Affine3f hand = app.config.grab_smoothing ? grab_filter.Filter(pose, app.input.delta_seconds) : pose;
         if (const float slide = SlideAmount(now.scroll_y); app.config.allow_sliding && slide != 0.0f) {
             const float distance = offset.translation().norm();
             const Eigen::Matrix3f linear = offset.linear();
@@ -137,16 +146,16 @@ auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& 
             if (distance > 0.0f && scale > 0.0f) {
                 const float wanted = std::clamp(std::fma(slide, kGrabSlideSpeed, distance), kMinGrabDistance, kMaxGrabDistance);
                 const Eigen::Vector3f head = app.input.hmd.translation();
-                const float old_reach = (pose * offset.translation() - head).norm();
+                const float old_reach = (hand * offset.translation() - head).norm();
                 offset.translation() *= wanted / distance;
-                const float new_reach = (pose * offset.translation() - head).norm();
+                const float new_reach = (hand * offset.translation() - head).norm();
                 if (old_reach > 0.0f) {
                     offset.linear() = linear
                                     * std::clamp(new_reach / old_reach, kMinOverlayScale / scale, kMaxOverlayScale / scale);
                 }
             }
         }
-        state.transform = pose * offset;
+        state.transform = hand * offset;
         state.dirty = true;
         return;
     }
@@ -261,6 +270,9 @@ InputState::InputState() : pointers{Pointer(0), Pointer(1)} {
 }
 
 auto InputState::PreUpdate() -> void {
+    const auto now = std::chrono::steady_clock::now();
+    delta_seconds = std::min(std::chrono::duration<float>(now - time).count(), kMaxDeltaSeconds);
+    time = now;
     for (auto& pointer : pointers) {
         pointer.before = pointer.now;
     }
