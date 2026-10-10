@@ -56,6 +56,7 @@ class OverlayContainer final {
     auto Remove(const OverlaySelector& selector) -> std::unique_ptr<Overlay>;
     auto Update(AppState& app) -> Result<std::vector<std::unique_ptr<Overlay>>>;
     auto ShowHide(AppState& app) -> void;
+    auto Recenter(AppState& app) -> void;
 
   private:
     OverlayContainer();

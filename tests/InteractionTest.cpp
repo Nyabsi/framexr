@@ -404,6 +404,21 @@ TEST_F(Interaction, ShowWhileLyingDownPlacesOverlayWhereYouLook) {
     EXPECT_TRUE(overlay->state.transform.translation().isApprox(Eigen::Vector3f(0.0f, 1.5f, 0.0f), 1e-5f));
 }
 
+TEST_F(Interaction, RecenterMovesOnlyVisibleOverlays) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto shown = AddPanel("shown", {0.0f, 0.0f, -1.0f}, events);
+    const auto hidden = AddPanel("hidden", {5.0f, 0.0f, -1.0f}, events);
+    overlays_->ById(hidden)->state.want_visible = false;
+    for (const auto id : {shown, hidden}) {
+        overlays_->ById(id)->state.saved_transform = Eigen::Affine3f(Eigen::Translation3f(0.0f, 0.0f, -1.0f));
+    }
+
+    app_->input.hmd = Eigen::Translation3f(3.0f, 1.0f, 0.0f) * Eigen::Affine3f::Identity();
+    overlays_->Recenter(*app_);
+    EXPECT_TRUE(overlays_->ById(shown)->state.transform.translation().isApprox(Eigen::Vector3f(3.0f, 1.0f, -1.0f), 1e-5f));
+    EXPECT_TRUE(overlays_->ById(hidden)->state.transform.translation().isApprox(Eigen::Vector3f(5.0f, 0.0f, -1.0f), 1e-5f));
+}
+
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);

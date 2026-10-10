@@ -290,3 +290,12 @@ auto OverlayContainer::ShowHide(AppState& app) -> void {
         }
     }
 }
+
+auto OverlayContainer::Recenter(AppState& app) -> void {
+    for (auto& overlay : overlays_) {
+        auto& state = overlay->state;
+        if (state.want_visible && state.recenter && state.relative_to == RelativeTo::None) {
+            state.Reset(app, false);
+        }
+    }
+}

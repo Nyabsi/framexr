@@ -59,6 +59,7 @@ auto ParseEnum(const nlohmann::json& json, const std::array<std::pair<Enum, std:
 
 constexpr auto kSystemActions = std::to_array<std::pair<SystemAction, std::string_view>>({
     {SystemAction::ToggleAllowSliding, "ToggleAllowSliding"},
+    {SystemAction::Recenter, "Recenter"},
     {SystemAction::ToggleNotificationSounds, "ToggleNotificationSounds"},
     {SystemAction::ToggleNotifications, "ToggleNotifications"},
     {SystemAction::ToggleRotateLock, "ToggleRotateLock"},
@@ -408,6 +409,7 @@ auto ModularButton::RunSystem(AppState& app, SystemAction action) -> void {
         config.allow_sliding = !config.allow_sliding;
         SubmitSystemToast(app, std::format("Sliding is {}.", state_name(config.allow_sliding)));
         break;
+    case SystemAction::Recenter: app.tasks.Enqueue(SystemTask{RecenterTask{}}); break;
     case SystemAction::ToggleRotateLock:
         config.space_rotate_unlocked = !config.space_rotate_unlocked;
         SubmitSystemToast(app, std::format("Space rotate axis lock now {}.", state_name(!config.space_rotate_unlocked)));

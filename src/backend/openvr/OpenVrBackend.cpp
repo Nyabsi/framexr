@@ -289,8 +289,10 @@ auto OpenVrSession::RunSystemTask(const SystemTask& task) -> void {
                 playspace_.FixFloor(app_->input);
             } else if constexpr (std::is_same_v<TaskType, ResetPlayspaceTask>) {
                 playspace_.ResetOffset(app_->input);
-            } else {
+            } else if constexpr (std::is_same_v<TaskType, ShowHideTask>) {
                 overlays_->ShowHide(*app_);
+            } else {
+                overlays_->Recenter(*app_);
             }
         },
         task

@@ -473,6 +473,8 @@ auto OpenXrMainLoop::RunSystemTask(const SystemTask& task) -> void {
                 }
             } else if constexpr (std::is_same_v<TaskType, ShowHideTask>) {
                 overlays_->ShowHide(*app_);
+            } else if constexpr (std::is_same_v<TaskType, RecenterTask>) {
+                overlays_->Recenter(*app_);
             }
         },
         task

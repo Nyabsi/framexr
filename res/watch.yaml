@@ -59,9 +59,21 @@ elements:
         action:
           Opacity: { delta: -0.025 }
 
+  # Recenter button: bring visible overlays back in front of your current view
+  - type: Button
+    rect: [82, 162, 48, 36]
+    corner_radius: 4
+    font_size: 15
+    fg_color: "#24273a"
+    bg_color: "#8aadf4"
+    text: Ctr
+    click_up:
+      - type: System
+        action: Recenter
+
   # bottom row, of keyboard + overlays
   - type: OverlayList
-    rect: [82, 160, 318, 40]
+    rect: [134, 160, 266, 40]
     corner_radius: 4
     font_size: 15
     fg_color: "#cad3f5"
