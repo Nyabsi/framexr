@@ -1,6 +1,6 @@
 # FrameXR
 
-> [!INFO]
+> [!NOTE]
 > This project is a C++ rewrite of [wlx-overlay-s](https://github.com/galister/wlx-overlay-s) (now [WayVR](https://github.com/wayvr-org/wayvr)), originally written in Rust. It was branched off release [v25.4.2](https://github.com/wayvr-org/wayvr/releases/tag/v25.4.2).
 
 A lightweight OpenXR/OpenVR overlay for Wayland and X11 desktops.
