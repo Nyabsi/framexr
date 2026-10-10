@@ -420,7 +420,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     );
 
     canvas->bg_color = Color("#181926");
-    canvas->Panel(0.0f, 0.0f, width, height, 12.0f);
+    canvas->Panel(0.0f, 0.0f, width, height, 16.0f);
     canvas->font_size = 18;
     canvas->fg_color = Color("#cad3f5");
     canvas->bg_color = Color("#1e2030");

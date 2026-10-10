@@ -291,7 +291,20 @@ auto Canvas::RenderRoundedRect(
     const auto& rect = control.rect;
     ASSIGN_OR_RETURN(auto vertices, device_->UploadVertices({width_, height_}, rect.x, rect.y, rect.w, rect.h));
     const float radius = std::min({control.corner_radius, rect.w / 2.0f, rect.h / 2.0f});
-    const std::array uniform{color.x(), color.y(), color.z(), color.w(), radius / rect.w, radius / rect.h};
+    const std::array uniform{
+        color.x(),
+        color.y(),
+        color.z(),
+        color.w(),
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        rect.w,
+        rect.h,
+        radius,
+        0.0f,
+    };
     ASSIGN_OR_RETURN(auto set, pipeline.CreateUniformSet(0, uniform));
     command_buffer.Draw(pipeline.CreatePass({width_, height_}, std::move(vertices), {std::move(set)}));
     return {};
