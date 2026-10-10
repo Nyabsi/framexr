@@ -22,4 +22,4 @@ foreach shader : [
   )
 endforeach
 
-shader_embed_dir = meson.current_build_dir()
+shader_embed_dir = import('fs').relative_to(meson.current_build_dir(), meson.global_build_root())
