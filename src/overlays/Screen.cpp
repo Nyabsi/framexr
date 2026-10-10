@@ -61,6 +61,9 @@
 namespace {
 
 constexpr float kCursorSize = 16.0f / 1440.0f;
+constexpr float kScreenDistance = 1.0f;
+constexpr float kScreenGap = 0.05f;
+constexpr float kScreenTilt = 0.1745f;
 constexpr uint32_t kMaxScreenHeight = 2560;
 
 const auto kStart = std::chrono::steady_clock::now();
@@ -534,10 +537,38 @@ auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, F
     state.recenter = true;
     state.interactable = true;
     state.spawn_scale = 1.5f * config.desktop_view_scale;
-    state.spawn_point = Eigen::Vector3f(0.0f, 0.0f, -1.0f);
+    state.spawn_point = Eigen::Vector3f(0.0f, 0.0f, -kScreenDistance);
     state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
     state.interaction_transform = interaction_transform;
     return state;
+}
+
+auto Screens::ArrangeInFrontOfHead(std::vector<ScreenOverlay>& screens) -> void {
+    std::vector<ScreenOverlay*> ordered;
+    ordered.reserve(screens.size());
+    for (auto& screen : screens) {
+        ordered.push_back(&screen);
+    }
+    std::ranges::sort(ordered, [](const ScreenOverlay* a, const ScreenOverlay* b) -> bool {
+        const auto& left = a->desktop_position;
+        const auto& right = b->desktop_position;
+        return left.x() != right.x() ? left.x() < right.x() : left.y() < right.y();
+    });
+
+    const float middle = (static_cast<float>(ordered.size()) - 1.0f) / 2.0f;
+    for (size_t i = 0; i < ordered.size(); ++i) {
+        auto& state = ordered[i]->state;
+        const float step = 2.0f * std::atan((state.spawn_scale + kScreenGap) / (2.0f * kScreenDistance));
+        const float angle = (static_cast<float>(i) - middle) * step;
+        state.spawn_point = kScreenDistance
+                          * Eigen::Vector3f(
+                                std::sin(angle) * std::cos(kScreenTilt),
+                                -std::sin(kScreenTilt),
+                                -std::cos(angle) * std::cos(kScreenTilt)
+                          );
+        state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, Eigen::Vector3f::UnitY()))
+                             * Eigen::Quaternionf(Eigen::AngleAxisf(-kScreenTilt, Eigen::Vector3f::UnitX())) * state.spawn_rotation;
+    }
 }
 
 auto Screens::LoadTokens() -> Result<std::map<std::string, std::string>> {
@@ -699,7 +730,12 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
         auto state = CreateState(output.name, output.logical_size, transform, app.config);
         ScreenMeta meta{.name = output.name, .id = state.id, .native_handle = output.id};
         auto backend = std::make_unique<SplitOverlayBackend>(std::move(renderer), std::move(interaction));
-        screens.push_back({.meta = std::move(meta), .state = std::move(state), .backend = std::move(backend)});
+        screens.push_back({
+            .meta = std::move(meta),
+            .state = std::move(state),
+            .backend = std::move(backend),
+            .desktop_position = output.logical_position,
+        });
     }
 
     if (tokens != original_tokens) {
@@ -796,7 +832,12 @@ auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverl
             std::make_unique<ScreenRenderer>(monitor->name, std::make_unique<PipewireCapture>(monitor->name, stream.node_id)),
             std::make_unique<ScreenInteraction>(position, size, FrameTransform::Normal)
         );
-        screens.push_back({.meta = std::move(meta), .state = std::move(state), .backend = std::move(backend)});
+        screens.push_back({
+            .meta = std::move(meta),
+            .state = std::move(state),
+            .backend = std::move(backend),
+            .desktop_position = {monitor->x, monitor->y},
+        });
     }
 
     app.hid->SetDesktopExtent(extent);
@@ -841,11 +882,17 @@ auto Screens::CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>> {
         );
         ScreenMeta meta{.name = monitor->name, .id = state.id, .native_handle = 0};
         const auto name = monitor->name;
+        const Eigen::Vector2i desktop_position(monitor->x, monitor->y);
         auto backend = std::make_unique<SplitOverlayBackend>(
             std::make_unique<ScreenRenderer>(name, std::make_unique<XshmCapture>(std::move(monitor))),
             std::make_unique<ScreenInteraction>(position, size, FrameTransform::Normal)
         );
-        screens.push_back({.meta = std::move(meta), .state = std::move(state), .backend = std::move(backend)});
+        screens.push_back({
+            .meta = std::move(meta),
+            .state = std::move(state),
+            .backend = std::move(backend),
+            .desktop_position = desktop_position,
+        });
     }
 
     app.hid->SetDesktopExtent(extent);

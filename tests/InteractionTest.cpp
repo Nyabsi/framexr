@@ -17,7 +17,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <format>
 #include <memory>
 #include <numbers>
 #include <string>
@@ -25,9 +27,11 @@
 
 #include <gtest/gtest.h>
 
+#include "Keyboard.hpp"
 #include "Modular.hpp"
 #include "OverlayContainer.hpp"
 #include "RecordingBackend.hpp"
+#include "Screen.hpp"
 #include "State.hpp"
 #include "TestApp.hpp"
 #include "Yaml.hpp"
@@ -417,6 +421,40 @@ TEST_F(Interaction, RecenterMovesOnlyVisibleOverlays) {
     overlays_->Recenter(*app_);
     EXPECT_TRUE(overlays_->ById(shown)->state.transform.translation().isApprox(Eigen::Vector3f(3.0f, 1.0f, -1.0f), 1e-5f));
     EXPECT_TRUE(overlays_->ById(hidden)->state.transform.translation().isApprox(Eigen::Vector3f(5.0f, 0.0f, -1.0f), 1e-5f));
+}
+
+TEST_F(Interaction, DefaultLayoutArcsScreensAroundTheHead) {
+    std::vector<ScreenOverlay> screens(3);
+    const std::array<int32_t, 3> positions{1920, 0, 3840};
+    for (size_t i = 0; i < screens.size(); ++i) {
+        screens[i].state.name = std::format("screen{}", i);
+        screens[i].state.spawn_scale = 1.5f;
+        screens[i].desktop_position = {positions[i], 0};
+    }
+    Screens::ArrangeInFrontOfHead(screens);
+
+    const auto& middle = screens[0].state;
+    EXPECT_NEAR(middle.spawn_point.x(), 0.0f, 1e-5f);
+    EXPECT_LT(middle.spawn_point.y(), -0.1f);
+    EXPECT_LT(middle.spawn_point.z(), -0.9f);
+    EXPECT_LT(screens[1].state.spawn_point.x(), -0.5f);
+    EXPECT_GT(screens[2].state.spawn_point.x(), 0.5f);
+    for (const auto& screen : screens) {
+        EXPECT_NEAR(screen.state.spawn_point.norm(), 1.0f, 1e-5f);
+        const Eigen::Vector3f facing = screen.state.spawn_rotation * Eigen::Vector3f::UnitZ();
+        EXPECT_TRUE(facing.isApprox(-screen.state.spawn_point.normalized(), 1e-4f)) << screen.state.name;
+    }
+}
+
+TEST_F(Interaction, KeyboardSpawnsBelowViewFacingTheHead) {
+    auto keyboard = Keyboard::Create(*app_, std::nullopt);
+    ASSERT_TRUE(keyboard.has_value());
+    const auto& state = (*keyboard)->state;
+    EXPECT_FLOAT_EQ(state.spawn_point.x(), 0.0f);
+    EXPECT_LT(state.spawn_point.y(), -0.3f);
+    EXPECT_LT(state.spawn_point.z(), 0.0f);
+    const Eigen::Vector3f facing = state.spawn_rotation * Eigen::Vector3f::UnitZ();
+    EXPECT_TRUE(facing.isApprox(-state.spawn_point.normalized(), 1e-4f));
 }
 
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {

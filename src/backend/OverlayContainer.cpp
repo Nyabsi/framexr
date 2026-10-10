@@ -77,6 +77,7 @@ auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayCo
     app.screens.clear();
     std::optional<Keymap> keymap;
     ASSIGN_OR_RETURN(auto screens, container->CreateScreens(app, keymap));
+    Screens::ArrangeInFrontOfHead(screens);
 
     auto show_screens = app.config.show_screens;
     if (show_screens.empty() && !screens.empty()) {

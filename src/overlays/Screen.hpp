@@ -138,6 +138,7 @@ struct ScreenOverlay {
     ScreenMeta meta;
     OverlayState state;
     std::unique_ptr<OverlayBackend> backend;
+    Eigen::Vector2i desktop_position = Eigen::Vector2i::Zero();
 };
 
 class Screens final {
@@ -152,6 +153,7 @@ class Screens final {
     ) -> std::unique_ptr<ScreenRenderer>;
     static auto CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverlay>>;
     static auto CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>>;
+    static auto ArrangeInFrontOfHead(std::vector<ScreenOverlay>& screens) -> void;
     static auto SelectScreen(std::string_view instructions, const ScreenCastOptions& options) -> Result<ScreenSelection>;
     static auto LoadTokens() -> Result<std::map<std::string, std::string>>;
     static auto SaveTokens(const std::map<std::string, std::string>& tokens) -> Result<>;

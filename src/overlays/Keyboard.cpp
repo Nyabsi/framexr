@@ -45,6 +45,8 @@ namespace {
 
 constexpr float kPixelsPerUnit = 80.0f;
 constexpr float kButtonPadding = 4.0f;
+constexpr float kKeyboardDrop = 0.5f;
+constexpr float kKeyboardReach = 0.8f;
 constexpr std::array<uint8_t, 5> kAutoReleaseModifiers{kModShift, kModCtrl, kModAlt, kModSuper, kModMeta};
 
 auto PressColor() -> Eigen::Vector4f {
@@ -517,7 +519,10 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     overlay.recenter = true;
     overlay.interactable = true;
     overlay.spawn_scale = layout.row_size * 0.05f * app.config.keyboard_scale;
-    overlay.spawn_point = Eigen::Vector3f(0.0f, -0.5f, -1.0f);
+    overlay.spawn_point = Eigen::Vector3f(0.0f, -kKeyboardDrop, -kKeyboardReach);
+    overlay.spawn_rotation = Eigen::Quaternionf(
+        Eigen::AngleAxisf(-std::atan2(kKeyboardDrop, kKeyboardReach), Eigen::Vector3f::UnitX())
+    );
     overlay.interaction_transform = Eigen::Translation2f(0.5f, 0.5f) * Eigen::Scaling(1.0f, -width / height);
 
     return std::make_unique<Overlay>(std::move(overlay), std::make_unique<KeyboardBackend>(std::move(canvas), std::move(state)));
