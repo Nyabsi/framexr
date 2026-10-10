@@ -40,40 +40,44 @@
 #include "WaylandClient.hpp"
 #endif
 
+namespace {
+
+auto LoadKeymap(Result<Keymap> loaded) -> std::optional<Keymap> {
+    if (!loaded) {
+        LOG_WARN("Could not load keyboard layout: {}", loaded.error().Message());
+        return std::nullopt;
+    }
+    return std::move(*loaded);
+}
+
+} // namespace
+
 OverlayContainer::OverlayContainer() = default;
 
 OverlayContainer::~OverlayContainer() = default;
 
+auto OverlayContainer::CreateScreens(AppState& app, std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>> {
+#if FRAMEXR_FEATURE_WAYLAND
+    wayland_ = WaylandClient::Connect();
+    if (wayland_) {
+        keymap = LoadKeymap(Keymap::FromWayland());
+        return Screens::CreateWayland(*wayland_, app);
+    }
+#endif
+    keymap = LoadKeymap(Keymap::FromX11());
+    if (auto created = Screens::CreateX11Pipewire(app)) {
+        return std::move(*created);
+    } else {
+        LOG_INFO("Will not use PipeWire capture: {}", created.error().Message());
+    }
+    return Screens::CreateXshm(app);
+}
+
 auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayContainer>> {
     std::unique_ptr<OverlayContainer> container(new OverlayContainer());
-#if FRAMEXR_FEATURE_WAYLAND
-    container->wayland_ = WaylandClient::Connect();
-#endif
-
     app.screens.clear();
     std::optional<Keymap> keymap;
-    std::vector<ScreenOverlay> screens;
-
-    const auto load_keymap = [&](Result<Keymap> loaded) -> void {
-        if (loaded) {
-            keymap.emplace(std::move(*loaded));
-        } else {
-            LOG_WARN("Could not load keyboard layout: {}", loaded.error().Message());
-        }
-    };
-
-    if (container->wayland_) {
-        load_keymap(Keymap::FromWayland());
-        screens = Screens::CreateWayland(*container->wayland_, app);
-    } else {
-        load_keymap(Keymap::FromX11());
-        if (auto created = Screens::CreateX11Pipewire(app)) {
-            screens = std::move(*created);
-        } else {
-            LOG_INFO("Will not use PipeWire capture: {}", created.error().Message());
-            ASSIGN_OR_RETURN(screens, Screens::CreateXshm(app));
-        }
-    }
+    ASSIGN_OR_RETURN(auto screens, container->CreateScreens(app, keymap));
 
     auto show_screens = app.config.show_screens;
     if (show_screens.empty() && !screens.empty()) {

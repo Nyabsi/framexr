@@ -152,7 +152,7 @@ class Screens final {
     ) -> std::unique_ptr<ScreenRenderer>;
     static auto CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverlay>>;
     static auto CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>>;
-    static auto SelectScreen(std::string_view instructions, ScreenCastOptions options) -> Result<ScreenSelection>;
+    static auto SelectScreen(std::string_view instructions, const ScreenCastOptions& options) -> Result<ScreenSelection>;
     static auto LoadTokens() -> Result<std::map<std::string, std::string>>;
     static auto SaveTokens(const std::map<std::string, std::string>& tokens) -> Result<>;
 

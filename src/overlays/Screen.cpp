@@ -569,8 +569,8 @@ auto Screens::SaveTokens(const std::map<std::string, std::string>& tokens) -> Re
 
 #if FRAMEXR_FEATURE_WAYLAND
 
-auto Screens::SelectScreen(std::string_view instructions, ScreenCastOptions options) -> Result<ScreenSelection> {
-    auto future = ScreenCastPortal::SelectScreen(std::move(options));
+auto Screens::SelectScreen(std::string_view instructions, const ScreenCastOptions& options) -> Result<ScreenSelection> {
+    auto future = ScreenCastPortal::SelectScreen(options);
     if (future.wait_for(std::chrono::milliseconds(250)) == std::future_status::ready) {
         return future.get();
     }
@@ -716,7 +716,7 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
 
 #else
 
-auto Screens::SelectScreen(std::string_view, ScreenCastOptions) -> Result<ScreenSelection> {
+auto Screens::SelectScreen(std::string_view, const ScreenCastOptions&) -> Result<ScreenSelection> {
     return Unexpected("Pipewire support not enabled");
 }
 
