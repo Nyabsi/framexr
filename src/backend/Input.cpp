@@ -32,7 +32,7 @@
 
 namespace {
 
-constexpr float kGrabSlideSpeed = 0.05f;
+constexpr float kGrabSlideRate = 4.0f;
 constexpr OneEuroSettings kGrabPositionSmoothing{.min_cutoff = 1.5f, .beta = 10.0f, .derivative_cutoff = 1.0f};
 constexpr OneEuroSettings kGrabRotationSmoothing{.min_cutoff = 1.5f, .beta = 3.0f, .derivative_cutoff = 1.0f};
 constexpr float kMaxDeltaSeconds = 0.1f;
@@ -144,7 +144,11 @@ auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& 
             const Eigen::Matrix3f linear = offset.linear();
             const float scale = linear.col(0).norm();
             if (distance > 0.0f && scale > 0.0f) {
-                const float wanted = std::clamp(std::fma(slide, kGrabSlideSpeed, distance), kMinGrabDistance, kMaxGrabDistance);
+                const float wanted = std::clamp(
+                    distance * std::exp(slide * kGrabSlideRate * app.input.delta_seconds),
+                    kMinGrabDistance,
+                    kMaxGrabDistance
+                );
                 const Eigen::Vector3f head = app.input.hmd.translation();
                 const float old_reach = (hand * offset.translation() - head).norm();
                 offset.translation() *= wanted / distance;

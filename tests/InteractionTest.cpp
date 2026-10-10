@@ -44,6 +44,7 @@ namespace {
 
 constexpr VkExtent2D kPanelExtent{200, 100};
 constexpr float kFrameSeconds = 1.0f / 90.0f;
+constexpr float kSlideRate = 4.0f;
 
 class Interaction : public testing::Test {
   protected:
@@ -362,18 +363,19 @@ TEST_F(Interaction, StickPushesAwayAndScalesWithDistance) {
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
 
+    const float step = std::exp(kSlideRate * kFrameSeconds);
     Frame({.grab = true});
     Frame({.scroll_y = 1.0f, .grab = true});
     const auto* overlay = overlays_->ById(id);
     const Eigen::Matrix3f pushed = overlay->state.transform.linear();
-    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.05f, 1e-5f);
-    EXPECT_NEAR(pushed.col(0).norm(), 1.025f, 1e-5f);
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.0f * step, 1e-5f);
+    EXPECT_NEAR(pushed.col(0).norm(), step, 1e-5f);
 
     Frame({.scroll_y = -1.0f, .grab = true});
     Frame({.scroll_y = -1.0f, .click = true, .grab = true});
     const Eigen::Matrix3f pulled = overlay->state.transform.linear();
-    EXPECT_NEAR(overlay->state.transform.translation().z(), -1.95f, 1e-5f);
-    EXPECT_NEAR(pulled.col(0).norm(), 0.975f, 1e-5f);
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.0f / step, 1e-5f);
+    EXPECT_NEAR(pulled.col(0).norm(), 1.0f / step, 1e-5f);
     EXPECT_NE(Pointer(0).interaction.mode, PointerMode::Special);
 }
 
@@ -382,12 +384,39 @@ TEST_F(Interaction, StickScalesWithDistanceFromTheHead) {
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, {0.0f, 0.0f, -0.5f});
 
+    const float pushed_to = std::fma(1.5f, std::exp(kSlideRate * kFrameSeconds), 0.5f);
     Frame({.grab = true});
     Frame({.scroll_y = 1.0f, .grab = true});
     const auto* overlay = overlays_->ById(id);
     const Eigen::Matrix3f pushed = overlay->state.transform.linear();
-    EXPECT_NEAR(overlay->state.transform.translation().z(), -2.05f, 1e-5f);
-    EXPECT_NEAR(pushed.col(0).norm(), 2.05f / 2.0f, 1e-5f);
+    EXPECT_NEAR(overlay->state.transform.translation().z(), -pushed_to, 1e-5f);
+    EXPECT_NEAR(pushed.col(0).norm(), pushed_to / 2.0f, 1e-5f);
+}
+
+TEST_F(Interaction, StickSlidesFarOverlaysFasterThanNearOnes) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto near = AddPanel("near", {0.0f, 0.0f, -1.0f}, events);
+    const auto far = AddPanel("far", {3.0f, 0.0f, -4.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+    Frame({.grab = true});
+    for (int frame = 0; frame < 45; ++frame) {
+        Frame({.scroll_y = 1.0f, .grab = true});
+    }
+    Frame({});
+    const float near_moved = overlays_->ById(near)->state.transform.translation().norm() - 1.0f;
+    EXPECT_NEAR(near_moved, std::exp(kSlideRate * 0.5f) - 1.0f, 0.01f);
+
+    Aim(0, Eigen::Vector3f::Zero());
+    Pointer(0).pose.linear() = Eigen::Matrix3f(Eigen::AngleAxisf(-std::atan2(3.0f, 4.0f), Eigen::Vector3f::UnitY()));
+    Frame({.grab = true});
+    ASSERT_TRUE(Pointer(0).interaction.grabbed.has_value());
+    EXPECT_EQ(Pointer(0).interaction.grabbed->grabbed_id, far);
+    for (int frame = 0; frame < 9; ++frame) {
+        Frame({.scroll_y = 1.0f, .grab = true});
+    }
+    const float far_moved = overlays_->ById(far)->state.transform.translation().norm() - 5.0f;
+    const float near_first_tenth = std::exp(kSlideRate * 0.1f) - 1.0f;
+    EXPECT_NEAR(far_moved, 5.0f * near_first_tenth, 0.01f);
 }
 
 TEST_F(Interaction, StickDriftDoesNotMoveOrResize) {
