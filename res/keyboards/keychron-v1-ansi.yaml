@@ -1,6 +1,7 @@
 ---
 # looking to make changes?
-# drop me in ~/.config/framexr/keyboard.yaml
+# drop a copy in ~/.config/framexr/keyboards/
+# a file with the same name replaces this profile, any other name adds a new one
 
 # This file contains all data needed to generate the keyboard.
 # You can create any layout, as long as:
@@ -14,7 +15,7 @@
 # For example, Q on a French layout actually results in A.
 # If you're using a non-english layout, chances are you only need to edit the label section below.
 
-# Not used for anything right now
+# Profile name, profiles are listed built-in first, then your own
 name: "keychron-v1-ansi"
 
 # How many units of key size in each row? 1 = standard letter key size
@@ -32,11 +33,12 @@ key_sizes:
 # The main (blue) layout of the keyboard.
 # Accepted are:
 # - virtual keys. For a full list, look at enum VirtualKey in https://github.com/galister/wlx-overlay-s/blob/main/src/hid.rs
+# - PROFILE switches to the next keyboard profile
 # - exec_commands (defined below)
 # - macros (defined below)
 # - ~ (null) will leave an empty space with the corresponding size from key_sizes
 main_layout:
-    - ["Escape", ~, "F1", "F2", "F3", "F4", ~, "F5", "F6", "F7", "F8", ~, "F9", "F10", "F11", "F12", ~, "Delete", "Insert"]
+    - ["Escape", ~, "F1", "F2", "F3", "F4", ~, "F5", "F6", "F7", "F8", ~, "F9", "F10", "F11", "F12", ~, "Delete", "PROFILE"]
     - ["Oem3", "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N0", "Minus", "Plus", "BackSpace", "Prior"]
     - ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Oem4", "Oem6", "Oem5", "Next"]
     - ["Caps", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Oem1", "Oem7", "Return", "Home"]
@@ -69,7 +71,7 @@ macros: {}
 labels:
     "Escape":         ["Esc"]
     "Delete":         ["Del"]
-    "Insert":         ["Ins"]
+    "PROFILE":        ["Layout"]
     "Prior":          ["PgUp"]
     "Next":           ["PgDn"]
     "BackSpace":      ["Backspace"]

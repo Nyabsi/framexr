@@ -19,10 +19,13 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <deque>
 #include <format>
 #include <memory>
 #include <numbers>
 #include <string>
+#include <type_traits>
+#include <variant>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -90,6 +93,34 @@ class Interaction : public testing::Test {
     }
 
     auto Pointer(size_t index) -> ::Pointer& { return app_->input.pointers[index]; }
+
+    auto RunTasks() -> void {
+        for (int round = 0; round < 4; ++round) {
+            std::deque<Task> due;
+            app_->tasks.TakeDue(due);
+            for (auto& task : due) {
+                std::visit(
+                    [&](auto& value) -> void {
+                        using TaskType = std::decay_t<decltype(value)>;
+                        if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>) {
+                            if (auto* overlay = overlays_->BySelector(value.selector)) {
+                                value.modify(*app_, overlay->state);
+                            }
+                        } else if constexpr (std::is_same_v<TaskType, DropOverlayTask>) {
+                            overlays_->Remove(value.selector);
+                        } else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>) {
+                            if (overlays_->BySelector(value.selector) == nullptr) {
+                                if (auto made = value.create(*app_)) {
+                                    overlays_->Add(std::make_unique<Overlay>(std::move(made->first), std::move(made->second)));
+                                }
+                            }
+                        }
+                    },
+                    task
+                );
+            }
+        }
+    }
 
     auto Bounds(OverlayId id) -> ViewRect {
         const auto corners = OverlayLayout::Corners(*overlays_->ById(id));
@@ -455,7 +486,7 @@ TEST_F(Interaction, DefaultLayoutArcsScreensAroundTheHead) {
 }
 
 TEST_F(Interaction, KeyboardSpawnsBelowViewFacingTheHead) {
-    auto keyboard = Keyboard::Create(*app_, std::nullopt);
+    auto keyboard = Keyboard::Create(*app_, nullptr);
     ASSERT_TRUE(keyboard.has_value());
     const auto& state = (*keyboard)->state;
     EXPECT_FLOAT_EQ(state.spawn_point.x(), 0.0f);
@@ -463,6 +494,53 @@ TEST_F(Interaction, KeyboardSpawnsBelowViewFacingTheHead) {
     EXPECT_LT(state.spawn_point.z(), 0.0f);
     const Eigen::Vector3f facing = state.spawn_rotation * Eigen::Vector3f::UnitZ();
     EXPECT_TRUE(facing.isApprox(-state.spawn_point.normalized(), 1e-4f));
+}
+
+TEST_F(Interaction, KeyboardUsesTheConfiguredProfile) {
+    app_->config.keyboard_profile = "full-size";
+    auto keyboard = Keyboard::Create(*app_, nullptr);
+    app_->config.keyboard_profile = "keychron-v1-ansi";
+    ASSERT_TRUE(keyboard.has_value());
+    const auto meta = (*keyboard)->backend->Meta();
+    ASSERT_TRUE(meta.has_value());
+    EXPECT_EQ(meta->extent.width, (23U * 80U) + 28U);
+
+    auto compact = Keyboard::Create(*app_, nullptr);
+    ASSERT_TRUE(compact.has_value());
+    EXPECT_NEAR((*compact)->state.spawn_scale * 23.35f, (*keyboard)->state.spawn_scale * 16.35f, 1e-4f);
+}
+
+TEST_F(Interaction, ProfileKeySwapsTheKeyboardInPlace) {
+    auto created = Keyboard::Create(*app_, nullptr);
+    ASSERT_TRUE(created.has_value());
+    auto& original = (*created)->state;
+    original.want_visible = true;
+    original.show_hide = true;
+    original.transform = Pose(Eigen::Vector3f(0.2f, -0.4f, -0.9f), Eigen::Quaternionf::Identity());
+    original.transform.linear() *= original.spawn_scale;
+    original.saved_transform = original.transform;
+    const OverlayState before = original;
+    overlays_->Add(std::move(*created));
+    app_->config.transform_values = {{std::string(kKeyboardName), *before.saved_transform}};
+
+    Keyboard::SwitchProfile(*app_, nullptr, "full-size");
+    EXPECT_EQ(app_->config.keyboard_profile, "full-size");
+    RunTasks();
+
+    auto* swapped = overlays_->ByName(kKeyboardName);
+    ASSERT_NE(swapped, nullptr);
+    EXPECT_NE(swapped->state.id, before.id);
+    EXPECT_TRUE(swapped->state.want_visible);
+    EXPECT_TRUE(swapped->state.show_hide);
+    EXPECT_EQ(swapped->backend->Meta()->extent.width, (23U * 80U) + 28U);
+    const float factor = 23.35f / 16.35f;
+    const Eigen::Matrix3f linear = swapped->state.transform.linear();
+    const Eigen::Matrix3f linear_before = before.transform.linear();
+    EXPECT_TRUE(swapped->state.transform.translation().isApprox(before.transform.translation(), 1e-6f));
+    EXPECT_NEAR(linear.col(0).norm(), linear_before.col(0).norm() * factor, 1e-5f);
+    ASSERT_TRUE(swapped->state.saved_transform.has_value());
+    EXPECT_TRUE(app_->config.transform_values.front().second.matrix().isApprox(swapped->state.saved_transform->matrix()));
+    app_->config.keyboard_profile = "keychron-v1-ansi";
 }
 
 TEST_F(Interaction, DroppingOntoAnotherOverlayKeepsTheOverlap) {

@@ -65,6 +65,7 @@ struct Config {
     std::string notification_sound;
     bool keyboard_sound_enabled = true;
     float keyboard_scale = 1.0f;
+    std::string keyboard_profile = "keychron-v1-ansi";
     float desktop_view_scale = 1.0f;
     float watch_view_angle_min = 0.5f;
     float watch_view_angle_max = 0.7f;
@@ -133,6 +134,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     notification_sound,
     keyboard_sound_enabled,
     keyboard_scale,
+    keyboard_profile,
     desktop_view_scale,
     watch_view_angle_min,
     watch_view_angle_max,

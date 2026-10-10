@@ -22,9 +22,11 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -43,6 +45,7 @@
 class AppState;
 
 constexpr std::string_view kKeyboardName = "kbd";
+constexpr std::string_view kProfileSwitchKey = "PROFILE";
 
 enum class AltModifier : uint8_t {
     None,
@@ -64,13 +67,20 @@ struct KeyboardLayout {
     std::map<std::string, std::vector<std::string>, std::less<>> labels;
     std::optional<bool> auto_labels;
 
-    static auto Instance() -> const KeyboardLayout&;
+    static auto Parse(std::string_view text) -> Result<KeyboardLayout>;
 
+    [[nodiscard]] auto Validate() const -> Result<>;
     [[nodiscard]] auto LabelForKey(std::string_view key) const -> std::vector<std::string>;
     [[nodiscard]] auto AltModifierMask() const -> uint8_t;
+};
 
-  private:
-    auto Validate() const -> void;
+class KeyboardProfiles final {
+  public:
+    static auto All() -> const std::vector<KeyboardLayout>&;
+    static auto Find(std::string_view name) -> const KeyboardLayout&;
+    static auto After(std::string_view name) -> const KeyboardLayout&;
+    static auto Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
+        -> std::vector<KeyboardLayout>;
 };
 
 auto from_json(const nlohmann::json& json, AltModifier& value) -> void;
@@ -137,6 +147,17 @@ class ExecControl final : public Control {
     std::vector<std::string> release_;
 };
 
+class ProfileControl final : public Control {
+  public:
+    ProfileControl(std::shared_ptr<const Keymap> keymap, std::string current);
+
+    auto OnPress(AppState& app, PointerMode mode) -> void override;
+
+  private:
+    std::shared_ptr<const Keymap> keymap_;
+    std::string current_;
+};
+
 class KeyboardBackend final : public OverlayBackend {
   public:
     KeyboardBackend(std::unique_ptr<Canvas> canvas, std::shared_ptr<KeyboardState> state);
@@ -163,7 +184,8 @@ class KeyboardBackend final : public OverlayBackend {
 
 class Keyboard final {
   public:
-    static auto Create(AppState& app, std::optional<Keymap> keymap) -> Result<std::unique_ptr<Overlay>>;
+    static auto Create(AppState& app, const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Overlay>>;
+    static auto SwitchProfile(AppState& app, std::shared_ptr<const Keymap> keymap, std::string profile) -> void;
     static auto SendKey(AppState& app, VirtualKey key, bool down) -> void;
     static auto SetModifiers(AppState& app, uint8_t modifiers) -> void;
     static auto Click(AppState& app) -> void;

@@ -248,6 +248,7 @@ auto Config::SaveSettings() const -> Result<> {
     settings["notifications_enabled"] = notifications_enabled;
     settings["notifications_sound_enabled"] = notifications_sound_enabled;
     settings["allow_sliding"] = allow_sliding;
+    settings["keyboard_profile"] = keyboard_profile;
     settings["space_drag_multiplier"] = Json::ShortestFloat(space_drag_multiplier);
     return WriteJson(Config::ConfD() / "zz-saved-config.json", settings);
 }

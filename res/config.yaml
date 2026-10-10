@@ -12,6 +12,11 @@ keyboard_scale: 1.0
 desktop_view_scale: 1.0
 watch_scale: 1.0
 
+# Keyboard profile to show, built-in: keychron-v1-ansi, full-size
+# Your own profiles go in ~/.config/framexr/keyboards/*.yaml
+# Default: keychron-v1-ansi
+keyboard_profile: keychron-v1-ansi
+
 # Enable / disable sliding windows back and forth with the scroll action
 # Default: true
 allow_sliding: true

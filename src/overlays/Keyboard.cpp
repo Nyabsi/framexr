@@ -26,7 +26,9 @@
 #include <cctype>
 #include <cmath>
 #include <format>
+#include <iterator>
 #include <numeric>
+#include <system_error>
 #include <utility>
 
 #include <clocale>
@@ -39,6 +41,7 @@
 #include "Json.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
+#include "Yaml.hpp"
 #include "framexr_config.h"
 
 namespace {
@@ -57,11 +60,19 @@ auto PressColor() -> Eigen::Vector4f {
     return {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 0.5f};
 }
 
-constexpr char kKeyboardYaml[] = {
-#embed "keyboard.yaml"
+constexpr char kKeychronV1Yaml[] = {
+#embed "keyboards/keychron-v1-ansi.yaml"
     ,
     '\0'
 };
+
+constexpr char kFullSizeYaml[] = {
+#embed "keyboards/full-size.yaml"
+    ,
+    '\0'
+};
+
+constexpr auto kBuiltInProfiles = std::to_array<std::string_view>({kKeychronV1Yaml, kFullSizeYaml});
 
 constexpr unsigned char kKeyClickSound[] = {
 #embed "421581.wav"
@@ -158,25 +169,28 @@ auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void {
     }
 }
 
-auto KeyboardLayout::Instance() -> const KeyboardLayout& {
-    static const KeyboardLayout instance = [] -> KeyboardLayout {
-        auto layout = Config::LoadKnownYaml<KeyboardLayout>("keyboard.yaml", kKeyboardYaml);
-        layout.Validate();
-        return layout;
-    }();
-    return instance;
+auto KeyboardLayout::Parse(std::string_view text) -> Result<KeyboardLayout> {
+    ASSIGN_OR_RETURN(const auto parsed, Yaml::Parse(text));
+    KeyboardLayout layout;
+    try {
+        layout = parsed.get<KeyboardLayout>();
+    } catch (const nlohmann::json::exception& error) {
+        return Unexpected(error.what());
+    }
+    RETURN_IF_ERROR(layout.Validate());
+    return layout;
 }
 
-auto KeyboardLayout::Validate() const -> void {
+auto KeyboardLayout::Validate() const -> Result<> {
     for (size_t i = 0; i < key_sizes.size(); ++i) {
         const float width = std::accumulate(key_sizes[i].begin(), key_sizes[i].end(), 0.0f);
         if (std::abs(width - row_size) >= 0.001f) {
-            FatalError(std::format("Row {} has a width of {}, but the row size is {}", i, width, row_size));
+            return Unexpected(std::format("Row {} has a width of {}, but the row size is {}", i, width, row_size));
         }
     }
     for (size_t i = 0; i < main_layout.size(); ++i) {
         if (i >= key_sizes.size() || main_layout[i].size() != key_sizes[i].size()) {
-            FatalError(
+            return Unexpected(
                 std::format(
                     "Row {} has {} keys, needs to have {} according to key_sizes",
                     i,
@@ -186,6 +200,77 @@ auto KeyboardLayout::Validate() const -> void {
             );
         }
     }
+    return {};
+}
+
+auto KeyboardProfiles::Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
+    -> std::vector<KeyboardLayout> {
+    std::vector<KeyboardLayout> profiles;
+    const auto add = [&profiles](KeyboardLayout layout) -> void {
+        const auto existing = std::ranges::find(profiles, layout.name, &KeyboardLayout::name);
+        if (existing != profiles.end()) {
+            *existing = std::move(layout);
+        } else {
+            profiles.push_back(std::move(layout));
+        }
+    };
+
+    for (const auto text : built_in) {
+        auto layout = KeyboardLayout::Parse(text);
+        if (!layout) {
+            FatalError(std::format("Invalid built-in keyboard profile: {}", layout.error().Message()));
+        }
+        add(std::move(*layout));
+    }
+
+    std::error_code error;
+    std::vector<std::filesystem::path> files;
+    for (const auto& entry : std::filesystem::directory_iterator(user_directory, error)) {
+        const auto extension = entry.path().extension();
+        if (entry.is_regular_file(error) && (extension == ".yaml" || extension == ".yml")) {
+            files.push_back(entry.path());
+        }
+    }
+    std::ranges::sort(files);
+    for (const auto& file : files) {
+        const auto text = Config::ReadFile(file);
+        if (!text) {
+            LOG_ERROR("Could not read keyboard profile {}", file.string());
+            continue;
+        }
+        auto layout = KeyboardLayout::Parse(*text);
+        if (!layout) {
+            LOG_ERROR("Skipping keyboard profile {}: {}", file.string(), layout.error().Message());
+            continue;
+        }
+        LOG_INFO("Loaded keyboard profile {} from {}", layout->name, file.string());
+        add(std::move(*layout));
+    }
+    return profiles;
+}
+
+auto KeyboardProfiles::All() -> const std::vector<KeyboardLayout>& {
+    static const auto profiles = Load(kBuiltInProfiles, Config::Root() / "keyboards");
+    return profiles;
+}
+
+auto KeyboardProfiles::Find(std::string_view name) -> const KeyboardLayout& {
+    const auto& profiles = All();
+    const auto found = std::ranges::find(profiles, name, &KeyboardLayout::name);
+    if (found == profiles.end()) {
+        LOG_WARN("Unknown keyboard profile {}, using {}", name, profiles.front().name);
+        return profiles.front();
+    }
+    return *found;
+}
+
+auto KeyboardProfiles::After(std::string_view name) -> const KeyboardLayout& {
+    const auto& profiles = All();
+    const auto found = std::ranges::find(profiles, name, &KeyboardLayout::name);
+    if (found == profiles.end() || std::next(found) == profiles.end()) {
+        return profiles.front();
+    }
+    return *std::next(found);
 }
 
 auto KeyboardLayout::LabelForKey(std::string_view key) const -> std::vector<std::string> {
@@ -280,6 +365,16 @@ auto ModifierControl::OnRelease(AppState& app) -> void {
 
 auto ModifierControl::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
     return (state_->modifiers & modifier_) != 0 ? std::optional(PressColor()) : std::nullopt;
+}
+
+ProfileControl::ProfileControl(std::shared_ptr<const Keymap> keymap, std::string current)
+    : keymap_(std::move(keymap)),
+      current_(std::move(current)) {
+}
+
+auto ProfileControl::OnPress(AppState& app, PointerMode) -> void {
+    Keyboard::Click(app);
+    Keyboard::SwitchProfile(app, keymap_, KeyboardProfiles::After(current_).name);
 }
 
 MacroControl::MacroControl(std::vector<std::pair<VirtualKey, bool>> events) : events_(std::move(events)) {
@@ -410,8 +505,8 @@ auto Keyboard::MacroEvents(const std::vector<std::string>& verbs) -> std::vector
     return events;
 }
 
-auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std::unique_ptr<Overlay>> {
-    const auto& layout = KeyboardLayout::Instance();
+auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Overlay>> {
+    const auto& layout = KeyboardProfiles::Find(app.config.keyboard_profile);
     const float width = std::fma(layout.row_size, kPixelsPerUnit, 2.0f * kKeyboardMargin);
     const float height = std::fma(static_cast<float>(layout.main_layout.size()), kPixelsPerUnit, 2.0f * kKeyboardMargin);
 
@@ -430,9 +525,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     canvas->bg_color = Color("#1e2030");
 
     const bool has_altgr = keymap && keymap->HasAltGr();
-    if (!layout.auto_labels.value_or(true)) {
-        keymap.reset();
-    }
+    const Keymap* label_keymap = layout.auto_labels.value_or(true) ? keymap.get() : nullptr;
 
     const float unit_size = kPixelsPerUnit;
     const float key_height = std::fma(-2.0f, kButtonPadding, unit_size);
@@ -456,23 +549,25 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
             std::unique_ptr<Control> control;
             auto cap_type = KeyCapType::Regular;
 
-            if (const auto virtual_key = VirtualKeys::Parse(*key)) {
-                if (keymap) {
+            if (*key == kProfileSwitchKey) {
+                control = std::make_unique<ProfileControl>(keymap, layout.name);
+            } else if (const auto virtual_key = VirtualKeys::Parse(*key)) {
+                if (label_keymap != nullptr) {
                     switch (VirtualKeys::Type(*virtual_key)) {
                     case KeyType::Symbol: {
-                        auto label0 = keymap->LabelForKey(*virtual_key, 0);
-                        auto label1 = keymap->LabelForKey(*virtual_key, kModShift);
+                        auto label0 = label_keymap->LabelForKey(*virtual_key, 0);
+                        auto label1 = label_keymap->LabelForKey(*virtual_key, kModShift);
                         if (StartsWithLetter(label0)) {
                             labels.push_back(std::move(label1));
                             if (has_altgr) {
                                 cap_type = KeyCapType::RegularAltGr;
-                                labels.push_back(keymap->LabelForKey(*virtual_key, kModMeta));
+                                labels.push_back(label_keymap->LabelForKey(*virtual_key, kModMeta));
                             }
                         } else {
                             labels.push_back(std::move(label0));
                             labels.push_back(std::move(label1));
                             if (has_altgr) {
-                                labels.push_back(keymap->LabelForKey(*virtual_key, kModMeta));
+                                labels.push_back(label_keymap->LabelForKey(*virtual_key, kModMeta));
                                 cap_type = KeyCapType::ReversedAltGr;
                             } else {
                                 cap_type = KeyCapType::Reversed;
@@ -480,7 +575,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
                         }
                         break;
                     }
-                    case KeyType::NumPad: labels.push_back(keymap->LabelForKey(*virtual_key, kModNumLock)); break;
+                    case KeyType::NumPad: labels.push_back(label_keymap->LabelForKey(*virtual_key, kModNumLock)); break;
                     case KeyType::Other: break;
                     }
                 }
@@ -530,4 +625,55 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     overlay.interaction_transform = Eigen::Translation2f(0.5f, 0.5f) * Eigen::Scaling(1.0f, -width / height);
 
     return std::make_unique<Overlay>(std::move(overlay), std::make_unique<KeyboardBackend>(std::move(canvas), std::move(state)));
+}
+
+auto Keyboard::SwitchProfile(AppState& app, std::shared_ptr<const Keymap> keymap, std::string profile) -> void {
+    LOG_INFO("Switching keyboard profile to {}", profile);
+    app.config.keyboard_profile = std::move(profile);
+    app.tasks.Enqueue(
+        ModifyOverlayTask{
+            .selector = std::string(kKeyboardName),
+            .modify = [keymap = std::move(keymap)](AppState& state, OverlayState& previous) -> void {
+                state.tasks.Enqueue(DropOverlayTask{.selector = std::string(kKeyboardName)});
+                state.tasks.Enqueue(
+                    CreateOverlayTask{
+                        .selector = std::string(kKeyboardName),
+                        .create = [keymap, previous](AppState& app_state)
+                            -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>> {
+                            auto created = Keyboard::Create(app_state, keymap);
+                            if (!created) {
+                                LOG_ERROR("Could not create keyboard: {}", created.error().Message());
+                                return std::nullopt;
+                            }
+                            auto& overlay = **created;
+                            auto& next = overlay.state;
+                            const float factor = previous.spawn_scale > 0.0f ? next.spawn_scale / previous.spawn_scale : 1.0f;
+                            const auto rescale = [factor](Eigen::Affine3f transform) -> Eigen::Affine3f {
+                                transform.linear() *= factor;
+                                return transform;
+                            };
+                            next.want_visible = previous.want_visible;
+                            next.show_hide = previous.show_hide;
+                            next.recenter = previous.recenter;
+                            next.grabbable = previous.grabbable;
+                            next.interactable = previous.interactable;
+                            next.alpha = previous.alpha;
+                            next.curvature = previous.curvature;
+                            next.transform = rescale(previous.transform);
+                            if (previous.saved_transform) {
+                                next.saved_transform = rescale(*previous.saved_transform);
+                                for (auto& [name, saved] : app_state.config.transform_values) {
+                                    if (name == kKeyboardName) {
+                                        saved = *next.saved_transform;
+                                    }
+                                }
+                            }
+                            next.dirty = true;
+                            return std::pair{std::move(next), std::move(overlay.backend)};
+                        },
+                    }
+                );
+            },
+        }
+    );
 }

@@ -90,11 +90,11 @@ TEST(OverlayRender, Watch) {
 }
 
 TEST(OverlayRender, KeyboardWithSessionKeymap) {
-    std::optional<Keymap> keymap;
+    std::shared_ptr<const Keymap> keymap;
     if (auto loaded = Keymap::FromWayland()) {
-        keymap.emplace(std::move(*loaded));
+        keymap = std::make_shared<const Keymap>(std::move(*loaded));
     }
-    auto keyboard = Keyboard::Create(TestApp::Get(), std::move(keymap));
+    auto keyboard = Keyboard::Create(TestApp::Get(), keymap);
     ASSERT_TRUE(keyboard.has_value());
     RenderOverlay(**keyboard, "keyboard");
 }

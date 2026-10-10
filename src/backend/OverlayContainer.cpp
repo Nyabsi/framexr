@@ -99,7 +99,11 @@ auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayCo
     watch->state.want_visible = true;
     container->Add(std::move(watch));
 
-    ASSIGN_OR_RETURN(auto keyboard, Keyboard::Create(app, std::move(keymap)));
+    std::shared_ptr<const Keymap> shared_keymap;
+    if (keymap) {
+        shared_keymap = std::make_shared<const Keymap>(std::move(*keymap));
+    }
+    ASSIGN_OR_RETURN(auto keyboard, Keyboard::Create(app, shared_keymap));
     keyboard->state.show_hide = std::ranges::contains(show_screens, kKeyboardName);
     keyboard->state.want_visible = false;
     container->Add(std::move(keyboard));
