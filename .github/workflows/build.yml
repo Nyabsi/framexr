@@ -40,4 +40,4 @@ jobs:
       run: meson test -C build --print-errorlogs --no-suite integration
     - name: Run clang-tidy
       if: matrix.name == 'default'
-      run: find src tests -name '*.cpp' | xargs -P "$(nproc)" -n 1 clang-tidy -p build --quiet
+      run: run-clang-tidy -p build -quiet -j "$(nproc)" "^$PWD/(src|tests)/"
