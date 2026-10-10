@@ -44,7 +44,11 @@
 namespace {
 
 constexpr float kPixelsPerUnit = 80.0f;
-constexpr float kButtonPadding = 4.0f;
+constexpr float kButtonPadding = 7.0f;
+constexpr float kKeyboardMargin = 14.0f;
+constexpr float kKeyRadius = 10.0f;
+constexpr int kKeyFontSize = 15;
+constexpr float kMetersPerUnit = 0.04f;
 constexpr float kKeyboardDrop = 0.5f;
 constexpr float kKeyboardReach = 0.8f;
 constexpr std::array<uint8_t, 5> kAutoReleaseModifiers{kModShift, kModCtrl, kModAlt, kModSuper, kModMeta};
@@ -408,8 +412,8 @@ auto Keyboard::MacroEvents(const std::vector<std::string>& verbs) -> std::vector
 
 auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std::unique_ptr<Overlay>> {
     const auto& layout = KeyboardLayout::Instance();
-    const float width = layout.row_size * kPixelsPerUnit;
-    const float height = static_cast<float>(layout.main_layout.size()) * kPixelsPerUnit;
+    const float width = std::fma(layout.row_size, kPixelsPerUnit, 2.0f * kKeyboardMargin);
+    const float height = std::fma(static_cast<float>(layout.main_layout.size()), kPixelsPerUnit, 2.0f * kKeyboardMargin);
 
     auto state = std::make_shared<KeyboardState>();
     state->alt_modifier = layout.AltModifierMask();
@@ -421,7 +425,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
 
     canvas->bg_color = Color("#181926");
     canvas->Panel(0.0f, 0.0f, width, height, 16.0f);
-    canvas->font_size = 18;
+    canvas->font_size = kKeyFontSize;
     canvas->fg_color = Color("#cad3f5");
     canvas->bg_color = Color("#1e2030");
 
@@ -430,16 +434,16 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
         keymap.reset();
     }
 
-    const float unit_size = width / layout.row_size;
+    const float unit_size = kPixelsPerUnit;
     const float key_height = std::fma(-2.0f, kButtonPadding, unit_size);
 
     for (size_t row = 0; row < layout.key_sizes.size(); ++row) {
-        const float y = std::fma(unit_size, static_cast<float>(row), kButtonPadding);
+        const float y = std::fma(unit_size, static_cast<float>(row), kKeyboardMargin + kButtonPadding);
         float sum_size = 0.0f;
 
         for (size_t col = 0; col < layout.key_sizes[row].size(); ++col) {
             const float key_size = layout.key_sizes[row][col];
-            const float x = std::fma(unit_size, sum_size, kButtonPadding);
+            const float x = std::fma(unit_size, sum_size, kKeyboardMargin + kButtonPadding);
             const float key_width = std::fma(unit_size, key_size, -(2.0f * kButtonPadding));
             sum_size += key_size;
 
@@ -509,7 +513,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
             if (labels.empty()) {
                 labels = layout.LabelForKey(*key);
             }
-            canvas->KeyButton(x, y, key_width, key_height, 12.0f, cap_type, labels, std::move(control));
+            canvas->KeyButton(x, y, key_width, key_height, kKeyRadius, cap_type, labels, std::move(control));
         }
     }
 
@@ -518,7 +522,7 @@ auto Keyboard::Create(AppState& app, std::optional<Keymap> keymap) -> Result<std
     overlay.grabbable = true;
     overlay.recenter = true;
     overlay.interactable = true;
-    overlay.spawn_scale = layout.row_size * 0.05f * app.config.keyboard_scale;
+    overlay.spawn_scale = width / kPixelsPerUnit * kMetersPerUnit * app.config.keyboard_scale;
     overlay.spawn_point = Eigen::Vector3f(0.0f, -kKeyboardDrop, -kKeyboardReach);
     overlay.spawn_rotation = Eigen::Quaternionf(
         Eigen::AngleAxisf(-std::atan2(kKeyboardDrop, kKeyboardReach), Eigen::Vector3f::UnitX())

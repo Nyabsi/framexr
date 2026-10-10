@@ -1,5 +1,5 @@
 ---
-# looking to make changes? 
+# looking to make changes?
 # drop me in ~/.config/framexr/keyboard.yaml
 
 # This file contains all data needed to generate the keyboard.
@@ -15,19 +15,19 @@
 # If you're using a non-english layout, chances are you only need to edit the label section below.
 
 # Not used for anything right now
-name: "en-us_full"
+name: "keychron-v1-ansi"
 
 # How many units of key size in each row? 1 = standard letter key size
-row_size: 23
+row_size: 16
 
 # Specifies the size of each key. The sum of any given row must equal RowSize
 key_sizes:
-    - [1.5,0.5, 1, 1, 1, 1,0.5,1, 1, 1, 1,0.5,1, 1, 1, 1, 0.5, 1, 1, 1, 0.5, 1, 1, 1, 1]
-    - [1,   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,     0.5, 1, 1, 1, 0.5,    1, 1, 1, 1]
-    - [1.5,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5,  0.5, 1, 1, 1, 0.5,    1, 1, 1, 1]
-    - [1.75,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2.25,   4,                    1, 1, 1, 1]
-    - [1.25, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2.75,    1.5,    1, 1.5,       1, 1, 1, 1]
-    - [1.25, 1.25, 1.25, 6.25, 1.25, 1.25, 1.25, 1.25, 0.5, 1, 1, 1, 0.5,    2,    1, 1]
+    - [1, 0.25, 1, 1, 1, 1, 0.25, 1, 1, 1, 1, 0.25, 1, 1, 1, 1, 0.25, 1, 1]
+    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
+    - [1.5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1]
+    - [1.75, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2.25, 1]
+    - [2.25, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.75, 1, 1]
+    - [1.25, 1.25, 1.25, 6.25, 1, 1, 1, 1, 1, 1]
 
 # The main (blue) layout of the keyboard.
 # Accepted are:
@@ -36,12 +36,12 @@ key_sizes:
 # - macros (defined below)
 # - ~ (null) will leave an empty space with the corresponding size from key_sizes
 main_layout:
-    - ["Escape", ~, "F1", "F2", "F3", "F4", ~, "F5", "F6", "F7", "F8", ~, "F9", "F10", "F11", "F12", ~, "Print", "Scroll", "Pause", ~, "COPY", "PASTE", ~, "KILL"]
-    - ["Oem3", "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N0", "Minus", "Plus", "BackSpace", ~, "Insert", "Home", "Prior", ~, "NumLock", "KP_Divide", "KP_Multiply", "KP_Subtract"]
-    - ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Oem4", "Oem6", "Oem5", ~, "Delete", "End", "Next", ~, "KP_7", "KP_8", "KP_9", "KP_Add"]
-    - ["XF86Favorites", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Oem1", "Oem7", "Return", ~, "KP_4", "KP_5", "KP_6", ~]
-    - ["LShift", "Oem102", "Z", "X", "C", "V", "B", "N", "M", "Comma", "Period", "Oem2", "RShift", ~, "Up", ~, "KP_1", "KP_2", "KP_3", "KP_Enter"]
-    - ["LCtrl", "LSuper", "LAlt", "Space", "Meta", "RSuper", "Menu", "RCtrl", ~, "Left", "Down", "Right", ~, "KP_0", "KP_Decimal", ~]
+    - ["Escape", ~, "F1", "F2", "F3", "F4", ~, "F5", "F6", "F7", "F8", ~, "F9", "F10", "F11", "F12", ~, "Delete", "Insert"]
+    - ["Oem3", "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N0", "Minus", "Plus", "BackSpace", "Prior"]
+    - ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Oem4", "Oem6", "Oem5", "Next"]
+    - ["Caps", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Oem1", "Oem7", "Return", "Home"]
+    - ["LShift", "Z", "X", "C", "V", "B", "N", "M", "Comma", "Period", "Oem2", "RShift", "Up", "End"]
+    - ["LCtrl", "LSuper", "LAlt", "Space", "Meta", "Menu", "RCtrl", "Left", "Down", "Right"]
 
 # When using the purple pointer...
 # None   - No special functionality when using purple pointer (Default)
@@ -54,17 +54,13 @@ alt_modifier: None
 
 # Shell commands to be used in a layout.
 # Value is an array of string arguments.
-exec_commands:
-    STT: [ "whisper_stt", "--lang", "en" ]
+exec_commands: {}
 
 # Series of keypresses to be used in a layout.
 # Format: keyName [DOWN|UP]
 # keyName must be a valid virtual key from the VirtualKey enum (see above)
 # DOWN|UP: can be omitted for an implicit "keyName DOWN, keyName UP"
-macros:
-    KILL: [ "LSuper DOWN", "LCtrl DOWN", "Escape", "LCtrl UP", "LSuper UP" ]
-    COPY: [ "LCtrl DOWN", "C", "LCtrl UP" ]
-    PASTE: [ "LCtrl DOWN", "V", "LCtrl UP" ]
+macros: {}
 
 # Custom labels to use.
 # Key: element of main_layout
@@ -72,30 +68,21 @@ macros:
 # For empty labels, use [] (do not use ~)
 labels:
     "Escape":         ["Esc"]
+    "Delete":         ["Del"]
+    "Insert":         ["Ins"]
     "Prior":          ["PgUp"]
     "Next":           ["PgDn"]
-    "NumLock":        ["Num"]
+    "BackSpace":      ["Backspace"]
+    "Return":         ["Enter"]
+    "Caps":           ["Caps Lock"]
     "Space":          []
     "LAlt":           ["Alt"]
+    "Meta":           ["AltGr"]
     "LCtrl":          ["Ctrl"]
     "RCtrl":          ["Ctrl"]
     "LSuper":         ["Super"]
-    "RSuper":         ["Super"]
     "LShift":         ["Shift"]
     "RShift":         ["Shift"]
-    "Insert":         ["Ins"]
-    "Delete":         ["Del"]
-    "BackSpace":      ["<<"]
-    "KP_Divide":      [" /"]
-    "KP_Add":         [" +"]
-    "KP_Multiply":    [" *"]
-    "KP_Decimal":     [" ."]
-    "KP_Subtract":    [" -"]
-    "KP_Enter":       ["Ent"]
-    "Print":          ["Prn"]
-    "Scroll":         ["Scr"]
-    "Pause":          ["Brk"]
-    "XF86Favorites":  ["Menu"] # fallback labels below
     "N1":             ["1", "!"]
     "N2":             ["2", "@"]
     "N3":             ["3", "#"]
@@ -117,5 +104,3 @@ labels:
     "Oem5":           [" \\", "|"]
     "Oem6":           [" ]",  "}"]
     "Oem7":           [" '",  "\""]
-    "Oem102":         [" \\", "|"] 
-

@@ -31,10 +31,22 @@ TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
     EXPECT_EQ(layout.main_layout.size(), layout.key_sizes.size());
 }
 
+TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
+    const auto& layout = KeyboardLayout::Instance();
+    EXPECT_EQ(layout.name, "keychron-v1-ansi");
+    EXPECT_FLOAT_EQ(layout.row_size, 16.0f);
+    ASSERT_EQ(layout.main_layout.size(), 6U);
+    EXPECT_EQ(layout.main_layout[3].front(), "Caps");
+    EXPECT_EQ(layout.main_layout[5][3], "Space");
+    EXPECT_FLOAT_EQ(layout.key_sizes[5][3], 6.25f);
+    EXPECT_EQ(layout.main_layout[4][12], "Up");
+}
+
 TEST(KeyboardLayout, LabelsFollowOriginalRules) {
     const auto& layout = KeyboardLayout::Instance();
     EXPECT_EQ(layout.LabelForKey("a"), std::vector<std::string>{"a"});
-    EXPECT_EQ(layout.LabelForKey("KP_Multiply"), std::vector<std::string>{" *"});
+    EXPECT_EQ(layout.LabelForKey("Caps"), std::vector<std::string>{"Caps Lock"});
+    EXPECT_EQ(layout.LabelForKey("KP_Multiply"), std::vector<std::string>{"Multiply"});
     EXPECT_EQ(layout.LabelForKey("KP_Begin_X"), std::vector<std::string>{"Begin"});
     EXPECT_EQ(layout.LabelForKey("BACKSPACE_X"), std::vector<std::string>{"Backspace"});
     EXPECT_TRUE(layout.LabelForKey("").empty());
