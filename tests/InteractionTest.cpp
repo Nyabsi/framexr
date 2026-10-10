@@ -626,6 +626,36 @@ TEST_F(Interaction, DroppingOntoAnotherOverlayKeepsTheOverlap) {
     EXPECT_TRUE(Bounds(moving).Overlaps(Bounds(fixed), 0.0f));
 }
 
+TEST_F(Interaction, ShowHideRestoresOnlyWhatWasOpen) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto open = AddPanel("open", {0.0f, 0.0f, -1.0f}, events);
+    const auto closed = AddPanel("closed", {2.0f, 0.0f, -1.0f}, events);
+    overlays_->ById(closed)->state.want_visible = false;
+
+    overlays_->ShowHide(*app_);
+    EXPECT_FALSE(overlays_->ById(open)->state.want_visible);
+    EXPECT_FALSE(overlays_->ById(closed)->state.want_visible);
+
+    overlays_->ShowHide(*app_);
+    EXPECT_TRUE(overlays_->ById(open)->state.want_visible);
+    EXPECT_FALSE(overlays_->ById(closed)->state.want_visible);
+}
+
+TEST_F(Interaction, ShowHideIncludesOverlaysOpenedOutsideTheSet) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
+    const auto extra = AddPanel("extra", {2.0f, 0.0f, -1.0f}, events);
+    overlays_->ById(extra)->state.show_hide = false;
+
+    overlays_->ShowHide(*app_);
+    EXPECT_FALSE(overlays_->ById(screen)->state.want_visible);
+    EXPECT_FALSE(overlays_->ById(extra)->state.want_visible);
+
+    overlays_->ShowHide(*app_);
+    EXPECT_TRUE(overlays_->ById(screen)->state.want_visible);
+    EXPECT_TRUE(overlays_->ById(extra)->state.want_visible);
+}
+
 TEST_F(Interaction, ShowHideKeepsOverlapsTheUserMade) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);

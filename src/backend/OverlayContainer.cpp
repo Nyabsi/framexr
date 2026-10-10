@@ -281,25 +281,42 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
 }
 
 auto OverlayContainer::ShowHide(AppState& app) -> void {
-    const bool any_shown = std::ranges::any_of(overlays_, [](const auto& overlay) -> bool {
-        return overlay->state.show_hide && overlay->state.want_visible;
+    const auto hideable = [](const OverlayState& state) -> bool {
+        return state.show_hide || (state.recenter && state.relative_to == RelativeTo::None);
+    };
+    const bool any_shown = std::ranges::any_of(overlays_, [&](const auto& overlay) -> bool {
+        return hideable(overlay->state) && overlay->state.want_visible;
     });
 
+    if (any_shown) {
+        hidden_by_show_hide_.clear();
+        for (auto& overlay : overlays_) {
+            auto& state = overlay->state;
+            if (hideable(state) && state.want_visible) {
+                hidden_by_show_hide_.push_back(state.id);
+                state.want_visible = false;
+            }
+        }
+        return;
+    }
+
+    const auto restore = [&](const OverlayState& state) -> bool {
+        return hidden_by_show_hide_.empty() ? state.show_hide : std::ranges::contains(hidden_by_show_hide_, state.id);
+    };
     for (auto& overlay : overlays_) {
         auto& state = overlay->state;
-        if (state.show_hide) {
-            state.want_visible = !any_shown;
-            if (state.want_visible && state.recenter) {
+        if (restore(state)) {
+            state.want_visible = true;
+            if (state.recenter) {
                 state.Reset(app, false);
             }
         }
-        if (!any_shown && state.name == kWatchName) {
+        if (state.name == kWatchName) {
             state.Reset(app, true);
         }
     }
-    if (!any_shown) {
-        ArrangeVisible(app);
-    }
+    hidden_by_show_hide_.clear();
+    ArrangeVisible(app);
 }
 
 auto OverlayContainer::Recenter(AppState& app) -> void {

@@ -77,6 +77,7 @@ class OverlayContainer final {
 
     std::vector<std::unique_ptr<Overlay>> overlays_;
     std::set<OverlayPair> user_overlaps_;
+    std::vector<OverlayId> hidden_by_show_hide_;
 #if FRAMEXR_FEATURE_WAYLAND
     std::unique_ptr<WaylandClient> wayland_;
 #endif
