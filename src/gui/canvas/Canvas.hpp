@@ -71,7 +71,7 @@ class Canvas : public OverlayBackend {
   public:
     static auto Create(std::shared_ptr<Device> device, uint32_t width, uint32_t height, VkFormat format)
         -> Result<std::unique_ptr<Canvas>>;
-    static auto ParseColor(std::string_view html_hex) -> Result<Eigen::Vector4f>;
+    static auto ParseColor(std::string_view color) -> Result<Eigen::Vector4f>;
     static auto FallbackColor() -> Eigen::Vector4f;
 
     Eigen::Vector4f fg_color = Eigen::Vector4f::Ones();

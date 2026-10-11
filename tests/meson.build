@@ -32,6 +32,7 @@ unit_tests = executable(
   'KeyboardTest.cpp',
   'KeyTranslatorTest.cpp',
   'LabelTest.cpp',
+  'ModularTest.cpp',
   'OscTest.cpp',
   'RaycastTest.cpp',
   'ResourceTest.cpp',

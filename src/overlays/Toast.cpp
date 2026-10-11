@@ -115,16 +115,16 @@ auto CreateToast(const Toast& toast, AppState& app) -> std::optional<std::pair<O
     auto& canvas = **created;
 
     canvas.font_size = kFontSize;
-    canvas.fg_color = Color("#cad3f5");
-    canvas.bg_color = Color("#1e2030");
+    canvas.fg_color = Color("@text");
+    canvas.bg_color = Color("@panel");
     canvas.Panel(0.0f, 0.0f, size.width, size.height, 16.0f);
 
     if (toast.body.empty()) {
         canvas.LabelCentered(kPaddingX, 0.0f, text_width, size.height, 16.0f, title);
     } else {
         canvas.Label(kPaddingX, 54.0f, text_width, size.height - 54.0f, 3.0f, toast.body);
-        canvas.fg_color = Color("#b8c0e0");
-        canvas.bg_color = Color("#24273a");
+        canvas.fg_color = Color("@soft-text");
+        canvas.bg_color = Color("@background");
         canvas.Panel(0.0f, 0.0f, size.width, 30.0f, 16.0f);
         canvas.LabelCentered(kPaddingX, 16.0f, text_width, static_cast<float>(kFontSize) + 2.0f, 16.0f, title);
     }

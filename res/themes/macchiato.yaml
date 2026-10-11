@@ -1,0 +1,33 @@
+# looking to make changes?
+# edit it in the headset with the watch's Edit button (Theme tab), or drop a copy in ~/.config/framexr/themes/
+# a file with the same name replaces this theme, any other name adds a new one
+
+# Elements use these colours by writing their name with an @, like bg_color: "@accent".
+# Changing a colour here changes everything that uses it.
+
+name: macchiato
+
+# Corners of the watch, panels and keys: Square, Subtle or Round
+rounding: Round
+
+colors:
+  background: "#24273a"
+  panel: "#1e2030"
+  shadow: "#181926"
+  surface: "#363a4f"
+  muted: "#5b6078"
+  outline: "#6e738d"
+  subtle: "#a5adcb"
+  soft-text: "#b8c0e0"
+  text: "#cad3f5"
+  on-accent: "#24273a"
+  accent: "#c6a0f6"
+  lavender: "#b7bdf8"
+  blue: "#8aadf4"
+  sky: "#91d7e3"
+  teal: "#8bd5ca"
+  green: "#a6da95"
+  yellow: "#eed49f"
+  peach: "#f5a97f"
+  red: "#ed8796"
+  pink: "#f5bde6"

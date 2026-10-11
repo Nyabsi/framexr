@@ -43,6 +43,7 @@ backend_sources = files(
 
 gui_sources = files(
   'gui/Font.cpp',
+  'gui/Theme.cpp',
   'gui/canvas/Canvas.cpp',
   'gui/canvas/Control.cpp',
   'gui/modular/Button.cpp',

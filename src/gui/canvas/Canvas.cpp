@@ -28,6 +28,7 @@
 
 #include "Font.hpp"
 #include "Shaders.hpp"
+#include "Theme.hpp"
 #include "State.hpp"
 
 namespace {
@@ -99,7 +100,9 @@ Canvas::Canvas(
       interact_rows_(height / kResolutionDivider) {
 }
 
-auto Canvas::ParseColor(std::string_view html_hex) -> Result<Eigen::Vector4f> {
+auto Canvas::ParseColor(std::string_view color) -> Result<Eigen::Vector4f> {
+    const auto resolved = Theme::Color(color);
+    const std::string_view html_hex = resolved;
     if (html_hex.size() == 7 || html_hex.size() == 9) {
         const auto r = ParseHexByte(html_hex.substr(1, 2));
         const auto g = ParseHexByte(html_hex.substr(3, 2));

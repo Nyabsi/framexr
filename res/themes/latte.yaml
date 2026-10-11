@@ -1,0 +1,29 @@
+# looking to make changes?
+# edit it in the headset with the watch's Edit button (Theme tab), or drop a copy in ~/.config/framexr/themes/
+# a file with the same name replaces this theme, any other name adds a new one
+
+name: latte
+
+rounding: Round
+
+colors:
+  background: "#eff1f5"
+  panel: "#e6e9ef"
+  shadow: "#dce0e8"
+  surface: "#ccd0da"
+  muted: "#acb0be"
+  outline: "#9ca0b0"
+  subtle: "#6c6f85"
+  soft-text: "#5c5f77"
+  text: "#4c4f69"
+  on-accent: "#eff1f5"
+  accent: "#8839ef"
+  lavender: "#7287fd"
+  blue: "#1e66f5"
+  sky: "#04a5e5"
+  teal: "#179299"
+  green: "#40a02b"
+  yellow: "#df8e1d"
+  peach: "#fe640b"
+  red: "#d20f39"
+  pink: "#ea76cb"

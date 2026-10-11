@@ -32,6 +32,7 @@
 #include "Hid.hpp"
 #include "Logger.hpp"
 #include "Osc.hpp"
+#include "Theme.hpp"
 #include "framexr_config.h"
 
 namespace {
@@ -113,6 +114,7 @@ auto AppState::Create(std::shared_ptr<Device> device) -> Result<std::unique_ptr<
     const auto root = Config::EnsureDirectories();
     LOG_INFO("Config root path: \"{}\"", root.string());
     app->config = Config::Load();
+    Theme::SetActive(Theme::Find(app->config.theme));
 
     app->toast_topics = {
         {ToastTopic::System, ToastDisplay::Center},

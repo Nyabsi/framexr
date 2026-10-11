@@ -31,6 +31,7 @@
 #include "Json.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
+#include "Theme.hpp"
 #include "framexr_config.h"
 
 namespace {
@@ -39,13 +40,17 @@ auto Color(const std::string& hex) -> Eigen::Vector4f {
     return Canvas::ParseColor(hex).value_or(Canvas::FallbackColor());
 }
 
+auto Radius(std::optional<float> custom, Shape shape) -> float {
+    return Theme::Resolve(custom, Theme::Active().rounding, shape);
+}
+
 auto Rect(const nlohmann::json& json) -> std::array<float, 4> {
     return json.at("rect").get<std::array<float, 4>>();
 }
 
-auto CornerRadius(const nlohmann::json& json) -> float {
+auto CornerRadius(const nlohmann::json& json) -> std::optional<float> {
     const auto it = json.find("corner_radius");
-    return it == json.end() || it->is_null() ? 0.0f : it->get<float>();
+    return it == json.end() || it->is_null() ? std::nullopt : std::optional(it->get<float>());
 }
 
 auto Layout(const nlohmann::json& json) -> ListLayout {
@@ -187,16 +192,16 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
             if constexpr (std::is_same_v<Item, PanelElement>) {
                 const auto& [x, y, w, h] = item.rect;
                 canvas.bg_color = Color(item.bg_color);
-                canvas.Panel(x, y, w, h, item.corner_radius);
+                canvas.Panel(x, y, w, h, Radius(item.corner_radius, Shape::Panel));
             } else if constexpr (std::is_same_v<Item, LabelElement>) {
                 const auto& [x, y, w, h] = item.rect;
                 canvas.font_size = item.font_size;
                 canvas.fg_color = Color(item.fg_color);
+                const float radius = Radius(item.corner_radius, Shape::Control);
                 auto setup = Labels::Create(item.content, app, canvas.fg_color);
                 auto& label = item.centered
-                                ? canvas
-                                      .LabelCentered(x, y, w, h, item.corner_radius, std::move(setup.text), std::move(setup.control))
-                                : canvas.Label(x, y, w, h, item.corner_radius, std::move(setup.text), std::move(setup.control));
+                                ? canvas.LabelCentered(x, y, w, h, radius, std::move(setup.text), std::move(setup.control))
+                                : canvas.Label(x, y, w, h, radius, std::move(setup.text), std::move(setup.control));
                 if (setup.color) {
                     label.SetFgColor(*setup.color);
                 }
@@ -216,13 +221,22 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                 canvas.bg_color = Color(item.bg_color);
                 canvas.fg_color = Color(item.fg_color);
                 canvas.font_size = item.font_size;
-                canvas.Button(x, y, w, h, item.corner_radius, item.text, std::make_unique<ModularButton>(item.data));
+                canvas.Button(
+                    x,
+                    y,
+                    w,
+                    h,
+                    Radius(item.corner_radius, Shape::Control),
+                    item.text,
+                    std::make_unique<ModularButton>(item.data)
+                );
             } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
                 const auto& [x, y, w, h] = item.rect;
                 const auto count = static_cast<float>(item.num_devices);
                 const float button_w = item.layout == ListLayout::Horizontal ? w / count : w;
                 const float button_h = item.layout == ListLayout::Horizontal ? h : h / count;
                 const float low_threshold = item.low_threshold * 0.01f;
+                const float radius = Radius(item.corner_radius, Shape::Control);
                 const auto fg_color = Color(item.fg_color);
                 canvas.font_size = item.font_size;
                 canvas.fg_color = fg_color;
@@ -242,7 +256,7 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                         button_y + 2.0f,
                         button_w - 4.0f,
                         button_h - 4.0f,
-                        item.corner_radius,
+                        radius,
                         std::move(setup.text),
                         std::move(setup.control)
                     );
@@ -253,6 +267,7 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                 const auto count = static_cast<float>(app.screens.size());
                 const float button_w = item.layout == ListLayout::Horizontal ? w / count : w;
                 const float button_h = item.layout == ListLayout::Horizontal ? h : h / count;
+                const float radius = Radius(item.corner_radius, Shape::Control);
                 canvas.bg_color = Color(item.bg_color);
                 canvas.fg_color = Color(item.fg_color);
                 canvas.font_size = item.font_size;
@@ -279,7 +294,7 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                         button_y + 2.0f,
                         button_w - 4.0f,
                         button_h - 4.0f,
-                        item.corner_radius,
+                        radius,
                         screen.name,
                         std::make_unique<ModularButton>(std::move(data))
                     );

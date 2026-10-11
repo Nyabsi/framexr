@@ -67,6 +67,7 @@ struct Config {
     float keyboard_scale = 1.0f;
     std::string keyboard_profile = "keychron-v1-ansi";
     std::string keyboard_region;
+    std::string theme = "macchiato";
     float desktop_view_scale = 1.0f;
     float watch_view_angle_min = 0.5f;
     float watch_view_angle_max = 0.7f;
@@ -140,6 +141,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     keyboard_scale,
     keyboard_profile,
     keyboard_region,
+    theme,
     desktop_view_scale,
     watch_view_angle_min,
     watch_view_angle_max,

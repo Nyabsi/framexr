@@ -47,13 +47,13 @@ enum class ListLayout : uint8_t {
 
 struct PanelElement {
     std::array<float, 4> rect{};
-    float corner_radius = 0.0f;
+    std::optional<float> corner_radius;
     std::string bg_color;
 };
 
 struct LabelElement {
     std::array<float, 4> rect{};
-    float corner_radius = 0.0f;
+    std::optional<float> corner_radius;
     int font_size = 0;
     std::string fg_color;
     LabelContent content;
@@ -68,7 +68,7 @@ struct SpriteElement {
 
 struct ButtonElement {
     std::array<float, 4> rect{};
-    float corner_radius = 0.0f;
+    std::optional<float> corner_radius;
     int font_size = 0;
     std::string fg_color;
     std::string bg_color;
@@ -78,7 +78,7 @@ struct ButtonElement {
 
 struct BatteryListElement {
     std::array<float, 4> rect{};
-    float corner_radius = 0.0f;
+    std::optional<float> corner_radius;
     int font_size = 0;
     std::string fg_color;
     std::string fg_color_low;
@@ -104,7 +104,7 @@ struct OverlayListTemplate {
 
 struct OverlayListElement {
     std::array<float, 4> rect{};
-    float corner_radius = 0.0f;
+    std::optional<float> corner_radius;
     int font_size = 0;
     std::string fg_color;
     std::string bg_color;

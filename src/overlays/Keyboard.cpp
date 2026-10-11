@@ -41,6 +41,7 @@
 #include "Json.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
+#include "Theme.hpp"
 #include "Yaml.hpp"
 #include "framexr_config.h"
 
@@ -49,7 +50,6 @@ namespace {
 constexpr float kPixelsPerUnit = 80.0f;
 constexpr float kButtonPadding = 7.0f;
 constexpr float kKeyboardMargin = 14.0f;
-constexpr float kKeyRadius = 10.0f;
 constexpr int kKeyFontSize = 15;
 constexpr float kMetersPerUnit = 0.04f;
 constexpr float kKeyboardDrop = 0.5f;
@@ -572,11 +572,12 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
         Canvas::Create(app.device, static_cast<uint32_t>(width), static_cast<uint32_t>(height), app.device->NativeFormat())
     );
 
-    canvas->bg_color = Color("#181926");
-    canvas->Panel(0.0f, 0.0f, width, height, 16.0f);
+    const auto rounding = Theme::Active().rounding;
+    canvas->bg_color = Color("@shadow");
+    canvas->Panel(0.0f, 0.0f, width, height, Theme::Radius(rounding, Shape::Panel));
     canvas->font_size = kKeyFontSize;
-    canvas->fg_color = Color("#cad3f5");
-    canvas->bg_color = Color("#1e2030");
+    canvas->fg_color = Color("@text");
+    canvas->bg_color = Color("@panel");
 
     std::shared_ptr<const Keymap> region_keymap;
     if (const auto region_name = layout.region.value_or(app.config.keyboard_region); !region_name.empty()) {
@@ -681,7 +682,8 @@ auto Keyboard::Create(AppState& app, const std::shared_ptr<const Keymap>& keymap
                 }
             }
             const size_t first_label = canvas->ControlCount() + 1;
-            canvas->KeyButton(x, y, key_width, key_height, kKeyRadius, cap_type, labels, std::move(control));
+            canvas
+                ->KeyButton(x, y, key_width, key_height, Theme::Radius(rounding, Shape::Key), cap_type, labels, std::move(control));
             if (upper_case && first_label < canvas->ControlCount()) {
                 state->letters.push_back(
                     {.label = &canvas->ControlAt(first_label), .lower = labels.front(), .upper = std::move(*upper_case)}

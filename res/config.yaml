@@ -23,6 +23,11 @@ keyboard_profile: keychron-v1-ansi
 # Default: ""
 keyboard_region: ""
 
+# Colours and corner rounding of the watch, panels and keyboard, built-in: macchiato, latte
+# Your own themes go in ~/.config/framexr/themes/*.yaml
+# Default: macchiato
+theme: macchiato
+
 # Enable / disable sliding windows back and forth with the scroll action
 # Default: true
 allow_sliding: true
