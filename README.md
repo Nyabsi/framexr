@@ -3,7 +3,37 @@
 > [!NOTE]
 > This project is a C++ rewrite of [wlx-overlay-s](https://github.com/galister/wlx-overlay-s) (now [WayVR](https://github.com/wayvr-org/wayvr)), originally written in Rust. It was branched off release [v25.4.2](https://github.com/wayvr-org/wayvr/releases/tag/v25.4.2).
 
-A lightweight OpenXR/OpenVR overlay for Wayland and X11 desktops.
+A modular, fully customizable VR overlay for SteamVR and Monado.
+
+### Features
+
+- Fully customizable everything with intuitive in-VR editor!
+- Fully customizable keyboard, add, remove and rearrange keys however you like
+- Speaks your language, Finnish, Swedish, Japanese or whatever layout you use, and switch between them on the fly
+- Theme engine, pick your colours and go from sharp corners to fully rounded
+- Crisp, shimmer-free screens even from far away
+- Smooth, steady grabbing and pointing
+- Overlays show up where you look and remember where you left them
+- Works with OpenXR and OpenVR, on Wayland and X11
+
+### Showcase
+
+<p align="center">
+  <a href="images/01-desktop.png"><img src="images/01-desktop.png" width="100%"></a>
+</p>
+<p align="center">
+  <a href="images/02-multi-monitor.png"><img src="images/02-multi-monitor.png" width="49%"></a>
+  <a href="images/03-big-screen.png"><img src="images/03-big-screen.png" width="49%"></a>
+</p>
+<p align="center">
+  <a href="images/04-keyboard.png"><img src="images/04-keyboard.png" width="49%"></a>
+  <a href="images/05-watch.png"><img src="images/05-watch.png" width="49%"></a>
+</p>
+<p align="center">
+  <a href="images/06-editor-watch.png"><img src="images/06-editor-watch.png" width="32%"></a>
+  <a href="images/07-editor-keyboard.png"><img src="images/07-editor-keyboard.png" width="32%"></a>
+  <a href="images/08-editor-theme.png"><img src="images/08-editor-theme.png" width="32%"></a>
+</p>
 
 ### Building from source
 
@@ -35,102 +65,7 @@ Tests use googletest (vendored in `external/googletest`) and live in `tests/`:
 
 Log verbosity is controlled by the `FRAMEXR_LOG` environment variable (e.g. `FRAMEXR_LOG=debug` or `FRAMEXR_LOG=info,overlays/Screen=trace`).
 
-## First Start
-
-**When the screen share pop-up appears, check the terminal and select the screens in the order it requests.**
-
-In case screens were selected in the wrong order:
-
-- `rm ~/.config/framexr/conf.d/pw_tokens.yaml` then restart
-
-**SteamVR users**: FrameXR will register itself for auto-start, so there is no need to start it every time.
-
-**Please continue reading the guide below.**
-
-## Getting Started
-
-### Working Set
-
-The working set consists of all currently selected overlays; screens, mirrors, keyboard, etc.
-
-The working set appears in front of the headset when shown, and can be re-centered by hiding and showing again.
-
-Show and hide the working set using:
-
-- Non-vive controller: double-tap B or Y on the left controller.
-- Vive controller: double-tap the menu button on the left controller (for SteamVR, the `showhide` binding must be bound)
-
-### Pointer Modes AKA Laser Colors
-
-Much of the functionality in FrameXR depends on what color of laser is used to interact with a UI element. \
-Using the default settings, there are 3 modes:
-
-- Regular Mode: Blue laser
-- Right-click Mode: Orange laser
-- Middle-click Mode: Purple laser
-
-Please see the bindings section below on how to activate these modes.
-
-The guide here uses the colors for ease of getting started.
-
-### The Watch
-
-Check your left wrist for the watch. The watch is the primary tool for controlling the app.
-
-### The Screens
-
-Hovering a pointer over a screen will move the mouse. If there are more than one pointers hovering a screen, the pointer that was last used to click will take precedence.
-
-The click depends on the laser color:
-
-- Blue laser: Left click
-- Orange laser: Right click
-- Purple laser: Middle click
-- Stick up/down: Scroll wheel
-
-To **curve a screen**, grab it with one hand. Then, using the other hand, hover the laser over the screen and use the scroll action.
-
-See the [bindings](#default-bindings) section on how to grab, move and resize screens.
-
-### The keyboard
-
-Typing
-
-- Use the BLUE laser when typing regularly.
-- While using ORANGE laser, all keystrokes will have SHIFT applied.
-- Purple laser has no effect as of now.
-
-**Modifier Keys** are sticky. They will remain pressed until a non-modifier key is pressed, the modifier gets toggled off, or the keyboard gets hidden.
-
-## Troubleshooting
-
-When an error is detected, we often print tips for fixing into the log file.
-
-Logs will be at `/tmp/framexr.log` for most distros.
-
-Check [here](https://github.com/galister/wlx-overlay-s/wiki/Troubleshooting) for tips.
-
 ## Known Issues
-
-### Crashes, blank screens
-
-There are some driver-desktop combinations that don't play nice with DMA-buf capture. 
-
-Disabling DMA-buf capture is a good first step to try when encountering an app crash or gpu driver reset.
-
-```bash
-echo 'capture_method: pw_fallback' > ~/.config/framexr/conf.d/pw_fallback.yaml
-```
-
-Without DMA-buf capture, capturing screens takes CPU power, so let's try and not show too many screens at the same time.
-
-### Space-drag crashes SteamVR
-
-This has been idenfitied as an issue with SteamVR versions 2.5.5 and above (latest tested 2.7.2). One way to avoid the crash is by switching to the `temp-v1.27.5` branch of SteamVR (via beta selection) and selecting [Steam-Play-None](https://github.com/Scrumplex/Steam-Play-None) under the compatibility tab.
-
-### Modifiers get stuck in weird ways
-
-This is a rare issue that can make KDE Plasma not react to click or keys due to what seems to be a race condition with modifiers. Restarting the overlay fixes this.
 
 ### X11 limitations
 

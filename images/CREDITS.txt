@@ -1,0 +1,16 @@
+Screen contents in these images are from Wikimedia Commons:
+
+01-desktop.png        Blender 4.3.2 screenshot, UnnecessaryDecision, CC0
+                      https://commons.wikimedia.org/wiki/File:Blender_4.3.2_screenshot.png
+
+02-multi-monitor.png  Kdenlive with Krita Dark theme, KDE and Wildfire Games, GPL
+                      https://commons.wikimedia.org/wiki/File:Kdenlive_with_Krita_Dark_theme.jpg
+                      KDE Plasma 6.4.5 Dark, Michio.kawaii (KDE Plasma), GPL
+                      https://commons.wikimedia.org/wiki/File:KDE_Plasma_6.4.5_Dark.png
+                      SuperTuxKart 0.9 screenshot, STK dev team, CC BY 3.0
+                      https://commons.wikimedia.org/wiki/File:Supertuxkart-0.9-screenshot-2.jpg
+
+03-big-screen.png     Veloren 0.17 screenshot (horizon), Antimundo, CC0
+                      https://commons.wikimedia.org/wiki/File:Veloren-0.17-screenshot-horizon.jpg
+
+05-watch.png          KDE Plasma 6.4.5 Dark (as above), GPL
