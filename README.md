@@ -14,7 +14,8 @@ A modular, fully customizable VR overlay for SteamVR and Monado.
 - Crisp, shimmer-free screens even from far away
 - Smooth, steady grabbing and pointing
 - Overlays show up where you look and remember where you left them
-- Works with OpenXR and OpenVR, on Wayland and X11
+- Works with both Monado (OpenXR) and SteamVR (OpenVR)
+- Windows and Linux support
 
 ### Showcase
 
