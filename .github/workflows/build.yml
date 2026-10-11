@@ -41,3 +41,44 @@ jobs:
     - name: Run clang-tidy
       if: matrix.name == 'default'
       run: run-clang-tidy -p build -quiet -j "$(nproc)" "^$PWD/(src|tests)/"
+
+  windows:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    name: windows
+    steps:
+    - name: Prepare Environment
+      run: dnf install -y git meson ninja-build glslang clang-tools-extra mingw64-gcc-c++ mingw64-filesystem mingw64-vulkan-headers mingw64-vulkan-loader mingw64-freetype mingw64-winpthreads-static
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Configure
+      run: meson setup build --buildtype=release --cross-file /usr/share/mingw/toolchain-mingw64.meson --cross-file cross/windows.ini
+    - name: Build
+      run: ninja -C build
+    - name: Run clang-tidy
+      run: run-clang-tidy -p build -quiet -j "$(nproc)" "^$PWD/src/.*/win32/"
+    - name: Package
+      run: |
+        sysroot=/usr/x86_64-w64-mingw32/sys-root/mingw/bin
+        mkdir -p dist
+        cp build/src/framexr.exe dist/
+        todo=dist/framexr.exe
+        while [ -n "$todo" ]; do
+          next=""
+          for file in $todo; do
+            for dll in $(x86_64-w64-mingw32-objdump -p "$file" | sed -n 's/^\s*DLL Name: //p'); do
+              if [ "$dll" != vulkan-1.dll ] && [ -f "$sysroot/$dll" ] && [ ! -f "dist/$dll" ]; then
+                cp "$sysroot/$dll" dist/
+                next="$next dist/$dll"
+              fi
+            done
+          done
+          todo=$next
+        done
+        x86_64-w64-mingw32-strip dist/framexr.exe
+        ls -l dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: framexr-windows
+        path: dist/
