@@ -57,7 +57,9 @@ class PipewireCapture final : public Capture {
     auto operator=(const PipewireCapture&) -> PipewireCapture& = delete;
 
   private:
-    auto Run(const std::vector<DrmFormat>& dmabuf_formats) -> void;
+    auto Run() -> void;
+    auto Connect() -> void;
+    auto ScheduleRetry() -> void;
     auto SendCommand(PipewireCommand command) -> void;
     auto ExecuteCommands() -> void;
     auto UpdateStreamParams() -> void;
@@ -67,9 +69,11 @@ class PipewireCapture final : public Capture {
     static auto OnParamChanged(void* data, uint32_t id, const spa_pod* param) -> void;
     static auto OnProcess(void* data) -> void;
     static auto OnCommand(void* data, uint64_t count) -> void;
+    static auto OnRetry(void* data, uint64_t expirations) -> void;
 
     std::string name_;
     uint32_t node_id_;
+    std::vector<DrmFormat> dmabuf_formats_;
     FrameProcessor processor_;
     std::shared_ptr<FrameChannel<std::unique_ptr<ProcessedFrame>>> channel_;
     std::thread thread_;
@@ -81,5 +85,8 @@ class PipewireCapture final : public Capture {
 
     pw_stream* stream_ = nullptr;
     spa_hook stream_listener_{};
+    spa_source* retry_timer_ = nullptr;
+    uint32_t failures_ = 0;
+    bool active_ = true;
     FrameFormat format_;
 };

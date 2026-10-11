@@ -21,7 +21,9 @@
 
 #include "PipewireCapture.hpp"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <mutex>
 #include <string_view>
@@ -37,6 +39,9 @@
 #include "Logger.hpp"
 
 namespace {
+
+constexpr uint32_t kDmabufAttempts = 2;
+constexpr std::chrono::seconds kMaxRetryDelay{30};
 
 auto EnsurePipewireInitialized() -> void {
     static std::once_flag once;
@@ -217,7 +222,8 @@ PipewireCapture::~PipewireCapture() {
 auto PipewireCapture::Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void {
     channel_ = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
     processor_ = std::move(processor);
-    thread_ = std::thread(&PipewireCapture::Run, this, std::vector<DrmFormat>(dmabuf_formats.begin(), dmabuf_formats.end()));
+    dmabuf_formats_.assign(dmabuf_formats.begin(), dmabuf_formats.end());
+    thread_ = std::thread(&PipewireCapture::Run, this);
 }
 
 auto PipewireCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
@@ -260,8 +266,14 @@ auto PipewireCapture::ExecuteCommands() -> void {
     }
     for (const auto command : commands) {
         switch (command) {
-        case PipewireCommand::Pause: pw_stream_set_active(stream_, false); break;
-        case PipewireCommand::Resume: pw_stream_set_active(stream_, true); break;
+        case PipewireCommand::Pause:
+            active_ = false;
+            pw_stream_set_active(stream_, false);
+            break;
+        case PipewireCommand::Resume:
+            active_ = true;
+            pw_stream_set_active(stream_, true);
+            break;
         case PipewireCommand::Stop:
             pw_main_loop_quit(loop_);
             LOG_INFO("{}: stopping pipewire loop", name_);
@@ -270,7 +282,7 @@ auto PipewireCapture::ExecuteCommands() -> void {
     }
 }
 
-auto PipewireCapture::Run(const std::vector<DrmFormat>& dmabuf_formats) -> void {
+auto PipewireCapture::Run() -> void {
     static constexpr pw_stream_events kStreamEvents{
         .version = PW_VERSION_STREAM_EVENTS,
         .state_changed = &PipewireCapture::OnStateChanged,
@@ -302,24 +314,7 @@ auto PipewireCapture::Run(const std::vector<DrmFormat>& dmabuf_formats) -> void 
         pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr)
     );
     pw_stream_add_listener(stream_, &stream_listener_, &kStreamEvents, this);
-
-    std::vector<std::vector<std::byte>> storage;
-    std::vector<const spa_pod*> params;
-    for (const auto& format : dmabuf_formats) {
-        storage.emplace_back(1024 + format.modifiers.size() * 16);
-        params.push_back(BuildFormatParam(storage.back(), &format));
-    }
-    storage.emplace_back(1024);
-    params.push_back(BuildFormatParam(storage.back(), nullptr));
-
-    pw_stream_connect(
-        stream_,
-        PW_DIRECTION_INPUT,
-        node_id_,
-        static_cast<pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS),
-        params.data(),
-        static_cast<uint32_t>(params.size())
-    );
+    retry_timer_ = pw_loop_add_timer(pw_main_loop_get_loop(loop), &PipewireCapture::OnRetry, this);
 
     {
         std::scoped_lock lock(command_mutex_);
@@ -330,6 +325,8 @@ auto PipewireCapture::Run(const std::vector<DrmFormat>& dmabuf_formats) -> void 
         }
     }
 
+    Connect();
+
     pw_main_loop_run(loop);
     LOG_INFO("{}: pipewire loop exited", name_);
 
@@ -338,6 +335,8 @@ auto PipewireCapture::Run(const std::vector<DrmFormat>& dmabuf_formats) -> void 
         loop_ = nullptr;
         command_event_ = nullptr;
     }
+    pw_loop_destroy_source(pw_main_loop_get_loop(loop), retry_timer_);
+    retry_timer_ = nullptr;
     pw_stream_destroy(stream_);
     stream_ = nullptr;
     pw_core_disconnect(core);
@@ -345,15 +344,72 @@ auto PipewireCapture::Run(const std::vector<DrmFormat>& dmabuf_formats) -> void 
     pw_main_loop_destroy(loop);
 }
 
+auto PipewireCapture::Connect() -> void {
+    std::vector<std::vector<std::byte>> storage;
+    std::vector<const spa_pod*> params;
+    if (failures_ < kDmabufAttempts) {
+        for (const auto& format : dmabuf_formats_) {
+            storage.emplace_back(1024 + format.modifiers.size() * 16);
+            params.push_back(BuildFormatParam(storage.back(), &format));
+        }
+    } else if (!dmabuf_formats_.empty()) {
+        LOG_WARN("{}: DMA-buf capture keeps failing, falling back to SHM", name_);
+    }
+    storage.emplace_back(1024);
+    params.push_back(BuildFormatParam(storage.back(), nullptr));
+
+    auto flags = PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS;
+    if (!active_) {
+        flags |= PW_STREAM_FLAG_INACTIVE;
+    }
+    format_ = {};
+    if (const int result = pw_stream_connect(
+            stream_,
+            PW_DIRECTION_INPUT,
+            node_id_,
+            static_cast<pw_stream_flags>(flags),
+            params.data(),
+            static_cast<uint32_t>(params.size())
+        );
+        result < 0) {
+        LOG_ERROR("{}: failed to connect stream: {}", name_, spa_strerror(result));
+        ScheduleRetry();
+    }
+}
+
+auto PipewireCapture::ScheduleRetry() -> void {
+    ++failures_;
+    const auto delay = std::min(std::chrono::seconds(1U << std::min(failures_ - 1, 5U)), kMaxRetryDelay);
+    LOG_WARN("{}: reconnecting stream in {}s", name_, delay.count());
+    timespec value{.tv_sec = delay.count(), .tv_nsec = 0};
+    pw_loop_update_timer(pw_main_loop_get_loop(loop_), retry_timer_, &value, nullptr, false);
+}
+
 auto PipewireCapture::OnCommand(void* data, uint64_t) -> void {
     static_cast<PipewireCapture*>(data)->ExecuteCommands();
 }
 
+auto PipewireCapture::OnRetry(void* data, uint64_t) -> void {
+    auto* self = static_cast<PipewireCapture*>(data);
+    LOG_INFO("{}: reconnecting stream (attempt {})", self->name_, self->failures_);
+    pw_stream_disconnect(self->stream_);
+    self->Connect();
+}
+
 auto PipewireCapture::OnStateChanged(void* data, pw_stream_state old_state, pw_stream_state state, const char* error) -> void {
-    const auto* self = static_cast<PipewireCapture*>(data);
-    if (state == PW_STREAM_STATE_ERROR && error != nullptr) {
-        LOG_INFO("{}: stream state changed: {} -> Error(\"{}\")", self->name_, StreamStateName(old_state), error);
+    auto* self = static_cast<PipewireCapture*>(data);
+    if (state == PW_STREAM_STATE_ERROR) {
+        LOG_WARN(
+            "{}: stream state changed: {} -> Error(\"{}\")",
+            self->name_,
+            StreamStateName(old_state),
+            error != nullptr ? error : ""
+        );
+        self->ScheduleRetry();
         return;
+    }
+    if (state == PW_STREAM_STATE_STREAMING) {
+        self->failures_ = 0;
     }
     LOG_INFO("{}: stream state changed: {} -> {}", self->name_, StreamStateName(old_state), StreamStateName(state));
 }
