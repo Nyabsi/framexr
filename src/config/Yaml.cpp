@@ -18,6 +18,7 @@
 
 #include "Yaml.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <limits>
@@ -93,6 +94,54 @@ auto ParseFloatLiteral(std::string_view text) -> std::optional<double> {
     return negative ? -value : value;
 }
 
+auto ResolvesToNonString(const std::string& text) -> bool {
+    return IsNullLiteral(text) || ParseBoolLiteral(text) || ParseIntegerLiteral(text) || ParseFloatLiteral(text);
+}
+
+auto IsWholeNumber(double value) -> bool {
+    return std::isfinite(value) && std::trunc(value) == value && std::abs(value) < 1e15;
+}
+
+template <typename JsonType>
+auto EmitJson(const JsonType& value) -> std::string {
+    YAML::Emitter emitter;
+    const auto emit = [&](const auto& self, const JsonType& node) -> void {
+        if (node.is_object()) {
+            emitter << YAML::BeginMap;
+            for (const auto& [key, item] : node.items()) {
+                emitter << YAML::Key << key << YAML::Value;
+                self(self, item);
+            }
+            emitter << YAML::EndMap;
+        } else if (node.is_array()) {
+            const bool flat = !node.empty()
+                           && std::ranges::all_of(node, [](const JsonType& item) -> bool { return item.is_primitive(); });
+            if (flat) {
+                emitter << YAML::Flow;
+            }
+            emitter << YAML::BeginSeq;
+            for (const auto& item : node) {
+                self(self, item);
+            }
+            emitter << YAML::EndSeq;
+        } else if (node.is_string()) {
+            const auto text = node.template get<std::string>();
+            if (ResolvesToNonString(text)) {
+                emitter << YAML::DoubleQuoted;
+            }
+            emitter << text;
+        } else if (node.is_null()) {
+            emitter << YAML::Null;
+        } else if (node.is_number_float() && IsWholeNumber(node.template get<double>())) {
+            emitter << static_cast<int64_t>(node.template get<double>());
+        } else {
+            emitter << node.dump();
+        }
+    };
+    emit(emit, value);
+    return std::string(emitter.c_str()) + "\n";
+}
+
 } // namespace
 
 auto Yaml::Parse(std::string_view text) -> Result<nlohmann::json> {
@@ -157,29 +206,9 @@ auto Yaml::Convert(const YAML::Node& node) -> nlohmann::json {
 }
 
 auto Yaml::Emit(const nlohmann::json& value) -> std::string {
-    YAML::Emitter emitter;
-    const auto emit = [&](const auto& self, const nlohmann::json& node) -> void {
-        if (node.is_object()) {
-            emitter << YAML::BeginMap;
-            for (const auto& [key, item] : node.items()) {
-                emitter << YAML::Key << key << YAML::Value;
-                self(self, item);
-            }
-            emitter << YAML::EndMap;
-        } else if (node.is_array()) {
-            emitter << YAML::BeginSeq;
-            for (const auto& item : node) {
-                self(self, item);
-            }
-            emitter << YAML::EndSeq;
-        } else if (node.is_string()) {
-            emitter << node.get<std::string>();
-        } else if (node.is_null()) {
-            emitter << YAML::Null;
-        } else {
-            emitter << node.dump();
-        }
-    };
-    emit(emit, value);
-    return std::string(emitter.c_str()) + "\n";
+    return EmitJson(value);
+}
+
+auto Yaml::Emit(const nlohmann::ordered_json& value) -> std::string {
+    return EmitJson(value);
 }

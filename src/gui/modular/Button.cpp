@@ -112,6 +112,16 @@ constexpr auto kPressRelease = std::to_array<std::pair<PressRelease, std::string
     {PressRelease::Press, "Press"},
 });
 
+template <typename Enum, size_t Count>
+auto EnumName(Enum value, const std::array<std::pair<Enum, std::string_view>, Count>& names) -> std::string_view {
+    for (const auto& [item, name] : names) {
+        if (item == value) {
+            return name;
+        }
+    }
+    return names.front().second;
+}
+
 auto ParseWatchAction(const nlohmann::json& json) -> WatchAction {
     const auto name = Json::VariantName(json);
     const auto& payload = Json::VariantPayload(json);
@@ -149,6 +159,50 @@ auto ParseOscValue(const nlohmann::json& json) -> OscValue {
         return value.get<bool>();
     }
     throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for OscValue", type), &json);
+}
+
+auto WatchActionJson(const WatchAction& action) -> nlohmann::ordered_json {
+    return std::visit(
+        [](const auto& item) -> nlohmann::ordered_json {
+            using Item = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, WatchHide>) {
+                return "Hide";
+            } else if constexpr (std::is_same_v<Item, WatchSwitchHands>) {
+                return "SwitchHands";
+            } else if constexpr (std::is_same_v<Item, WatchViewAngle>) {
+                return {{"ViewAngle", {{"kind", EnumName(item.kind, kViewAngleKinds)}, {"delta", Json::ShortestFloat(item.delta)}}}};
+            } else if constexpr (std::is_same_v<Item, WatchRotation>) {
+                return {{"Rotation", {{"axis", EnumName(item.axis, kAxes)}, {"delta", Json::ShortestFloat(item.delta)}}}};
+            } else {
+                return {{"Position", {{"axis", EnumName(item.axis, kAxes)}, {"delta", Json::ShortestFloat(item.delta)}}}};
+            }
+        },
+        action
+    );
+}
+
+auto OscValueJson(const OscValue& value) -> nlohmann::ordered_json {
+    return std::visit(
+        [](const auto& item) -> nlohmann::ordered_json {
+            using Item = std::decay_t<decltype(item)>;
+            nlohmann::ordered_json json;
+            if constexpr (std::is_same_v<Item, int32_t>) {
+                json["type"] = "Int";
+                json["value"] = item;
+            } else if constexpr (std::is_same_v<Item, float>) {
+                json["type"] = "Float";
+                json["value"] = Json::ShortestFloat(item);
+            } else if constexpr (std::is_same_v<Item, std::string>) {
+                json["type"] = "String";
+                json["value"] = item;
+            } else {
+                json["type"] = "Bool";
+                json["value"] = item;
+            }
+            return json;
+        },
+        value
+    );
 }
 
 auto OptionalActions(const nlohmann::json& json, std::string_view key) -> std::optional<std::vector<ButtonAction>> {
@@ -285,6 +339,131 @@ auto from_json(const nlohmann::json& json, ButtonData& value) -> void {
     value.scroll_up = OptionalActions(json, "scroll_up");
     if (const auto it = json.find("highlight"); it != json.end() && !it->is_null()) {
         value.highlight = ParseEnum(*it, kHighlightTests);
+    }
+}
+
+auto to_json(nlohmann::ordered_json& json, const OverlaySelector& value) -> void {
+    if (const auto* id = std::get_if<OverlayId>(&value)) {
+        json = static_cast<uint64_t>(*id);
+    } else {
+        json = std::get<std::string>(value);
+    }
+}
+
+auto to_json(nlohmann::ordered_json& json, const OverlayAction& value) -> void {
+    std::visit(
+        [&json](const auto& item) -> void {
+            using Item = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, OverlayToggleVisible>) {
+                json = "ToggleVisible";
+            } else if constexpr (std::is_same_v<Item, OverlayToggleImmovable>) {
+                json = "ToggleImmovable";
+            } else if constexpr (std::is_same_v<Item, OverlayToggleInteraction>) {
+                json = "ToggleInteraction";
+            } else {
+                json = {{"Opacity", {{"delta", Json::ShortestFloat(item.delta)}}}};
+            }
+        },
+        value
+    );
+}
+
+auto to_json(nlohmann::ordered_json& json, const ButtonAction& value) -> void {
+    json = nlohmann::ordered_json::object();
+    std::visit(
+        [&json](const auto& item) -> void {
+            using Item = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, ExecButtonAction>) {
+                json["type"] = "Exec";
+                json["command"] = item.command;
+                if (item.toast) {
+                    json["toast"] = *item.toast;
+                }
+            } else if constexpr (std::is_same_v<Item, VirtualKeyButtonAction>) {
+                json["type"] = "VirtualKey";
+                json["keycode"] = VirtualKeys::Name(item.keycode);
+                json["action"] = EnumName(item.action, kPressRelease);
+            } else if constexpr (std::is_same_v<Item, WatchButtonAction>) {
+                json["type"] = "Watch";
+                json["action"] = WatchActionJson(item.action);
+            } else if constexpr (std::is_same_v<Item, OverlayButtonAction>) {
+                json["type"] = "Overlay";
+                json["target"] = item.target;
+                json["action"] = item.action;
+            } else if constexpr (std::is_same_v<Item, WindowButtonAction>) {
+                json["type"] = "Window";
+                json["target"] = item.target;
+                json["action"] = EnumName(item.action, kWindowActions);
+            } else if constexpr (std::is_same_v<Item, ToastButtonAction>) {
+                json["type"] = "Toast";
+                json["message"] = item.message;
+                if (item.body) {
+                    json["body"] = *item.body;
+                }
+                if (item.seconds) {
+                    json["seconds"] = Json::ShortestFloat(*item.seconds);
+                }
+            } else if constexpr (std::is_same_v<Item, ColorAdjustButtonAction>) {
+                json["type"] = "ColorAdjust";
+                json["channel"] = EnumName(item.channel, kColorChannels);
+                json["delta"] = Json::ShortestFloat(item.delta);
+            } else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>) {
+                json["type"] = "DragMultiplier";
+                json["delta"] = Json::ShortestFloat(item.delta);
+            } else if constexpr (std::is_same_v<Item, SystemButtonAction>) {
+                json["type"] = "System";
+                json["action"] = EnumName(item.action, kSystemActions);
+            } else if constexpr (std::is_same_v<Item, ShortcutButtonAction>) {
+                json["type"] = "Shortcut";
+                auto keys = nlohmann::ordered_json::array();
+                for (const auto key : item.keys) {
+                    keys.push_back(VirtualKeys::Name(key));
+                }
+                json["keys"] = std::move(keys);
+            } else if constexpr (std::is_same_v<Item, TypeTextButtonAction>) {
+                json["type"] = "TypeText";
+                json["text"] = item.text;
+            } else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>) {
+                json["type"] = "KeyboardProfile";
+                if (item.profile) {
+                    json["profile"] = *item.profile;
+                }
+            } else {
+                json["type"] = "SendOscValue";
+                json["parameter"] = item.parameter;
+                if (item.values) {
+                    auto values = nlohmann::ordered_json::array();
+                    for (const auto& osc_value : *item.values) {
+                        values.push_back(OscValueJson(osc_value));
+                    }
+                    json["values"] = std::move(values);
+                }
+            }
+        },
+        value
+    );
+}
+
+auto to_json(nlohmann::ordered_json& json, const ButtonData& value) -> void {
+    json = nlohmann::ordered_json::object();
+    const auto put = [&json](std::string_view key, const std::optional<std::vector<ButtonAction>>& actions) -> void {
+        if (actions) {
+            json[key] = *actions;
+        }
+    };
+    put("click_down", value.click_down);
+    put("click_up", value.click_up);
+    put("long_click_up", value.long_click_up);
+    put("right_down", value.right_down);
+    put("right_up", value.right_up);
+    put("long_right_up", value.long_right_up);
+    put("middle_down", value.middle_down);
+    put("middle_up", value.middle_up);
+    put("long_middle_up", value.long_middle_up);
+    put("scroll_down", value.scroll_down);
+    put("scroll_up", value.scroll_up);
+    if (value.highlight) {
+        json["highlight"] = EnumName(*value.highlight, kHighlightTests);
     }
 }
 

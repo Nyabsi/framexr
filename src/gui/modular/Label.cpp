@@ -27,6 +27,7 @@
 #include <format>
 
 #include "Canvas.hpp"
+#include "Json.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
 
@@ -104,6 +105,9 @@ auto from_json(const nlohmann::json& json, LabelContent& value) -> void {
         };
     } else if (source == "Clock") {
         ClockLabelContent clock{.format = json.at("format").get<std::string>()};
+        if (const auto it = json.find("city_size"); it != json.end() && !it->is_null()) {
+            clock.city_size = it->get<int>();
+        }
         if (const auto it = json.find("timezone"); it != json.end() && !it->is_null()) {
             if (it->is_number_unsigned() || it->is_number_integer()) {
                 clock.timezone = it->get<size_t>();
@@ -113,7 +117,12 @@ auto from_json(const nlohmann::json& json, LabelContent& value) -> void {
         }
         value = clock;
     } else if (source == "Timezone") {
-        value = TimezoneLabelContent{.timezone = json.at("timezone").get<size_t>()};
+        const auto& zone = json.at("timezone");
+        if (zone.is_number()) {
+            value = TimezoneLabelContent{.timezone = zone.get<size_t>()};
+        } else {
+            value = TimezoneLabelContent{.timezone = zone.get<std::string>()};
+        }
     } else if (source == "Timer") {
         value = TimerLabelContent{.format = json.at("format").get<std::string>()};
     } else if (source == "Battery") {
@@ -130,6 +139,57 @@ auto from_json(const nlohmann::json& json, LabelContent& value) -> void {
     } else {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for label source", source), &json);
     }
+}
+
+auto to_json(nlohmann::ordered_json& json, const LabelContent& value) -> void {
+    json = nlohmann::ordered_json::object();
+    std::visit(
+        [&json](const auto& label) -> void {
+            using Content = std::decay_t<decltype(label)>;
+            if constexpr (std::is_same_v<Content, StaticLabelContent>) {
+                json["source"] = "Static";
+                json["text"] = label.text;
+            } else if constexpr (std::is_same_v<Content, ExecLabelContent>) {
+                json["source"] = "Exec";
+                json["command"] = label.command;
+                json["interval"] = Json::ShortestFloat(label.interval);
+            } else if constexpr (std::is_same_v<Content, ClockLabelContent>) {
+                json["source"] = "Clock";
+                json["format"] = label.format;
+                if (label.timezone) {
+                    if (const auto* index = std::get_if<size_t>(&*label.timezone)) {
+                        json["timezone"] = *index;
+                    } else {
+                        json["timezone"] = std::get<std::string>(*label.timezone);
+                    }
+                }
+                if (label.city_size) {
+                    json["city_size"] = *label.city_size;
+                }
+            } else if constexpr (std::is_same_v<Content, TimezoneLabelContent>) {
+                json["source"] = "Timezone";
+                if (const auto* index = std::get_if<size_t>(&label.timezone)) {
+                    json["timezone"] = *index;
+                } else {
+                    json["timezone"] = std::get<std::string>(label.timezone);
+                }
+            } else if constexpr (std::is_same_v<Content, TimerLabelContent>) {
+                json["source"] = "Timer";
+                json["format"] = label.format;
+            } else if constexpr (std::is_same_v<Content, BatteryLabelContent>) {
+                json["source"] = "Battery";
+                json["device"] = label.device;
+                json["low_threshold"] = Json::ShortestFloat(label.low_threshold);
+                json["low_color"] = label.low_color;
+                json["charging_color"] = label.charging_color;
+            } else if constexpr (std::is_same_v<Content, DragMultiplierLabelContent>) {
+                json["source"] = "DragMultiplier";
+            } else {
+                json["source"] = "Ipd";
+            }
+        },
+        value
+    );
 }
 
 auto Labels::Create(const LabelContent& content, const AppState& app, const Eigen::Vector4f& fg_color) -> LabelSetup {
@@ -174,14 +234,19 @@ auto Labels::Create(const LabelContent& content, const AppState& app, const Eige
                 }
                 return {.control = std::make_unique<ClockLabel>(label.format, zone), .color = color};
             } else if constexpr (std::is_same_v<Content, TimezoneLabelContent>) {
-                if (label.timezone < app.config.timezones.size()) {
-                    const auto& zone = app.config.timezones[label.timezone];
-                    auto pretty = zone.substr(zone.rfind('/') == std::string::npos ? 0 : zone.rfind('/') + 1);
-                    std::ranges::replace(pretty, '_', ' ');
-                    return {.text = pretty};
+                std::string zone;
+                if (const auto* index = std::get_if<size_t>(&label.timezone)) {
+                    if (*index >= app.config.timezones.size()) {
+                        LOG_ERROR("Timezone index out of range '{}'", *index);
+                        return {.text = "Error", .color = Canvas::FallbackColor()};
+                    }
+                    zone = app.config.timezones[*index];
+                } else {
+                    zone = std::get<std::string>(label.timezone);
                 }
-                LOG_ERROR("Timezone index out of range '{}'", label.timezone);
-                return {.text = "Error", .color = Canvas::FallbackColor()};
+                auto pretty = zone.substr(zone.rfind('/') == std::string::npos ? 0 : zone.rfind('/') + 1);
+                std::ranges::replace(pretty, '_', ' ');
+                return {.text = pretty};
             } else if constexpr (std::is_same_v<Content, TimerLabelContent>) {
                 return {.control = std::make_unique<TimerLabel>(label.format)};
             } else if constexpr (std::is_same_v<Content, BatteryLabelContent>) {
@@ -202,6 +267,24 @@ auto Labels::Create(const LabelContent& content, const AppState& app, const Eige
         },
         content
     );
+}
+
+auto Labels::City(const std::optional<std::variant<size_t, std::string>>& zone, const AppState& app) -> std::string {
+    std::string name;
+    if (!zone) {
+        try {
+            name = std::string(std::chrono::current_zone()->name());
+        } catch (const std::runtime_error&) {
+            name = "Local";
+        }
+    } else if (const auto* index = std::get_if<size_t>(&*zone)) {
+        name = *index < app.config.timezones.size() ? app.config.timezones[*index] : std::string("Local");
+    } else {
+        name = std::get<std::string>(*zone);
+    }
+    auto city = name.substr(name.rfind('/') == std::string::npos ? 0 : name.rfind('/') + 1);
+    std::ranges::replace(city, '_', ' ');
+    return city;
 }
 
 auto Labels::FormatTime(std::string_view format, const std::chrono::time_zone* zone, std::chrono::system_clock::time_point now)

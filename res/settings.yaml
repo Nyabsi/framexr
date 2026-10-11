@@ -4,7 +4,9 @@
 
 width: 0.3
 
-size: [600, 700]
+form:
+  width: 600
+  height: 700
 
 # +X: right, +Y: up, +Z: back
 spawn_pos: [0, -0.1, -0.5]

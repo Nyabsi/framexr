@@ -4,7 +4,13 @@
 
 width: 0.115
 
-size: [400, 200]
+# the main form holds freely placed elements, the toolbar lays its buttons out in a row
+form:
+  width: 400
+  height: 160
+  toolbar:
+    height: 40
+    position: Below
 
 elements:
   # background panel
@@ -13,7 +19,8 @@ elements:
     bg_color: "@background"
 
   - type: Button
-    rect: [2, 162, 26, 36]
+    region: Toolbar
+    width: 26
     font_size: 15
     bg_color: "@accent"
     fg_color: "@on-accent"
@@ -28,7 +35,8 @@ elements:
 
   # Keyboard button
   - type: Button
-    rect: [32, 162, 48, 36]
+    region: Toolbar
+    width: 48
     font_size: 15
     fg_color: "@on-accent"
     bg_color: "@green"
@@ -58,7 +66,8 @@ elements:
 
   # Recenter button: bring visible overlays back in front of your current view
   - type: Button
-    rect: [82, 162, 48, 36]
+    region: Toolbar
+    width: 48
     font_size: 15
     fg_color: "@on-accent"
     bg_color: "@blue"
@@ -69,7 +78,8 @@ elements:
 
   # Show/hide button: hide or bring back your screens and keyboard
   - type: Button
-    rect: [134, 162, 48, 36]
+    region: Toolbar
+    width: 48
     font_size: 15
     fg_color: "@on-accent"
     bg_color: "@green"
@@ -80,7 +90,8 @@ elements:
 
   # bottom row, of keyboard + overlays
   - type: OverlayList
-    rect: [186, 160, 214, 40]
+    region: Toolbar
+    width: 214
     font_size: 15
     fg_color: "@text"
     bg_color: "@panel"
@@ -121,35 +132,25 @@ elements:
 
   # alt clock 1
   - type: Label
-    rect: [210, 90, 200, 50]
+    rect: [210, 90, 150, 50]
     font_size: 24 # Use 18 for 12-hour time
     fg_color: "@teal"
     source: Clock
     timezone: 0
+    city_size: 14 # city name above the time
     format: "%H:%M" # 23:59
     #format: "%I:%M %p" # 11:59 PM
-  - type: Label
-    rect: [210, 60, 200, 50]
-    font_size: 14
-    fg_color: "@teal"
-    source: Timezone
-    timezone: 0
 
   # alt clock 2
   - type: Label
-    rect: [210, 150, 200, 50]
+    rect: [210, 150, 150, 50]
     font_size: 24 # Use 18 for 12-hour time
     fg_color: "@lavender"
     source: Clock
     timezone: 1
+    city_size: 14
     format: "%H:%M" # 23:59
     #format: "%I:%M %p" # 11:59 PM
-  - type: Label
-    rect: [210, 120, 200, 50]
-    font_size: 14
-    fg_color: "@lavender"
-    source: Timezone
-    timezone: 1
 
   # batteries
   - type: BatteryList

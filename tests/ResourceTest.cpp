@@ -57,8 +57,8 @@ constexpr char kOpenXrActionsJson[] = {
 auto ExpectModularUi(std::string_view name, std::string_view text) -> void {
     const auto ui = Config::LoadKnownYaml<ModularUiConfig>(name, text);
     EXPECT_FALSE(ui.elements.empty()) << name;
-    EXPECT_GT(ui.size[0], 0U) << name;
-    EXPECT_GT(ui.size[1], 0U) << name;
+    EXPECT_GT(ui.Size()[0], 0U) << name;
+    EXPECT_GT(ui.Size()[1], 0U) << name;
     EXPECT_GT(ui.width, 0.0f) << name;
 }
 

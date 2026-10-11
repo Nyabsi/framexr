@@ -33,6 +33,7 @@ class Yaml {
   public:
     static auto Parse(std::string_view text) -> Result<nlohmann::json>;
     static auto Emit(const nlohmann::json& value) -> std::string;
+    static auto Emit(const nlohmann::ordered_json& value) -> std::string;
 
   private:
     static auto Convert(const YAML::Node& node) -> nlohmann::json;

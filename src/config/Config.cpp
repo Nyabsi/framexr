@@ -251,6 +251,7 @@ auto Config::SaveSettings() const -> Result<> {
     settings["keyboard_profile"] = keyboard_profile;
     settings["keyboard_region"] = keyboard_region;
     settings["theme"] = theme;
+    settings["watch_profile"] = watch_profile;
     settings["space_drag_multiplier"] = Json::ShortestFloat(space_drag_multiplier);
     return WriteJson(Config::ConfD() / "zz-saved-config.json", settings);
 }

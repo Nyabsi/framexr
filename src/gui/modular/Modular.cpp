@@ -22,7 +22,9 @@
 #include "Modular.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <format>
+#include <ranges>
 #include <utility>
 
 #include "CommandBuffer.hpp"
@@ -36,15 +38,66 @@
 
 namespace {
 
+constexpr float kMinToolbarGap = 2.0f;
+constexpr float kCityGap = 6.0f;
+constexpr float kCityLine = 1.3f;
+
+constexpr std::array<std::pair<Region, std::string_view>, 2> kRegionNames{{
+    {Region::Form, "Form"},
+    {Region::Toolbar, "Toolbar"},
+}};
+
+constexpr std::array<std::pair<ToolbarPosition, std::string_view>, 2> kToolbarPositions{{
+    {ToolbarPosition::Above, "Above"},
+    {ToolbarPosition::Below, "Below"},
+}};
+
+template <typename Enum, size_t Count>
+auto ParseName(const nlohmann::json& json, const std::array<std::pair<Enum, std::string_view>, Count>& names, std::string_view type)
+    -> Enum {
+    const auto name = Json::VariantName(json);
+    for (const auto& [value, value_name] : names) {
+        if (value_name == name) {
+            return value;
+        }
+    }
+    throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for {}", name, type), &json);
+}
+
+template <typename Enum, size_t Count>
+auto NameOf(Enum value, const std::array<std::pair<Enum, std::string_view>, Count>& names) -> std::string_view {
+    for (const auto& [item, name] : names) {
+        if (item == value) {
+            return name;
+        }
+    }
+    return names.front().second;
+}
+
 auto Color(const std::string& hex) -> Eigen::Vector4f {
     return Canvas::ParseColor(hex).value_or(Canvas::FallbackColor());
 }
 
-auto Radius(std::optional<float> custom, Shape shape) -> float {
-    return Theme::Resolve(custom, Theme::Active().rounding, shape);
+auto RegionFrom(const nlohmann::json& json) -> Region {
+    const auto it = json.find("region");
+    return it == json.end() || it->is_null() ? Region::Form : ParseName(*it, kRegionNames, "Region");
+}
+
+auto FormFrom(const nlohmann::json& json) -> size_t {
+    const auto it = json.find("form");
+    return it == json.end() || it->is_null() ? 0 : it->get<size_t>();
+}
+
+auto OptionalColor(const nlohmann::json& json) -> std::optional<std::string> {
+    const auto it = json.find("bg_color");
+    return it == json.end() || it->is_null() ? std::nullopt : std::optional(it->get<std::string>());
 }
 
 auto Rect(const nlohmann::json& json) -> std::array<float, 4> {
+    if (const auto width = json.find("width");
+        width != json.end() && RegionFrom(json) == Region::Toolbar && !json.contains("rect")) {
+        return {0.0f, 0.0f, width->get<float>(), 0.0f};
+    }
     return json.at("rect").get<std::array<float, 4>>();
 }
 
@@ -80,6 +133,8 @@ auto ParseLabel(const nlohmann::json& json, bool centered) -> LabelElement {
         .fg_color = json.at("fg_color").get<std::string>(),
         .content = json.get<LabelContent>(),
         .centered = centered,
+        .region = RegionFrom(json),
+        .form = FormFrom(json),
     };
 }
 
@@ -98,7 +153,238 @@ auto Advance(ListLayout layout, float& x, float& y, float w, float h) -> void {
     }
 }
 
+auto Scaled(const std::array<float, 4>& rect, float scale) -> std::array<float, 4> {
+    return {rect[0] * scale, rect[1] * scale, rect[2] * scale, rect[3] * scale};
+}
+
+auto ScaledFont(int font_size, float scale) -> int {
+    return static_cast<int>(std::lround(static_cast<float>(font_size) * scale));
+}
+
+auto Radius(std::optional<float> custom, Shape shape, float scale) -> float {
+    return Theme::Resolve(custom, Theme::Active().rounding, shape) * scale;
+}
+
+auto IsList(const ModularElement& element) -> bool {
+    return std::holds_alternative<BatteryListElement>(element) || std::holds_alternative<OverlayListElement>(element);
+}
+
+auto PutPlacement(nlohmann::ordered_json& json, const std::array<float, 4>& rect, Region region, size_t form) -> void {
+    if (region == Region::Toolbar) {
+        json["region"] = NameOf(region, kRegionNames);
+        json["width"] = Json::ShortestFloat(rect[2]);
+        return;
+    }
+    if (form > 0) {
+        json["form"] = form;
+    }
+    json["rect"] = {
+        Json::ShortestFloat(rect[0]),
+        Json::ShortestFloat(rect[1]),
+        Json::ShortestFloat(rect[2]),
+        Json::ShortestFloat(rect[3]),
+    };
+}
+
+auto PutRadius(nlohmann::ordered_json& json, std::optional<float> radius) -> void {
+    if (radius) {
+        json["corner_radius"] = Json::ShortestFloat(*radius);
+    }
+}
+
+auto PutOverlayAction(nlohmann::ordered_json& json, std::string_view key, const std::optional<OverlayAction>& action) -> void {
+    if (action) {
+        json[key] = *action;
+    }
+}
+
+auto Merge(nlohmann::ordered_json& json, const nlohmann::ordered_json& extra) -> void {
+    for (const auto& [key, value] : extra.items()) {
+        json[key] = value;
+    }
+}
+
 } // namespace
+
+auto ModularElements::Rect(const ModularElement& element) -> const std::array<float, 4>& {
+    return std::visit([](const auto& item) -> const std::array<float, 4>& { return item.rect; }, element);
+}
+
+auto ModularElements::Rect(ModularElement& element) -> std::array<float, 4>& {
+    return std::visit([](auto& item) -> std::array<float, 4>& { return item.rect; }, element);
+}
+
+auto ModularElements::RegionOf(const ModularElement& element) -> Region {
+    return std::visit([](const auto& item) -> Region { return item.region; }, element);
+}
+
+auto ModularElements::SetRegion(ModularElement& element, Region region) -> void {
+    std::visit([region](auto& item) -> void { item.region = region; }, element);
+}
+
+auto ModularElements::FormOf(const ModularElement& element) -> size_t {
+    return std::visit([](const auto& item) -> size_t { return item.form; }, element);
+}
+
+auto ModularElements::SetForm(ModularElement& element, size_t form) -> void {
+    std::visit([form](auto& item) -> void { item.form = form; }, element);
+}
+
+auto ModularElements::TypeName(const ModularElement& element) -> std::string_view {
+    return std::visit(
+        [](const auto& item) -> std::string_view {
+            using Item = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, PanelElement>) {
+                return "Panel";
+            } else if constexpr (std::is_same_v<Item, LabelElement>) {
+                return item.centered ? "CenteredLabel" : "Label";
+            } else if constexpr (std::is_same_v<Item, SpriteElement>) {
+                return "Sprite";
+            } else if constexpr (std::is_same_v<Item, ButtonElement>) {
+                return "Button";
+            } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
+                return "BatteryList";
+            } else {
+                return "OverlayList";
+            }
+        },
+        element
+    );
+}
+
+auto ModularUiConfig::Size() const -> std::array<uint32_t, 2> {
+    const Eigen::Vector2f origin = Origin();
+    float right = origin.x() + form.width;
+    float bottom = origin.y() + form.height;
+    for (size_t index = 1; index < FormCount(); ++index) {
+        const auto rect = FormRect(index, origin);
+        right = std::max(right, rect.x + rect.w);
+        bottom = std::max(bottom, rect.y + rect.h);
+    }
+    if (const auto toolbar = ToolbarRect(origin)) {
+        right = std::max(right, toolbar->x + toolbar->w);
+        bottom = std::max(bottom, toolbar->y + toolbar->h);
+    }
+    return {static_cast<uint32_t>(std::ceil(right)), static_cast<uint32_t>(std::ceil(bottom))};
+}
+
+auto ModularUiConfig::Origin() const -> Eigen::Vector2f {
+    Eigen::Vector2f minimum = Eigen::Vector2f::Zero();
+    for (const auto& extra : forms) {
+        minimum = minimum.cwiseMin(Eigen::Vector2f(extra.x, extra.y));
+    }
+    if (form.toolbar && form.toolbar->position == ToolbarPosition::Above) {
+        minimum.y() = std::min(minimum.y(), -(form.toolbar->height + form.toolbar->gap));
+    }
+    return -minimum;
+}
+
+auto ModularUiConfig::FormRect(size_t index) const -> CanvasRect {
+    return FormRect(index, Origin());
+}
+
+auto ModularUiConfig::FormRect(size_t index, const Eigen::Vector2f& origin) const -> CanvasRect {
+    if (index == 0 || index > forms.size()) {
+        return {origin.x(), origin.y(), form.width, form.height};
+    }
+    const auto& extra = forms[index - 1];
+    return {origin.x() + extra.x, origin.y() + extra.y, extra.width, extra.height};
+}
+
+auto ModularUiConfig::ToolbarRect() const -> std::optional<CanvasRect> {
+    return ToolbarRect(Origin());
+}
+
+auto ModularUiConfig::ToolbarRect(const Eigen::Vector2f& origin) const -> std::optional<CanvasRect> {
+    if (!form.toolbar) {
+        return std::nullopt;
+    }
+    const auto& toolbar = *form.toolbar;
+    const float top = toolbar.position == ToolbarPosition::Above ? -(toolbar.height + toolbar.gap) : form.height + toolbar.gap;
+    return CanvasRect{origin.x(), origin.y() + top, form.width, toolbar.height};
+}
+
+auto ModularUiConfig::Backgrounds(const Eigen::Vector2f& origin) const -> std::vector<ModularElement> {
+    std::vector<ModularElement> backgrounds;
+    for (size_t index = 0; index < FormCount(); ++index) {
+        const auto& color = index == 0 ? form.bg_color : forms[index - 1].bg_color;
+        if (color) {
+            const auto rect = FormRect(index, origin);
+            backgrounds.emplace_back(PanelElement{.rect = {rect.x, rect.y, rect.w, rect.h}, .bg_color = *color});
+        }
+    }
+    return backgrounds;
+}
+
+auto ModularUiConfig::RemoveForm(size_t index) -> void {
+    if (index == 0 || index > forms.size()) {
+        return;
+    }
+    forms.erase(forms.begin() + static_cast<std::ptrdiff_t>(index) - 1);
+    std::erase_if(elements, [index](const ModularElement& element) -> bool {
+        return ModularElements::RegionOf(element) == Region::Form && ModularElements::FormOf(element) == index;
+    });
+    for (auto& element : elements) {
+        if (const auto form_index = ModularElements::FormOf(element); form_index > index) {
+            ModularElements::SetForm(element, form_index - 1);
+        }
+    }
+}
+
+auto ModularUiConfig::Arrange() const -> std::vector<ModularElement> {
+    return Arrange(Origin());
+}
+
+auto ModularUiConfig::Arrange(const Eigen::Vector2f& origin) const -> std::vector<ModularElement> {
+    const auto toolbar_rect = ToolbarRect(origin);
+    std::vector<ModularElement> arranged;
+    std::vector<size_t> toolbar_items;
+    for (const auto& element : elements) {
+        auto& placed = arranged.emplace_back(element);
+        auto& rect = ModularElements::Rect(placed);
+        if (ModularElements::RegionOf(element) == Region::Toolbar) {
+            toolbar_items.push_back(arranged.size() - 1);
+        } else {
+            const auto form_rect = FormRect(ModularElements::FormOf(element), origin);
+            rect[0] += form_rect.x;
+            rect[1] += form_rect.y;
+        }
+    }
+    if (toolbar_items.empty()) {
+        return arranged;
+    }
+    if (!toolbar_rect) {
+        for (const auto index : std::views::reverse(toolbar_items)) {
+            arranged.erase(arranged.begin() + static_cast<std::ptrdiff_t>(index));
+        }
+        return arranged;
+    }
+
+    const auto count = static_cast<float>(toolbar_items.size());
+    float total = 0.0f;
+    for (const auto index : toolbar_items) {
+        total += ModularElements::Rect(arranged[index])[2];
+    }
+    float gap = (toolbar_rect->w - total) / (count + 1.0f);
+    float stretch = 1.0f;
+    if (gap < kMinToolbarGap && total > 0.0f) {
+        gap = kMinToolbarGap;
+        stretch = std::max(toolbar_rect->w - gap * (count + 1.0f), 0.0f) / total;
+    }
+    const float padding = form.toolbar ? form.toolbar->padding : 0.0f;
+    float x = toolbar_rect->x + gap;
+    for (const auto index : toolbar_items) {
+        auto& rect = ModularElements::Rect(arranged[index]);
+        const float item_width = rect[2] * stretch;
+        if (IsList(arranged[index])) {
+            rect = {x, toolbar_rect->y, item_width, toolbar_rect->h};
+        } else {
+            rect = {x, toolbar_rect->y + padding, item_width, std::max(toolbar_rect->h - 2.0f * padding, 1.0f)};
+        }
+        x += item_width + gap;
+    }
+    return arranged;
+}
 
 auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
     const auto type = json.at("type").get<std::string>();
@@ -106,14 +392,21 @@ auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
         value = PanelElement{
             .rect = Rect(json),
             .corner_radius = CornerRadius(json),
-            .bg_color = json.at("bg_color").get<std::string>()
+            .bg_color = json.at("bg_color").get<std::string>(),
+            .region = RegionFrom(json),
+            .form = FormFrom(json),
         };
     } else if (type == "Label") {
         value = ParseLabel(json, false);
     } else if (type == "CenteredLabel") {
         value = ParseLabel(json, true);
     } else if (type == "Sprite") {
-        SpriteElement sprite{.rect = Rect(json), .sprite = json.at("sprite").get<std::string>()};
+        SpriteElement sprite{
+            .rect = Rect(json),
+            .sprite = json.at("sprite").get<std::string>(),
+            .region = RegionFrom(json),
+            .form = FormFrom(json),
+        };
         if (const auto it = json.find("sprite_st"); it != json.end() && !it->is_null()) {
             sprite.sprite_st = it->get<std::array<float, 4>>();
         }
@@ -127,6 +420,8 @@ auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
             .bg_color = json.at("bg_color").get<std::string>(),
             .text = json.at("text").get<std::string>(),
             .data = json.get<ButtonData>(),
+            .region = RegionFrom(json),
+            .form = FormFrom(json),
         };
     } else if (type == "BatteryList") {
         value = BatteryListElement{
@@ -139,6 +434,8 @@ auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
             .low_threshold = json.at("low_threshold").get<float>(),
             .num_devices = json.at("num_devices").get<size_t>(),
             .layout = Layout(json),
+            .region = RegionFrom(json),
+            .form = FormFrom(json),
         };
     } else if (type == "OverlayList") {
         value = OverlayListElement{
@@ -148,19 +445,22 @@ auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
             .fg_color = json.at("fg_color").get<std::string>(),
             .bg_color = json.at("bg_color").get<std::string>(),
             .layout = Layout(json),
-            .overlay_template = {
-                .click_down = OptionalOverlayAction(json, "click_down"),
-                .click_up = OptionalOverlayAction(json, "click_up"),
-                .long_click_up = OptionalOverlayAction(json, "long_click_up"),
-                .right_down = OptionalOverlayAction(json, "right_down"),
-                .right_up = OptionalOverlayAction(json, "right_up"),
-                .long_right_up = OptionalOverlayAction(json, "long_right_up"),
-                .middle_down = OptionalOverlayAction(json, "middle_down"),
-                .middle_up = OptionalOverlayAction(json, "middle_up"),
-                .long_middle_up = OptionalOverlayAction(json, "long_middle_up"),
-                .scroll_down = OptionalOverlayAction(json, "scroll_down"),
-                .scroll_up = OptionalOverlayAction(json, "scroll_up"),
-            },
+            .overlay_template =
+                {
+                    .click_down = OptionalOverlayAction(json, "click_down"),
+                    .click_up = OptionalOverlayAction(json, "click_up"),
+                    .long_click_up = OptionalOverlayAction(json, "long_click_up"),
+                    .right_down = OptionalOverlayAction(json, "right_down"),
+                    .right_up = OptionalOverlayAction(json, "right_up"),
+                    .long_right_up = OptionalOverlayAction(json, "long_right_up"),
+                    .middle_down = OptionalOverlayAction(json, "middle_down"),
+                    .middle_up = OptionalOverlayAction(json, "middle_up"),
+                    .long_middle_up = OptionalOverlayAction(json, "long_middle_up"),
+                    .scroll_down = OptionalOverlayAction(json, "scroll_down"),
+                    .scroll_up = OptionalOverlayAction(json, "scroll_up"),
+                },
+            .region = RegionFrom(json),
+            .form = FormFrom(json),
         };
     } else {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for ModularElement", type), &json);
@@ -169,35 +469,203 @@ auto from_json(const nlohmann::json& json, ModularElement& value) -> void {
 
 auto from_json(const nlohmann::json& json, ModularUiConfig& value) -> void {
     value.width = json.at("width").get<float>();
-    value.size = json.at("size").get<std::array<uint32_t, 2>>();
     if (const auto it = json.find("spawn_pos"); it != json.end() && !it->is_null()) {
         value.spawn_pos = it->get<std::array<float, 3>>();
+    }
+    const auto& form = json.at("form");
+    value.form = FormLayout{
+        .width = form.at("width").get<float>(),
+        .height = form.at("height").get<float>(),
+        .bg_color = OptionalColor(form),
+    };
+    if (const auto extras = json.find("forms"); extras != json.end() && !extras->is_null()) {
+        for (const auto& extra : *extras) {
+            const auto at = extra.at("at").get<std::array<float, 2>>();
+            value.forms.push_back({
+                .x = at[0],
+                .y = at[1],
+                .width = extra.at("width").get<float>(),
+                .height = extra.at("height").get<float>(),
+                .bg_color = OptionalColor(extra),
+            });
+        }
+    }
+    if (const auto toolbar = form.find("toolbar"); toolbar != form.end() && !toolbar->is_null()) {
+        ToolbarLayout layout{.height = toolbar->at("height").get<float>()};
+        if (const auto gap = toolbar->find("gap"); gap != toolbar->end()) {
+            layout.gap = gap->get<float>();
+        }
+        if (const auto padding = toolbar->find("padding"); padding != toolbar->end()) {
+            layout.padding = padding->get<float>();
+        }
+        if (const auto position = toolbar->find("position"); position != toolbar->end()) {
+            layout.position = ParseName(*position, kToolbarPositions, "ToolbarPosition");
+        }
+        value.form.toolbar = layout;
     }
     value.elements = json.at("elements").get<std::vector<ModularElement>>();
 }
 
-auto Modular::CreateCanvas(const std::array<uint32_t, 2>& size, const std::vector<ModularElement>& elements, AppState& app)
-    -> Result<std::unique_ptr<Canvas>> {
-    ASSIGN_OR_RETURN(auto canvas, Canvas::Create(app.device, size[0], size[1], app.device->NativeFormat()));
-    for (const auto& element : elements) {
-        Build(*canvas, element, app);
+auto to_json(nlohmann::ordered_json& json, const ModularElement& value) -> void {
+    json = nlohmann::ordered_json::object();
+    json["type"] = ModularElements::TypeName(value);
+    PutPlacement(json, ModularElements::Rect(value), ModularElements::RegionOf(value), ModularElements::FormOf(value));
+    std::visit(
+        [&json](const auto& item) -> void {
+            using Item = std::decay_t<decltype(item)>;
+            if constexpr (std::is_same_v<Item, PanelElement>) {
+                PutRadius(json, item.corner_radius);
+                json["bg_color"] = item.bg_color;
+            } else if constexpr (std::is_same_v<Item, LabelElement>) {
+                PutRadius(json, item.corner_radius);
+                json["font_size"] = item.font_size;
+                json["fg_color"] = item.fg_color;
+                Merge(json, nlohmann::ordered_json(item.content));
+            } else if constexpr (std::is_same_v<Item, SpriteElement>) {
+                json["sprite"] = item.sprite;
+                if (item.sprite_st) {
+                    const auto& st = *item.sprite_st;
+                    json["sprite_st"] = {
+                        Json::ShortestFloat(st[0]),
+                        Json::ShortestFloat(st[1]),
+                        Json::ShortestFloat(st[2]),
+                        Json::ShortestFloat(st[3]),
+                    };
+                }
+            } else if constexpr (std::is_same_v<Item, ButtonElement>) {
+                PutRadius(json, item.corner_radius);
+                json["font_size"] = item.font_size;
+                json["fg_color"] = item.fg_color;
+                json["bg_color"] = item.bg_color;
+                json["text"] = item.text;
+                Merge(json, nlohmann::ordered_json(item.data));
+            } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
+                PutRadius(json, item.corner_radius);
+                json["font_size"] = item.font_size;
+                json["fg_color"] = item.fg_color;
+                json["fg_color_low"] = item.fg_color_low;
+                json["fg_color_charging"] = item.fg_color_charging;
+                json["num_devices"] = item.num_devices;
+                json["layout"] = item.layout == ListLayout::Horizontal ? "Horizontal" : "Vertical";
+                json["low_threshold"] = Json::ShortestFloat(item.low_threshold);
+            } else {
+                PutRadius(json, item.corner_radius);
+                json["font_size"] = item.font_size;
+                json["fg_color"] = item.fg_color;
+                json["bg_color"] = item.bg_color;
+                json["layout"] = item.layout == ListLayout::Horizontal ? "Horizontal" : "Vertical";
+                const auto& actions = item.overlay_template;
+                PutOverlayAction(json, "click_down", actions.click_down);
+                PutOverlayAction(json, "click_up", actions.click_up);
+                PutOverlayAction(json, "long_click_up", actions.long_click_up);
+                PutOverlayAction(json, "right_down", actions.right_down);
+                PutOverlayAction(json, "right_up", actions.right_up);
+                PutOverlayAction(json, "long_right_up", actions.long_right_up);
+                PutOverlayAction(json, "middle_down", actions.middle_down);
+                PutOverlayAction(json, "middle_up", actions.middle_up);
+                PutOverlayAction(json, "long_middle_up", actions.long_middle_up);
+                PutOverlayAction(json, "scroll_down", actions.scroll_down);
+                PutOverlayAction(json, "scroll_up", actions.scroll_up);
+            }
+        },
+        value
+    );
+}
+
+auto to_json(nlohmann::ordered_json& json, const ModularUiConfig& value) -> void {
+    json = nlohmann::ordered_json::object();
+    json["width"] = Json::ShortestFloat(value.width);
+    if (value.spawn_pos) {
+        const auto& spawn = *value.spawn_pos;
+        json["spawn_pos"] = {Json::ShortestFloat(spawn[0]), Json::ShortestFloat(spawn[1]), Json::ShortestFloat(spawn[2])};
     }
+    nlohmann::ordered_json form;
+    form["width"] = Json::ShortestFloat(value.form.width);
+    form["height"] = Json::ShortestFloat(value.form.height);
+    if (value.form.toolbar) {
+        const auto& toolbar = *value.form.toolbar;
+        form["toolbar"] = {
+            {"height", Json::ShortestFloat(toolbar.height)},
+            {"gap", Json::ShortestFloat(toolbar.gap)},
+            {"padding", Json::ShortestFloat(toolbar.padding)},
+            {"position", NameOf(toolbar.position, kToolbarPositions)},
+        };
+    }
+    if (value.form.bg_color) {
+        form["bg_color"] = *value.form.bg_color;
+    }
+    json["form"] = std::move(form);
+    if (!value.forms.empty()) {
+        auto extras = nlohmann::ordered_json::array();
+        for (const auto& extra : value.forms) {
+            nlohmann::ordered_json item;
+            item["at"] = {Json::ShortestFloat(extra.x), Json::ShortestFloat(extra.y)};
+            item["width"] = Json::ShortestFloat(extra.width);
+            item["height"] = Json::ShortestFloat(extra.height);
+            if (extra.bg_color) {
+                item["bg_color"] = *extra.bg_color;
+            }
+            extras.push_back(std::move(item));
+        }
+        json["forms"] = std::move(extras);
+    }
+    json["elements"] = value.elements;
+}
+
+auto Modular::CreateCanvas(const ModularUiConfig& config, AppState& app, float scale) -> Result<std::unique_ptr<Canvas>> {
+    const auto size = config.Size();
+    const auto width = static_cast<uint32_t>(std::lround(static_cast<float>(size[0]) * scale));
+    const auto height = static_cast<uint32_t>(std::lround(static_cast<float>(size[1]) * scale));
+    ASSIGN_OR_RETURN(auto canvas, Canvas::Create(app.device, width, height, app.device->NativeFormat()));
+    Fill(*canvas, config, app, scale);
     return canvas;
 }
 
-auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app) -> void {
+auto Modular::Fill(Canvas& canvas, const ModularUiConfig& config, AppState& app, float scale, const Eigen::Vector2f& origin)
+    -> void {
+    const auto backgrounds = config.Backgrounds(config.Origin());
+    FillArranged(canvas, backgrounds, app, scale, origin);
+    const auto arranged = config.Arrange();
+    FillArranged(canvas, arranged, app, scale, origin);
+}
+
+auto Modular::FillArranged(
+    Canvas& canvas,
+    std::span<const ModularElement> arranged,
+    AppState& app,
+    float scale,
+    const Eigen::Vector2f& origin
+) -> void {
+    for (const auto& element : arranged) {
+        Build(canvas, element, app, scale, origin);
+    }
+}
+
+auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app, float scale, const Eigen::Vector2f& origin)
+    -> void {
     std::visit(
         [&](const auto& item) -> void {
             using Item = std::decay_t<decltype(item)>;
+            const auto& rect = item.rect;
+            const auto [x, y, w, h] = Scaled({rect[0] + origin.x(), rect[1] + origin.y(), rect[2], rect[3]}, scale);
             if constexpr (std::is_same_v<Item, PanelElement>) {
-                const auto& [x, y, w, h] = item.rect;
                 canvas.bg_color = Color(item.bg_color);
-                canvas.Panel(x, y, w, h, Radius(item.corner_radius, Shape::Panel));
+                canvas.Panel(x, y, w, h, Radius(item.corner_radius, Shape::Panel, scale));
             } else if constexpr (std::is_same_v<Item, LabelElement>) {
-                const auto& [x, y, w, h] = item.rect;
-                canvas.font_size = item.font_size;
+                if (const auto* clock = std::get_if<ClockLabelContent>(&item.content); clock != nullptr && clock->city_size) {
+                    const float city = static_cast<float>(*clock->city_size) * scale;
+                    const float above = (static_cast<float>(item.font_size) + kCityGap) * scale;
+                    canvas.font_size = ScaledFont(*clock->city_size, scale);
+                    canvas.fg_color = Color(item.fg_color);
+                    if (item.centered) {
+                        canvas.LabelCentered(x, y - city * kCityLine, w, city * kCityLine, 0.0f, Labels::City(clock->timezone, app));
+                    } else {
+                        canvas.Label(x, y - above, w, city * kCityLine, 0.0f, Labels::City(clock->timezone, app));
+                    }
+                }
+                canvas.font_size = ScaledFont(item.font_size, scale);
                 canvas.fg_color = Color(item.fg_color);
-                const float radius = Radius(item.corner_radius, Shape::Control);
+                const float radius = Radius(item.corner_radius, Shape::Control, scale);
                 auto setup = Labels::Create(item.content, app, canvas.fg_color);
                 auto& label = item.centered
                                 ? canvas.LabelCentered(x, y, w, h, radius, std::move(setup.text), std::move(setup.control))
@@ -206,7 +674,6 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                     label.SetFgColor(*setup.color);
                 }
             } else if constexpr (std::is_same_v<Item, SpriteElement>) {
-                const auto& [x, y, w, h] = item.rect;
                 if (auto image = SpriteFromPath(item.sprite, app)) {
                     auto& sprite = canvas.Sprite(x, y, w, h);
                     sprite.fg_color = Eigen::Vector4f::Ones();
@@ -217,28 +684,27 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                     LOG_WARN("Could not load custom UI sprite: {}", image.error().Message());
                 }
             } else if constexpr (std::is_same_v<Item, ButtonElement>) {
-                const auto& [x, y, w, h] = item.rect;
                 canvas.bg_color = Color(item.bg_color);
                 canvas.fg_color = Color(item.fg_color);
-                canvas.font_size = item.font_size;
+                canvas.font_size = ScaledFont(item.font_size, scale);
                 canvas.Button(
                     x,
                     y,
                     w,
                     h,
-                    Radius(item.corner_radius, Shape::Control),
+                    Radius(item.corner_radius, Shape::Control, scale),
                     item.text,
                     std::make_unique<ModularButton>(item.data)
                 );
             } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
-                const auto& [x, y, w, h] = item.rect;
-                const auto count = static_cast<float>(item.num_devices);
+                const auto count = static_cast<float>(std::max<size_t>(item.num_devices, 1));
                 const float button_w = item.layout == ListLayout::Horizontal ? w / count : w;
                 const float button_h = item.layout == ListLayout::Horizontal ? h : h / count;
                 const float low_threshold = item.low_threshold * 0.01f;
-                const float radius = Radius(item.corner_radius, Shape::Control);
+                const float inset = 2.0f * scale;
+                const float radius = Radius(item.corner_radius, Shape::Control, scale);
                 const auto fg_color = Color(item.fg_color);
-                canvas.font_size = item.font_size;
+                canvas.font_size = ScaledFont(item.font_size, scale);
                 canvas.fg_color = fg_color;
 
                 float button_x = x;
@@ -252,10 +718,10 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                     };
                     auto setup = Labels::Create(content, app, fg_color);
                     canvas.LabelCentered(
-                        button_x + 2.0f,
-                        button_y + 2.0f,
-                        button_w - 4.0f,
-                        button_h - 4.0f,
+                        button_x + inset,
+                        button_y + inset,
+                        button_w - 2.0f * inset,
+                        button_h - 2.0f * inset,
                         radius,
                         std::move(setup.text),
                         std::move(setup.control)
@@ -263,14 +729,14 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                     Advance(item.layout, button_x, button_y, button_w, button_h);
                 }
             } else {
-                const auto& [x, y, w, h] = item.rect;
-                const auto count = static_cast<float>(app.screens.size());
+                const auto count = static_cast<float>(std::max<size_t>(app.screens.size(), 1));
                 const float button_w = item.layout == ListLayout::Horizontal ? w / count : w;
                 const float button_h = item.layout == ListLayout::Horizontal ? h : h / count;
-                const float radius = Radius(item.corner_radius, Shape::Control);
+                const float inset = 2.0f * scale;
+                const float radius = Radius(item.corner_radius, Shape::Control, scale);
                 canvas.bg_color = Color(item.bg_color);
                 canvas.fg_color = Color(item.fg_color);
-                canvas.font_size = item.font_size;
+                canvas.font_size = ScaledFont(item.font_size, scale);
 
                 float button_x = x;
                 float button_y = y;
@@ -290,10 +756,10 @@ auto Modular::Build(Canvas& canvas, const ModularElement& element, AppState& app
                         .scroll_up = ScreenActions(actions.scroll_up, screen.id),
                     };
                     canvas.Button(
-                        button_x + 2.0f,
-                        button_y + 2.0f,
-                        button_w - 4.0f,
-                        button_h - 4.0f,
+                        button_x + inset,
+                        button_y + inset,
+                        button_w - 2.0f * inset,
+                        button_h - 2.0f * inset,
                         radius,
                         screen.name,
                         std::make_unique<ModularButton>(std::move(data))

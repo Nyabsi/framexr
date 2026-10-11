@@ -66,7 +66,7 @@ auto CustomUi::Create(AppState& app, std::string name) -> std::optional<std::pai
         return std::nullopt;
     }
 
-    auto canvas = Modular::CreateCanvas(config.size, config.elements, app);
+    auto canvas = Modular::CreateCanvas(config, app);
     if (!canvas) {
         LOG_ERROR("Failed to create canvas for {}: {}", name, canvas.error().Message());
         return std::nullopt;
@@ -80,6 +80,7 @@ auto CustomUi::Create(AppState& app, std::string name) -> std::optional<std::pai
     state.grabbable = true;
     state.spawn_scale = config.width;
     state.spawn_point = Eigen::Vector3f(spawn[0], spawn[1], spawn[2]);
-    state.interaction_transform = OverlayState::UiTransform({config.size[0], config.size[1]});
+    const auto size = config.Size();
+    state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
     return std::pair<OverlayState, std::unique_ptr<OverlayBackend>>{std::move(state), std::move(*canvas)};
 }

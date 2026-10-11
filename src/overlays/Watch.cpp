@@ -22,11 +22,14 @@
 #include "Watch.hpp"
 
 #include <algorithm>
+#include <system_error>
+#include <format>
 
 #include "Config.hpp"
 #include "Logger.hpp"
 #include "Modular.hpp"
 #include "State.hpp"
+#include "Yaml.hpp"
 
 namespace {
 
@@ -36,14 +39,10 @@ constexpr char kWatchYaml[] = {
     '\0'
 };
 
-auto LoadConfig() -> ModularUiConfig {
-    return Config::LoadKnownYaml<ModularUiConfig>("watch.yaml", kWatchYaml);
-}
-
 } // namespace
 
 auto Watch::Create(AppState& app) -> Result<std::unique_ptr<Overlay>> {
-    const auto config = LoadConfig();
+    const auto config = LoadConfig(app.config.watch_profile);
 
     OverlayState state;
     state.name = kWatchName;
@@ -53,17 +52,68 @@ auto Watch::Create(AppState& app) -> Result<std::unique_ptr<Overlay>> {
     state.spawn_scale = config.width;
     state.spawn_point = app.config.watch_pos;
     state.spawn_rotation = app.config.watch_rot;
-    state.interaction_transform = OverlayState::UiTransform({config.size[0], config.size[1]});
+    const auto size = config.Size();
+    state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
     state.relative_to = app.config.watch_hand == Handedness::Left ? RelativeTo::LeftHand : RelativeTo::RightHand;
 
-    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config.size, config.elements, app));
+    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config, app));
     return std::make_unique<Overlay>(std::move(state), std::move(canvas));
 }
 
+auto Watch::UserFile(std::string_view profile) -> std::filesystem::path {
+    return Config::Root() / "watches" / std::format("{}.yaml", profile);
+}
+
+auto Watch::IsBuiltIn(std::string_view profile) -> bool {
+    return profile == kDefaultProfile;
+}
+
+auto Watch::Profiles() -> std::vector<std::string> {
+    std::vector<std::string> profiles{std::string(kDefaultProfile)};
+    std::error_code error;
+    std::vector<std::string> mine;
+    for (const auto& entry : std::filesystem::directory_iterator(Config::Root() / "watches", error)) {
+        if (entry.path().extension() == ".yaml" && entry.path().stem() != kDefaultProfile) {
+            mine.push_back(entry.path().stem().string());
+        }
+    }
+    std::ranges::sort(mine);
+    profiles.insert(profiles.end(), mine.begin(), mine.end());
+    return profiles;
+}
+
+auto Watch::LoadConfig(std::string_view profile) -> ModularUiConfig {
+    if (const auto text = Config::ReadFile(UserFile(profile))) {
+        if (auto parsed = Yaml::Parse(*text)) {
+            try {
+                return parsed->get<ModularUiConfig>();
+            } catch (const nlohmann::json::exception& error) {
+                LOG_ERROR("Watch layout {} is broken: {}", profile, error.what());
+            }
+        } else {
+            LOG_ERROR("Watch layout {} is broken: {}", profile, parsed.error().Message());
+        }
+    } else if (!IsBuiltIn(profile)) {
+        LOG_WARN("Unknown watch layout {}, using {}", profile, kDefaultProfile);
+    }
+    auto built_in = Yaml::Parse(kWatchYaml);
+    if (!built_in) {
+        FatalError(std::format("Built-in watch is broken: {}", built_in.error().Message()));
+    }
+    return built_in->get<ModularUiConfig>();
+}
+
 auto Watch::RebuildCanvas(AppState& app, Overlay& watch) -> Result<> {
-    const auto config = LoadConfig();
-    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config.size, config.elements, app));
+    return Apply(app, watch, LoadConfig(app.config.watch_profile));
+}
+
+auto Watch::Apply(AppState& app, Overlay& watch, const ModularUiConfig& config) -> Result<> {
+    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config, app));
+    const auto size = config.Size();
     watch.backend = std::move(canvas);
+    watch.state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
+    watch.state.spawn_scale = config.width;
+    watch.state.dirty = true;
     return {};
 }
 

@@ -207,6 +207,10 @@ auto from_json(const nlohmann::json& json, OverlaySelector& value) -> void;
 auto from_json(const nlohmann::json& json, OverlayAction& value) -> void;
 auto from_json(const nlohmann::json& json, ButtonAction& value) -> void;
 auto from_json(const nlohmann::json& json, ButtonData& value) -> void;
+auto to_json(nlohmann::ordered_json& json, const OverlaySelector& value) -> void;
+auto to_json(nlohmann::ordered_json& json, const OverlayAction& value) -> void;
+auto to_json(nlohmann::ordered_json& json, const ButtonAction& value) -> void;
+auto to_json(nlohmann::ordered_json& json, const ButtonData& value) -> void;
 
 class ActionRunner final {
   public:

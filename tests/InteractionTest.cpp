@@ -864,7 +864,9 @@ TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {
 TEST_F(Interaction, ModularButtonClickRunsItsAction) {
     const auto parsed = Yaml::Parse(R"(
 width: 0.3
-size: [200, 100]
+form:
+  width: 200
+  height: 100
 elements:
   - type: Button
     rect: [0, 0, 200, 100]
@@ -878,7 +880,7 @@ elements:
 )");
     ASSERT_TRUE(parsed.has_value());
     const auto config = parsed->get<ModularUiConfig>();
-    auto canvas = Modular::CreateCanvas(config.size, config.elements, *app_);
+    auto canvas = Modular::CreateCanvas(config, *app_);
     ASSERT_TRUE(canvas.has_value());
 
     OverlayState state;

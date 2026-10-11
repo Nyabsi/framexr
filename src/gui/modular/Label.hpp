@@ -55,10 +55,11 @@ struct ExecLabelContent {
 struct ClockLabelContent {
     std::string format;
     std::optional<std::variant<size_t, std::string>> timezone;
+    std::optional<int> city_size;
 };
 
 struct TimezoneLabelContent {
-    size_t timezone = 0;
+    std::variant<size_t, std::string> timezone = size_t{0};
 };
 
 struct TimerLabelContent {
@@ -87,6 +88,7 @@ using LabelContent = std::variant<
     IpdLabelContent>;
 
 auto from_json(const nlohmann::json& json, LabelContent& value) -> void;
+auto to_json(nlohmann::ordered_json& json, const LabelContent& value) -> void;
 
 struct LabelSetup {
     std::unique_ptr<Control> control;
@@ -99,6 +101,7 @@ class Labels {
     static auto Create(const LabelContent& content, const AppState& app, const Eigen::Vector4f& fg_color) -> LabelSetup;
     static auto FormatTime(std::string_view format, const std::chrono::time_zone* zone, std::chrono::system_clock::time_point now)
         -> std::string;
+    static auto City(const std::optional<std::variant<size_t, std::string>>& zone, const AppState& app) -> std::string;
 };
 
 class BatteryLabel final : public Control {

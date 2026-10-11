@@ -28,6 +28,11 @@ keyboard_region: ""
 # Default: macchiato
 theme: macchiato
 
+# Watch layout to show, built-in: default
+# Your own layouts go in ~/.config/framexr/watches/*.yaml
+# Default: default
+watch_profile: default
+
 # Enable / disable sliding windows back and forth with the scroll action
 # Default: true
 allow_sliding: true
