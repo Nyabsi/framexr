@@ -137,6 +137,28 @@ TEST(FormDesigner, QuickClicksNeverMoveComponents) {
     EXPECT_FALSE(designer.history.CanUndo());
 }
 
+TEST(FormDesigner, ClickingTheSelectionAgainClosesIt) {
+    auto designer = SmallWatch();
+    designer.Press({40.0f, 30.0f});
+    EXPECT_FALSE(designer.Release({40.0f, 30.0f}));
+    EXPECT_EQ(designer.selected, 1U);
+    designer.Press({40.0f, 30.0f});
+    EXPECT_FALSE(designer.Release({40.0f, 30.0f}));
+    EXPECT_FALSE(designer.selected.has_value());
+
+    EXPECT_TRUE(Drag(designer, {40.0f, 30.0f}, {98.0f, 30.0f}));
+    EXPECT_TRUE(Drag(designer, {100.0f, 30.0f}, {60.0f, 30.0f}));
+    EXPECT_EQ(designer.selected, 1U);
+
+    designer.Insert(FormPart::Form, std::nullopt);
+    const auto form = designer.Form(1);
+    const Eigen::Vector2f inside{form.x + 100.0f, form.y + 60.0f};
+    EXPECT_EQ(designer.selected_form, 1U);
+    designer.Press(inside);
+    designer.Release(inside);
+    EXPECT_FALSE(designer.selected_form.has_value());
+}
+
 TEST(FormDesigner, HoldingLiftsAComponentBeforeItFollows) {
     FormDesigner designer(Yaml::Parse(kWatchYaml)->get<ModularUiConfig>());
     designer.snap = false;
@@ -389,6 +411,16 @@ TEST(KeyboardDesigner, QuickClicksOnlySelectKeys) {
     EXPECT_EQ(designer.selected, 0U);
     EXPECT_FLOAT_EQ(designer.Document().keys[0].x, 0.0f);
     EXPECT_EQ(designer.Document().keys[0].row, 0);
+}
+
+TEST(KeyboardDesigner, ClickingTheSelectedKeyAgainClosesIt) {
+    auto designer = SmallKeyboard();
+    EXPECT_FALSE(Click(designer, CellCenter(0.0f, 0)));
+    EXPECT_EQ(designer.selected, 0U);
+    EXPECT_FALSE(Click(designer, CellCenter(0.0f, 0)));
+    EXPECT_FALSE(designer.selected.has_value());
+    EXPECT_FALSE(Click(designer, CellCenter(0.0f, 0)));
+    EXPECT_EQ(designer.selected, 0U);
 }
 
 TEST(KeyboardDesigner, KeysDragOnlyIntoFreeSpace) {

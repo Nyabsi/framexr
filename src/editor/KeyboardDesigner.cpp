@@ -255,6 +255,7 @@ auto KeyboardDesigner::Press(const Eigen::Vector2f& preview) -> void {
     }
     Drag drag{.hit = hit, .start = preview, .engaged = hold.count() == 0, .pressed_at = std::chrono::steady_clock::now()};
     if (hit.kind == KeyHitKind::Key) {
+        drag.reselected = selected == hit.index;
         selected = hit.index;
         const auto& key = Document().keys[hit.index];
         drag.grab = ToGrid(preview) - Eigen::Vector2f(key.x, static_cast<float>(key.row));
@@ -300,6 +301,10 @@ auto KeyboardDesigner::Release(const Eigen::Vector2f& preview) -> bool {
     drag_.reset();
     switch (drag.hit.kind) {
     case KeyHitKind::Key: {
+        if (!drag.moved && drag.reselected) {
+            selected.reset();
+            return false;
+        }
         const auto& key = Document().keys.at(drag.hit.index);
         if (!drag.engaged || !drag.moved || !drag.fits || (std::abs(key.x - drag.x) < kEpsilon && key.row == drag.row)) {
             return false;

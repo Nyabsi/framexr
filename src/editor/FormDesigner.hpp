@@ -143,6 +143,7 @@ class FormDesigner final {
         int font_size = 0;
         bool moved = false;
         bool engaged = false;
+        bool reselected = false;
         std::chrono::steady_clock::time_point pressed_at;
         size_t form = 0;
     };

@@ -330,6 +330,8 @@ auto FormDesigner::Hover(const Eigen::Vector2f& point) -> void {
 auto FormDesigner::Press(const Eigen::Vector2f& point, std::optional<int> layer) -> void {
     const auto hit = HitTest(point, layer);
     const auto& config = Document();
+    const bool reselected = (hit.kind == FormHitKind::Element && selected == hit.index)
+                         || (hit.kind == FormHitKind::FormBody && selected_form == hit.index);
     switch (hit.kind) {
     case FormHitKind::None:
         selected.reset();
@@ -355,6 +357,7 @@ auto FormDesigner::Press(const Eigen::Vector2f& point, std::optional<int> layer)
         .start = point,
         .before = config,
         .engaged = hold.count() == 0,
+        .reselected = reselected,
         .pressed_at = std::chrono::steady_clock::now(),
     };
     switch (hit.kind) {
@@ -686,7 +689,14 @@ auto FormDesigner::Release(const Eigen::Vector2f& point) -> bool {
     drop_form_.reset();
     snap_x_ = {};
     snap_y_ = {};
-    if (!drag.engaged || !drag.moved) {
+    if (!drag.moved) {
+        if (drag.reselected) {
+            selected.reset();
+            selected_form.reset();
+        }
+        return false;
+    }
+    if (!drag.engaged) {
         return false;
     }
     if (drag.hit.kind == FormHitKind::Element) {

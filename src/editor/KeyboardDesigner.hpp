@@ -119,6 +119,7 @@ class KeyboardDesigner final {
         int row = 0;
         bool fits = false;
         bool engaged = false;
+        bool reselected = false;
         std::chrono::steady_clock::time_point pressed_at;
     };
 
