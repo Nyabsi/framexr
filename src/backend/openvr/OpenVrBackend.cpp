@@ -113,10 +113,10 @@ auto OpenVrBackend::Run(std::atomic<bool>& running, bool show_by_default) -> Bac
         LOG_WARN("Will not use OpenVR: Context init failed");
         return std::unexpected(BackendError{.failure = BackendFailure::NotSupported, .message = "backend not supported"});
     }
-    const OpenVrRuntime runtime;
+    OpenVrRuntime runtime;
     LOG_INFO("Using OpenVR runtime");
 
-    auto session = OpenVrSession::Create(show_by_default);
+    auto session = OpenVrSession::Create(runtime, show_by_default);
     if (!session) {
         return ToBackendError(session.error());
     }
@@ -152,13 +152,14 @@ auto OpenVrSession::ReadDisplayDensity() -> Eigen::Vector2f {
     return {static_cast<float>(width) / (right - left), static_cast<float>(height) / std::abs(bottom - top)};
 }
 
-auto OpenVrSession::Create(bool show_by_default) -> Result<std::unique_ptr<OpenVrSession>> {
+auto OpenVrSession::Create(OpenVrRuntime& runtime, bool show_by_default) -> Result<std::unique_ptr<OpenVrSession>> {
     DeviceCreateInfo device_info;
     device_info.instance_extensions = InstanceExtensions();
     device_info.required_device_extensions = [](VkPhysicalDevice physical_device) -> std::vector<std::string> {
         return DeviceExtensions(physical_device);
     };
     ASSIGN_OR_RETURN(auto device, Device::Create(device_info));
+    runtime.Retain(device);
     ASSIGN_OR_RETURN(auto app, AppState::Create(std::move(device)));
 
     if (show_by_default) {

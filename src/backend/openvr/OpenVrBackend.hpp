@@ -29,8 +29,10 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 #include "Backend.hpp"
+#include "Device.hpp"
 #include "Error.hpp"
 #include "Notifications.hpp"
 #include "OpenVrInput.hpp"
@@ -47,11 +49,16 @@ class OpenVrRuntime final {
     ~OpenVrRuntime();
     OpenVrRuntime(const OpenVrRuntime&) = delete;
     auto operator=(const OpenVrRuntime&) -> OpenVrRuntime& = delete;
+
+    auto Retain(std::shared_ptr<Device> device) -> void { device_ = std::move(device); }
+
+  private:
+    std::shared_ptr<Device> device_;
 };
 
 class OpenVrSession final {
   public:
-    static auto Create(bool show_by_default) -> Result<std::unique_ptr<OpenVrSession>>;
+    static auto Create(OpenVrRuntime& runtime, bool show_by_default) -> Result<std::unique_ptr<OpenVrSession>>;
 
     auto Run(std::atomic<bool>& running) -> Result<>;
 
