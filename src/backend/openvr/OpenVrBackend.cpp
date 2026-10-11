@@ -216,7 +216,7 @@ OpenVrSession::OpenVrSession(
       lines_(std::move(lines)),
       frame_timeout_(frame_timeout),
       next_device_update_(std::chrono::steady_clock::now()) {
-    notifications_->RunDbus();
+    notifications_->RunDesktop();
     notifications_->RunUdp();
     playspace_.PlayspaceChanged();
 

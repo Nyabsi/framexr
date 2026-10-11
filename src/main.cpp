@@ -21,12 +21,9 @@
 
 #include <array>
 #include <atomic>
-#include <cerrno>
 #include <chrono>
-#include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <format>
@@ -35,13 +32,11 @@
 #include <thread>
 #include <variant>
 
-#include <fcntl.h>
-#include <unistd.h>
-
 #include "Backend.hpp"
 #include "CommandLine.hpp"
 #include "Config.hpp"
 #include "Logger.hpp"
+#include "Platform.hpp"
 #include "version.h"
 #include "framexr_config.h"
 
@@ -65,93 +60,50 @@ namespace {
 
 std::atomic<bool> running{true};
 
-auto OnSignal(int) -> void {
+auto OnTerminate() -> void {
     running.store(false, std::memory_order_relaxed);
 }
 
-auto InstallSignalHandlers() -> void {
-    struct sigaction action{};
-    action.sa_handler = OnSignal;
-    sigemptyset(&action.sa_mask);
-    for (const int signal : {SIGINT, SIGTERM, SIGHUP}) {
-        sigaction(signal, &action, nullptr);
-    }
-}
-
-auto ProcessAlive(pid_t pid) -> bool {
-    return kill(pid, 0) == 0 || errno == EPERM;
-}
-
 auto EnsureSingleInstance(bool replace) -> bool {
-    const char* runtime_dir = std::getenv("XDG_RUNTIME_DIR");
-    const auto path = std::filesystem::path(runtime_dir != nullptr ? runtime_dir : "/tmp") / "framexr.pid";
+    const auto path = Platform::RuntimeDirectory() / "framexr.pid";
 
     if (const auto contents = Config::ReadFile(path)) {
         char* end = nullptr;
-        const auto pid = std::strtol(contents->c_str(), &end, 10);
-        if (end != contents->c_str() && pid > 0 && ProcessAlive(static_cast<pid_t>(pid))) {
+        const auto pid = std::strtoul(contents->c_str(), &end, 10);
+        if (end != contents->c_str() && pid > 0 && Platform::ProcessAlive(static_cast<uint32_t>(pid))) {
             if (!replace) {
                 return false;
             }
-            kill(static_cast<pid_t>(pid), SIGTERM);
-            while (ProcessAlive(static_cast<pid_t>(pid))) {
+            Platform::Terminate(static_cast<uint32_t>(pid));
+            while (Platform::ProcessAlive(static_cast<uint32_t>(pid))) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
     }
 
     std::ofstream stream(path, std::ios::trunc);
-    stream << getpid();
+    stream << Platform::ProcessId();
     if (!stream) {
         FatalError(std::format("Failed to write {}", path.string()));
     }
     return true;
 }
 
-auto IoErrorKind(int error) -> std::string_view {
-    switch (error) {
-    case ENOENT: return "NotFound";
-    case EACCES:
-    case EPERM: return "PermissionDenied";
-    case EISDIR: return "IsADirectory";
-    case EROFS: return "ReadOnlyFilesystem";
-    case ENOTDIR: return "NotADirectory";
-    case ENOSPC: return "StorageFull";
-    default: return "Uncategorized";
-    }
-}
-
 auto InitLogging(const CommandLine& command_line) -> void {
-    std::string path = "/tmp/framexr.log";
+    std::filesystem::path path = Platform::DefaultLogFile();
     if (command_line.log_to) {
         path = *command_line.log_to;
     } else if (const char* env = std::getenv("FRAMEXR_LOGFILE")) {
         path = env;
     }
 
-    const int fd = open(path.c_str(), O_WRONLY | O_TRUNC | O_CLOEXEC);
-    FILE* file = fd >= 0 ? fdopen(fd, "w") : nullptr;
-    if (file != nullptr) {
-        std::printf("Logging to %s\n", path.c_str());
+    if (auto file = Platform::OpenLogFile(path)) {
+        std::printf("Logging to %s\n", path.string().c_str());
         std::fflush(stdout);
-        Logger::Instance().SetOutputFile(file);
+        Logger::Instance().SetOutputFile(*file);
     } else {
-        const int error = errno;
-        std::fputs(
-            std::format(
-                "Failed to open log file (path: Os {{ code: {}, kind: {}, message: \"{}\" }}): {}\n",
-                error,
-                IoErrorKind(error),
-                std::strerror(error),
-                path
-            )
-                .c_str(),
-            stdout
-        );
+        std::fputs(std::format("Failed to open log file (path: {}): {}\n", file.error().Message(), path.string()).c_str(), stdout);
         std::fflush(stdout);
-        if (fd >= 0) {
-            close(fd);
-        }
     }
 }
 
@@ -187,9 +139,7 @@ auto BuildVersion() -> std::string {
 }
 
 auto LocalTime() -> std::string {
-    const std::time_t now = std::time(nullptr);
-    std::tm local{};
-    localtime_r(&now, &local);
+    const std::tm local = Platform::LocalTime(std::time(nullptr));
     std::array<char, 64> buffer{};
     const auto length = std::strftime(buffer.data(), buffer.size(), "%a %b %e %H:%M:%S %Y", &local);
     return {buffer.data(), length};
@@ -228,6 +178,7 @@ auto Run(std::span<char*> arguments) -> int {
         return *exit_code;
     }
     const auto& command_line = std::get<CommandLine>(parsed);
+    Platform::Init();
 
     if (!command_line.multi && !EnsureSingleInstance(command_line.replace)) {
         std::puts("Looks like FrameXR is already running.");
@@ -247,7 +198,7 @@ auto Run(std::span<char*> arguments) -> int {
     }
 #endif
 
-    InstallSignalHandlers();
+    Platform::OnTerminate(OnTerminate);
     AutoRun(command_line);
     return 0;
 }

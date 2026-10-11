@@ -18,20 +18,20 @@
 
 #include "Logger.hpp"
 
-#include <unistd.h>
-
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <ranges>
 
+#include "Platform.hpp"
+
 auto Logger::Instance() -> Logger& {
     static Logger logger;
     return logger;
 }
 
-Logger::Logger() : colored_(isatty(STDERR_FILENO) != 0) {
+Logger::Logger() : colored_(Platform::IsTerminal(stderr)) {
     if (const char* spec = std::getenv("FRAMEXR_LOG")) {
         ParseFilters(spec);
     }

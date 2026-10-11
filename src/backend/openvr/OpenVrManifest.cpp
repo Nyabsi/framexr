@@ -31,6 +31,7 @@
 
 #include "Config.hpp"
 #include "Logger.hpp"
+#include "Platform.hpp"
 
 namespace {
 
@@ -41,14 +42,7 @@ auto ManifestPath() -> std::filesystem::path {
 }
 
 auto ExecutablePath() -> Result<std::string> {
-    if (const char* appimage = std::getenv("APPIMAGE")) {
-        return std::string(appimage);
-    }
-    std::error_code error;
-    const auto path = std::filesystem::read_symlink("/proc/self/exe", error);
-    if (error) {
-        return Unexpected(std::format("Invalid executable path: {}", error.message()));
-    }
+    ASSIGN_OR_RETURN(const auto path, Platform::ExecutablePath());
     return path.string();
 }
 

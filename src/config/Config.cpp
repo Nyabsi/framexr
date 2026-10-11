@@ -31,21 +31,18 @@
 #include <vector>
 
 #include "Logger.hpp"
+#include "Platform.hpp"
 #include "Yaml.hpp"
 
 namespace {
 
-constexpr std::string_view kFallbackRoot = "/tmp/framexr";
-
 auto ResolveRoot() -> std::filesystem::path {
-    if (const char* config_home = std::getenv("XDG_CONFIG_HOME"); config_home != nullptr && *config_home == '/') {
-        return std::filesystem::path(config_home) / "framexr";
+    if (const auto home = Platform::ConfigHome()) {
+        return *home / "framexr";
     }
-    if (const char* home = std::getenv("HOME"); home != nullptr && *home != '\0') {
-        return std::filesystem::path(home) / ".config" / "framexr";
-    }
-    LOG_ERROR("Err: Failed to find config path, using {}", kFallbackRoot);
-    return std::filesystem::path(kFallbackRoot);
+    const auto fallback = Platform::RuntimeDirectory() / "framexr";
+    LOG_ERROR("Err: Failed to find config path, using {}", fallback.string());
+    return fallback;
 }
 
 auto SanitizeRange(std::string_view name, float value, float from, float to) -> void {

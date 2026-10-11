@@ -15,12 +15,15 @@ framexr_inc = include_directories(
   'gui/modular',
   'hid',
   'overlays',
+  'platform',
 )
 
 core_sources = files(
   'core/Error.cpp',
   'core/Logger.cpp',
-  'core/Process.cpp',
+  'platform/posix/Platform.cpp',
+  'platform/posix/Process.cpp',
+  'platform/posix/UdpSocket.cpp',
 )
 
 config_sources = files(
@@ -38,6 +41,7 @@ backend_sources = files(
   'backend/Input.cpp',
   'backend/OneEuroFilter.cpp',
   'backend/Notifications.cpp',
+  'backend/linux/Notifications.cpp',
   'backend/Osc.cpp',
   'backend/Overlay.cpp',
   'backend/OverlayContainer.cpp',
@@ -56,6 +60,7 @@ editor_sources = files(
 
 gui_sources = files(
   'gui/Font.cpp',
+  'gui/linux/FontLookup.cpp',
   'gui/Theme.cpp',
   'gui/canvas/Canvas.cpp',
   'gui/canvas/Control.cpp',
@@ -67,8 +72,9 @@ gui_sources = files(
 hid_sources = files(
   'hid/Hid.cpp',
   'hid/KeyTranslator.cpp',
-  'hid/Keymap.cpp',
   'hid/VirtualKey.cpp',
+  'hid/linux/Keymap.cpp',
+  'hid/linux/UInputProvider.cpp',
 )
 
 overlay_sources = files(
@@ -102,7 +108,7 @@ graphics_sources = files(
 framexr_all_sources = (core_sources + config_sources + editor_sources + state_sources + backend_sources + hid_sources + gui_sources + overlay_sources
   + capture_sources + graphics_sources + openvr_sources + openxr_sources)
 
-hid_deps = [xkbcommon_dep]
+hid_deps = []
 if get_option('wayland').allowed()
   hid_deps += dependency('wayland-client')
 endif
@@ -122,13 +128,13 @@ framexr_lib = static_library(
     '--embed-dir=' + shader_embed_dir,
     '--embed-dir=' + meson.project_source_root() / 'res',
   ],
-  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + openvr_deps + openxr_deps,
+  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep] + platform_deps + capture_deps + hid_deps + openvr_deps + openxr_deps,
 )
 
 framexr_dep = declare_dependency(
   link_with: framexr_lib,
   include_directories: framexr_inc,
-  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + openvr_deps + openxr_deps,
+  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep] + platform_deps + capture_deps + hid_deps + openvr_deps + openxr_deps,
   sources: [version_h, shader_spirv],
 )
 

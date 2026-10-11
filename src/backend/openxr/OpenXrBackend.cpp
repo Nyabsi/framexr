@@ -208,7 +208,7 @@ auto OpenXrMainLoop::Initialize(bool show_by_default) -> Result<> {
     ASSIGN_OR_RETURN(lines_, OpenXrLines::Create(*app_->device));
 
     notifications_ = std::make_unique<NotificationManager>();
-    notifications_->RunDbus();
+    notifications_->RunDesktop();
     notifications_->RunUdp();
 
     if (auto monado = Monado::AutoConnect()) {

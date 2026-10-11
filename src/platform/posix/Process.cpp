@@ -120,6 +120,10 @@ auto Process::Spawn(const std::vector<std::string>& command, const ProcessOption
 Process::Process(pid_t pid, int stdout_fd) : pid_(pid), stdout_fd_(stdout_fd) {
 }
 
+auto Process::Pid() const -> uint32_t {
+    return static_cast<uint32_t>(pid_);
+}
+
 Process::~Process() {
     if (stdout_fd_ >= 0) {
         close(stdout_fd_);

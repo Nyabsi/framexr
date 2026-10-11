@@ -28,7 +28,6 @@
 #include <format>
 #include <numeric>
 
-#include <fontconfig/fontconfig.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -39,7 +38,7 @@ auto FontCache::Create(std::string primary_font) -> Result<std::unique_ptr<FontC
     if (const auto error = FT_Init_FreeType(&library); error != 0) {
         return Unexpected(std::format("Failed to initialize FreeType: {}", error));
     }
-    FcInit();
+    InitLocator();
     return std::unique_ptr<FontCache>(new FontCache(std::move(primary_font), library));
 }
 
@@ -123,35 +122,12 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
         return it->second;
     }
 
-    const auto pattern_text = std::format("{}:size={}:charset={:04x}", primary_font_, size, codepoint);
-    FcPattern* pattern = FcNameParse(reinterpret_cast<const FcChar8*>(pattern_text.c_str()));
-    if (pattern == nullptr) {
+    const auto located = Locate(codepoint, size);
+    if (!located) {
         collection.codepoint_fonts.emplace(codepoint, 0);
         return 0;
     }
-    FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
-    FcDefaultSubstitute(pattern);
-    FcResult match_result = FcResultNoMatch;
-    FcPattern* match = FcFontMatch(nullptr, pattern, &match_result);
-    FcPatternDestroy(pattern);
-
-    FcChar8* file = nullptr;
-    if (match == nullptr || FcPatternGetString(match, FC_FILE, 0, &file) != FcResultMatch) {
-        if (match != nullptr) {
-            FcPatternDestroy(match);
-        }
-        collection.codepoint_fonts.emplace(codepoint, 0);
-        return 0;
-    }
-
-    const std::string path(reinterpret_cast<const char*>(file));
-    FcChar8* full_name = nullptr;
-    const std::string name = FcPatternGetString(match, FC_FULLNAME, 0, &full_name) == FcResultMatch
-                               ? std::string(reinterpret_cast<const char*>(full_name))
-                               : path;
-    int face_index = 0;
-    FcPatternGetInteger(match, FC_INDEX, 0, &face_index);
-    FcPatternDestroy(match);
+    const auto& [path, name, face_index] = *located;
 
     LOG_DEBUG("Loading font: {} {}pt", name, size);
 

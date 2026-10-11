@@ -24,11 +24,7 @@
 #include <bit>
 #include <cmath>
 #include <format>
-
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <utility>
 
 #include "Keyboard.hpp"
 #include "OverlayContainer.hpp"
@@ -79,42 +75,28 @@ auto ElapsedMs(std::chrono::steady_clock::time_point since) -> int64_t {
 
 } // namespace
 
-OscSender::OscSender(int socket)
-    : socket_(socket),
+OscSender::OscSender(UdpSocket socket)
+    : socket_(std::move(socket)),
       last_sent_overlay_(std::chrono::steady_clock::now()),
       last_sent_battery_(std::chrono::steady_clock::now()) {
 }
 
-OscSender::~OscSender() {
-    close(socket_);
-}
+OscSender::~OscSender() = default;
 
 auto OscSender::Create(uint16_t port) -> Result<std::unique_ptr<OscSender>> {
-    const int socket_fd = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-    sockaddr_in local{};
-    local.sin_family = AF_INET;
-    local.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (socket_fd < 0 || bind(socket_fd, reinterpret_cast<const sockaddr*>(&local), sizeof(local)) != 0) {
-        if (socket_fd >= 0) {
-            close(socket_fd);
-        }
+    auto socket = UdpSocket::Bind(UdpAddress::Any, 0);
+    if (!socket) {
         return Unexpected("Failed to bind UDP socket - OSC will not function.");
     }
-
-    sockaddr_in remote{};
-    remote.sin_family = AF_INET;
-    remote.sin_port = htons(port);
-    remote.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    if (connect(socket_fd, reinterpret_cast<const sockaddr*>(&remote), sizeof(remote)) != 0) {
-        close(socket_fd);
+    if (!socket->ConnectLoopback(port)) {
         return Unexpected("Failed to connect UDP socket - OSC will not function.");
     }
-    return std::unique_ptr<OscSender>(new OscSender(socket_fd));
+    return std::unique_ptr<OscSender>(new OscSender(std::move(*socket)));
 }
 
 auto OscSender::SendMessage(const std::string& address, const std::vector<OscValue>& values) const -> Result<> {
     const auto packet = Encode(address, values);
-    if (send(socket_, packet.data(), packet.size(), 0) < 0) {
+    if (!socket_.Send(packet)) {
         return Unexpected("Could not send OSC packet.");
     }
     return {};

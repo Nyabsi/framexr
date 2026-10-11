@@ -119,9 +119,12 @@ threads_dep = dependency('threads')
 dl_dep = cpp.find_library('dl', required: false)
 vulkan_dep = dependency('vulkan', include_type: 'system')
 freetype_dep = dependency('freetype2', include_type: 'system')
-fontconfig_dep = dependency('fontconfig', include_type: 'system')
-dbus_dep = dependency('dbus-1', include_type: 'system')
-xkbcommon_dep = dependency('xkbcommon', include_type: 'system')
+
+platform_deps = [
+  dependency('fontconfig', include_type: 'system'),
+  dependency('dbus-1', include_type: 'system'),
+  dependency('xkbcommon', include_type: 'system'),
+]
 
 feat_openvr = get_option('openvr')
 feat_openxr = get_option('openxr')

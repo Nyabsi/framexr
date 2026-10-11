@@ -87,11 +87,15 @@ class NotificationManager final {
     NotificationManager(const NotificationManager&) = delete;
     auto operator=(const NotificationManager&) -> NotificationManager& = delete;
 
-    auto RunDbus() -> void;
+    auto RunDesktop() -> void;
     auto RunUdp() -> void;
     auto SubmitPending(AppState& app) -> void;
 
   private:
+    auto PollDesktop() -> void;
+    auto CloseDesktop() -> void;
+    auto RunNative() -> void;
+
     std::shared_ptr<ToastIngest> ingest_;
     std::shared_ptr<std::atomic<bool>> running_;
     DBusConnection* dbus_ = nullptr;

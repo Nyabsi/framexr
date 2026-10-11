@@ -30,6 +30,7 @@
 
 #include "Error.hpp"
 #include "Input.hpp"
+#include "UdpSocket.hpp"
 
 class OverlayContainer;
 
@@ -47,9 +48,9 @@ class OscSender final {
     auto SendParams(const OverlayContainer& overlays, const std::vector<TrackedDevice>& devices) -> Result<>;
 
   private:
-    explicit OscSender(int socket);
+    explicit OscSender(UdpSocket socket);
 
-    int socket_;
+    UdpSocket socket_;
     std::chrono::steady_clock::time_point last_sent_overlay_;
     std::chrono::steady_clock::time_point last_sent_battery_;
 };

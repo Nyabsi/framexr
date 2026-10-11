@@ -58,6 +58,12 @@ struct FontCollection {
     std::shared_ptr<Glyph> zero_glyph;
 };
 
+struct FontFile {
+    std::string path;
+    std::string name;
+    int index = 0;
+};
+
 struct TextSize {
     float width = 0.0f;
     float height = 0.0f;
@@ -81,6 +87,8 @@ class FontCache final {
 
     auto Collection(int size) -> FontCollection&;
     auto FontForCodepoint(uint32_t codepoint, int size) -> size_t;
+    [[nodiscard]] auto Locate(uint32_t codepoint, int size) const -> std::optional<FontFile>;
+    static auto InitLocator() -> void;
     auto GlyphForCodepoint(uint32_t codepoint, int size, Device& device, std::optional<CommandBuffer>& uploads)
         -> Result<std::shared_ptr<Glyph>>;
 

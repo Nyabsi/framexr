@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -51,7 +52,7 @@ class Process final {
     Process(const Process&) = delete;
     auto operator=(const Process&) -> Process& = delete;
 
-    [[nodiscard]] auto Pid() const -> pid_t { return pid_; }
+    [[nodiscard]] auto Pid() const -> uint32_t;
 
     auto TryWait() -> Result<std::optional<ExitStatus>>;
     auto Signal(int signal) const -> void;

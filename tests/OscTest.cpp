@@ -17,18 +17,18 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include <array>
+#include <chrono>
+#include <cstddef>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
 #include <gtest/gtest.h>
 
 #include "Osc.hpp"
+#include "UdpSocket.hpp"
 
 namespace {
 
@@ -46,30 +46,26 @@ auto ExpectedPacket(std::string_view address, std::string_view tags, const std::
 class OscWire : public testing::Test {
   protected:
     auto SetUp() -> void override {
-        receiver_ = socket(AF_INET, SOCK_DGRAM, 0);
-        ASSERT_GE(receiver_, 0);
-        sockaddr_in address{};
-        address.sin_family = AF_INET;
-        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        socklen_t length = sizeof(address);
-        ASSERT_EQ(bind(receiver_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)), 0);
-        getsockname(receiver_, reinterpret_cast<sockaddr*>(&address), &length);
-        const timeval timeout{.tv_sec = 2, .tv_usec = 0};
-        setsockopt(receiver_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-        auto sender = OscSender::Create(ntohs(address.sin_port));
+        auto receiver = UdpSocket::Bind(UdpAddress::Loopback, 0);
+        ASSERT_TRUE(receiver.has_value());
+        receiver_ = std::move(*receiver);
+        ASSERT_TRUE(receiver_->SetReceiveTimeout(std::chrono::seconds(2)).has_value());
+        auto sender = OscSender::Create(receiver_->LocalPort());
         ASSERT_TRUE(sender.has_value());
         sender_ = std::move(*sender);
     }
 
-    auto TearDown() -> void override { close(receiver_); }
-
     [[nodiscard]] auto Receive() const -> std::vector<unsigned char> {
-        std::array<unsigned char, 512> buffer{};
-        const auto received = recv(receiver_, buffer.data(), buffer.size(), 0);
-        return received > 0 ? std::vector<unsigned char>(buffer.begin(), buffer.begin() + received) : std::vector<unsigned char>{};
+        std::array<std::byte, 512> buffer{};
+        const auto received = receiver_->Receive(buffer);
+        std::vector<unsigned char> bytes;
+        for (const auto byte : std::span(buffer).first(received.value_or(0))) {
+            bytes.push_back(std::to_integer<unsigned char>(byte));
+        }
+        return bytes;
     }
 
-    int receiver_ = -1;
+    std::optional<UdpSocket> receiver_;
     std::unique_ptr<OscSender> sender_;
 };
 
