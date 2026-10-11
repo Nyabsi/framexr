@@ -56,9 +56,6 @@ auto CommandLine::Help() -> std::string {
             "      --replace              Replace running FrameXR instance\n"
             "      --multi                Allow multiple running instances of FrameXR (things may break!)\n"
             "  -l, --log-to <FILE_PATH>   Path to write logs to\n";
-#if FRAMEXR_FEATURE_UIDEV
-    help += "  -u, --uidev <UI_NAME>      Show a desktop window of a UI panel for development\n";
-#endif
     help += "  -h, --help                 Print help\n"
             "  -V, --version              Print version\n";
     return help;
@@ -127,12 +124,6 @@ auto CommandLine::Parse(std::span<char*> arguments) -> std::variant<CommandLine,
             if (const auto error = take_value("log-to", "FILE_PATH", result.log_to)) {
                 return *error;
             }
-#if FRAMEXR_FEATURE_UIDEV
-        } else if (arg == "--uidev" || arg.starts_with("--uidev=") || arg.starts_with("-u")) {
-            if (const auto error = take_value("uidev", "UI_NAME", result.uidev)) {
-                return *error;
-            }
-#endif
         } else {
             return PrintError(std::format("unexpected argument '{}' found", arg));
         }

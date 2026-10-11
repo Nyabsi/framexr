@@ -82,8 +82,6 @@ class Device final : public std::enable_shared_from_this<Device> {
     [[nodiscard]] auto QuadVertices() const -> const std::shared_ptr<Buffer>& { return quad_vertices_; }
     [[nodiscard]] auto QuadIndices() const -> const std::shared_ptr<Buffer>& { return quad_indices_; }
 
-    auto SetNativeFormat(VkFormat format) -> void { native_format_ = format; }
-
     auto CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer>;
     auto CreatePipeline(const ShaderProgram& program, VkFormat format, Blend blend) -> Result<std::shared_ptr<Pipeline>>;
     auto CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkImageLayout final_layout)

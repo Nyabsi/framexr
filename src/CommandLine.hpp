@@ -34,7 +34,6 @@ struct CommandLine {
     bool replace = false;
     bool multi = false;
     std::optional<std::string> log_to;
-    std::optional<std::string> uidev;
 
     static auto Parse(std::span<char*> arguments) -> std::variant<CommandLine, int>;
     static auto Usage() -> std::string;

@@ -53,10 +53,6 @@
 #include "openxr/OpenXrBackend.hpp"
 #endif
 
-#if FRAMEXR_FEATURE_UIDEV
-#include "uidev/UiDev.hpp"
-#endif
-
 #if !FRAMEXR_FEATURE_OPENVR && !FRAMEXR_FEATURE_OPENXR
 #error "No VR support! Enable either openvr or openxr features!"
 #endif
@@ -247,16 +243,6 @@ auto Run(std::span<char*> arguments) -> int {
 #if FRAMEXR_FEATURE_OPENVR
     if (command_line.uninstall) {
         OpenVrBackend::Uninstall();
-        return 0;
-    }
-#endif
-
-#if FRAMEXR_FEATURE_UIDEV
-    if (command_line.uidev) {
-        if (const auto result = UiDev::Run(*command_line.uidev); !result) {
-            LOG_ERROR("{}", result.error().Message());
-            return 1;
-        }
         return 0;
     }
 #endif

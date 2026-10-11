@@ -68,12 +68,6 @@ if get_option('wayland').allowed()
   overlay_sources += files('overlays/Mirror.cpp')
 endif
 
-uidev_deps = []
-if get_option('uidev').allowed()
-  backend_sources += files('backend/uidev/UiDev.cpp')
-  uidev_deps += dependency('xcb', include_type: 'system')
-endif
-
 subdir('capture')
 subdir('backend/openvr')
 subdir('backend/openxr')
@@ -113,13 +107,13 @@ framexr_lib = static_library(
     '--embed-dir=' + shader_embed_dir,
     '--embed-dir=' + meson.project_source_root() / 'res',
   ],
-  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + uidev_deps + openvr_deps + openxr_deps,
+  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + openvr_deps + openxr_deps,
 )
 
 framexr_dep = declare_dependency(
   link_with: framexr_lib,
   include_directories: framexr_inc,
-  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + uidev_deps + openvr_deps + openxr_deps,
+  dependencies: [threads_dep, dl_dep, vulkan_dep, vma_dep, eigen_dep, json_dep, yaml_cpp_dep, miniaudio_dep, freetype_dep, fontconfig_dep, dbus_dep] + capture_deps + hid_deps + openvr_deps + openxr_deps,
   sources: [version_h, shader_spirv],
 )
 

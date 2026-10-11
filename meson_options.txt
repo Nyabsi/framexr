@@ -8,5 +8,3 @@ option('x11', type: 'feature', value: 'enabled',
        description: 'X11 desktop capture (XShm) and keymap support')
 option('wayland', type: 'feature', value: 'enabled',
        description: 'Wayland desktop capture (wlr protocols + PipeWire)')
-option('uidev', type: 'feature', value: 'disabled',
-       description: 'Desktop window preview of UI panels for development')
