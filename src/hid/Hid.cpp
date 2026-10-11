@@ -215,10 +215,10 @@ auto UInputProvider::MouseMove(const Eigen::Vector2f& position) -> void {
 }
 
 auto UInputProvider::SendButton(uint16_t button, bool down) -> void {
-    if (!pending_.button) {
-        pending_.button = MouseButtonAction{.button = button, .down = down};
+    if (pending_.buttons.empty()) {
         pending_.position = pending_.last_requested_position;
     }
+    pending_.buttons.push_back({.button = button, .down = down});
 }
 
 auto UInputProvider::Wheel(int32_t delta_y, int32_t delta_x) -> void {
@@ -235,8 +235,8 @@ auto UInputProvider::Commit() -> void {
                                            .cwiseProduct(Eigen::Vector2f::Constant(kMouseExtent).cwiseQuotient(desktop_extent_));
         Write(mouse_fd_, {{EV_ABS, ABS_X, static_cast<int32_t>(scaled.x())}, {EV_ABS, ABS_Y, static_cast<int32_t>(scaled.y())}}, "");
     }
-    if (const auto button = std::exchange(pending_.button, std::nullopt)) {
-        Write(mouse_fd_, {{EV_KEY, button->button, button->down ? 1 : 0}}, "send_button: ");
+    for (const auto& button : std::exchange(pending_.buttons, {})) {
+        Write(mouse_fd_, {{EV_KEY, button.button, button.down ? 1 : 0}}, "send_button: ");
     }
     if (const auto scroll = std::exchange(pending_.scroll, std::nullopt)) {
         Write(mouse_fd_, {{EV_REL, REL_WHEEL_HI_RES, scroll->y()}, {EV_REL, REL_HWHEEL_HI_RES, scroll->x()}}, "wheel: ");

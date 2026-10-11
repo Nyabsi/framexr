@@ -210,8 +210,22 @@ auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& 
     LOG_INFO("Hand {}: dropped {}", index, state.name);
 }
 
+auto Pointer::ReleaseClick(AppState& app, OverlayContainer& overlays, const std::optional<PointerHit>& hit) -> void {
+    const auto clicked_id = std::exchange(interaction.clicked_id, std::nullopt);
+    if (!clicked_id) {
+        return;
+    }
+    if (auto* clicked = overlays.ById(*clicked_id)) {
+        clicked->backend
+            ->OnPointer(app, hit.value_or(PointerHit{.pointer = index, .overlay = *clicked_id, .mode = interaction.mode}), false);
+    }
+}
+
 auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> InteractionResult {
     if (interaction.grabbed) {
+        if (!now.click) {
+            ReleaseClick(app, overlays, std::nullopt);
+        }
         if (auto* grabbed = overlays.ById(interaction.grabbed->grabbed_id)) {
             HandleGrabbed(app, overlays, *grabbed);
             if (interaction.grabbed) {
@@ -234,12 +248,8 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
                 hovered->backend->OnLeft(app, index);
             }
         }
-        if (!now.click && before.click) {
-            if (const auto clicked_id = std::exchange(interaction.clicked_id, std::nullopt)) {
-                if (auto* clicked = overlays.ById(*clicked_id)) {
-                    clicked->backend->OnPointer(app, {.pointer = index, .overlay = *clicked_id, .mode = interaction.mode}, false);
-                }
-            }
+        if (!now.click) {
+            ReleaseClick(app, overlays, std::nullopt);
         }
         return {};
     }
@@ -293,14 +303,10 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
     if (now.click && !before.click) {
         interaction.clicked_id = hit->overlay;
         hovered->backend->OnPointer(app, *hit, true);
+    } else if (!now.click && interaction.clicked_id) {
+        ReleaseClick(app, overlays, hit);
     } else if (!now.click && before.click) {
-        if (const auto clicked_id = std::exchange(interaction.clicked_id, std::nullopt)) {
-            if (auto* clicked = overlays.ById(*clicked_id)) {
-                clicked->backend->OnPointer(app, *hit, false);
-            }
-        } else {
-            hovered->backend->OnPointer(app, *hit, false);
-        }
+        hovered->backend->OnPointer(app, *hit, false);
     }
     return {.length = hit->dist, .haptics = haptics};
 }

@@ -34,9 +34,17 @@ struct HidEvent {
     auto operator==(const HidEvent&) const -> bool = default;
 };
 
+struct ButtonEvent {
+    uint16_t button = 0;
+    bool down = false;
+
+    auto operator==(const ButtonEvent&) const -> bool = default;
+};
+
 class RecordingHid final : public HidProvider {
   public:
     std::vector<HidEvent> events;
+    std::vector<ButtonEvent> buttons;
     uint8_t modifiers = 0;
 
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
@@ -57,6 +65,7 @@ class ScopedRecordingHid final {
     auto operator=(const ScopedRecordingHid&) -> ScopedRecordingHid& = delete;
 
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return recording_->events; }
+    [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return recording_->buttons; }
     auto Clear() -> void { recording_->events.clear(); }
 
   private:

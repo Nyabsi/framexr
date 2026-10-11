@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <map>
 #include <memory>
@@ -140,6 +141,7 @@ class ScreenInteraction final : public InteractionHandler {
 
   private:
     Eigen::Affine2f mouse_transform_;
+    std::array<std::optional<uint16_t>, 2> held_{};
 };
 
 struct ScreenOverlay {

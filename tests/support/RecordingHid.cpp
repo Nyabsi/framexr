@@ -23,7 +23,8 @@
 auto RecordingHid::MouseMove(const Eigen::Vector2f&) -> void {
 }
 
-auto RecordingHid::SendButton(uint16_t, bool) -> void {
+auto RecordingHid::SendButton(uint16_t button, bool down) -> void {
+    buttons.push_back({.button = button, .down = down});
 }
 
 auto RecordingHid::Wheel(int32_t, int32_t) -> void {

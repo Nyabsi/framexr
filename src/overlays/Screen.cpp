@@ -504,6 +504,14 @@ auto ScreenInteraction::OnPointer(AppState& app, const PointerHit& hit, bool pre
         button = kMouseMiddle;
     }
 
+    if (hit.pointer < held_.size()) {
+        if (pressed) {
+            held_[hit.pointer] = button;
+        } else if (const auto held = std::exchange(held_[hit.pointer], std::nullopt)) {
+            button = *held;
+        }
+    }
+
     if (pressed) {
         SetNextMove(app.config.click_freeze_time_ms);
     }

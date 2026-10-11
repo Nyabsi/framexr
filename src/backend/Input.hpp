@@ -145,6 +145,7 @@ class Pointer {
         -> std::optional<RayHit>;
     auto StartGrab(Overlay& overlay, const Eigen::Vector3f& point) -> void;
     auto HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& overlay) -> void;
+    auto ReleaseClick(AppState& app, OverlayContainer& overlays, const std::optional<PointerHit>& hit) -> void;
 };
 
 class InputState {

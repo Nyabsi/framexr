@@ -27,6 +27,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include <Eigen/Core>
 
@@ -73,7 +74,7 @@ struct MouseButtonAction {
 struct PendingMouseAction {
     std::optional<Eigen::Vector2f> last_requested_position;
     std::optional<Eigen::Vector2f> position;
-    std::optional<MouseButtonAction> button;
+    std::vector<MouseButtonAction> buttons;
     std::optional<Eigen::Vector2i> scroll;
 };
 

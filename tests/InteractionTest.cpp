@@ -35,6 +35,7 @@
 #include "OverlayContainer.hpp"
 #include "OverlayLayout.hpp"
 #include "RecordingBackend.hpp"
+#include "RecordingHid.hpp"
 #include "Screen.hpp"
 #include "State.hpp"
 #include "TestApp.hpp"
@@ -255,6 +256,35 @@ TEST_F(Interaction, ReleaseIntoEmptySpaceStillReleases) {
     const auto clicks = Events(events, RecordedKind::Pointer);
     ASSERT_EQ(clicks.size(), 2U);
     EXPECT_FALSE(clicks[1].pressed);
+}
+
+TEST_F(Interaction, ReleasingTheTriggerWhileGrabbingReleasesTheClick) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    Aim(0, Eigen::Vector3f::Zero());
+
+    Frame({.click = true});
+    Frame({.click = true, .grab = true});
+    ASSERT_TRUE(Pointer(0).interaction.grabbed.has_value());
+    Frame({.grab = true});
+    EXPECT_FALSE(Pointer(0).interaction.clicked_id.has_value());
+    Frame({});
+
+    const auto clicks = Events(events, RecordedKind::Pointer);
+    ASSERT_EQ(clicks.size(), 2U);
+    EXPECT_TRUE(clicks[0].pressed);
+    EXPECT_FALSE(clicks[1].pressed);
+}
+
+TEST_F(Interaction, ScreenReleasesTheButtonItPressed) {
+    ScopedRecordingHid hid(*app_);
+    ScreenInteraction screen(Eigen::Vector2f::Zero(), Eigen::Vector2f(100.0f, 100.0f), FrameTransform::Normal);
+
+    screen.OnPointer(*app_, {.pointer = 0, .mode = PointerMode::Right}, true);
+    screen.OnPointer(*app_, {.pointer = 0, .mode = PointerMode::Left}, false);
+
+    const std::vector<ButtonEvent> expected{{.button = kMouseRight, .down = true}, {.button = kMouseRight, .down = false}};
+    EXPECT_EQ(hid.Buttons(), expected);
 }
 
 TEST_F(Interaction, ScrollIsForwarded) {
