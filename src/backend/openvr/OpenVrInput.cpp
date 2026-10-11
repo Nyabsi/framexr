@@ -107,7 +107,7 @@ auto OpenVrInput::SetActionManifest() -> Result<> {
         }
     }
 
-    if (const auto error = vr::VRInput()->SetActionManifestPath(action_path.c_str()); error != vr::VRInputError_None) {
+    if (const auto error = vr::VRInput()->SetActionManifestPath(action_path.string().c_str()); error != vr::VRInputError_None) {
         return Unexpected(std::format("Failed to set action manifest: {}", InputError(error).Message()));
     }
     return {};

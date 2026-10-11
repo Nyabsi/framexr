@@ -98,8 +98,12 @@ auto StartsWithLetter(std::string_view text) -> bool {
     if (first < 0x80) {
         return std::isalpha(static_cast<int>(first)) != 0;
     }
+#ifdef _WIN32
+    return first <= 0xFFFF && iswalpha(static_cast<wint_t>(first)) != 0;
+#else
     static const locale_t utf8_locale = newlocale(LC_CTYPE_MASK, "C.UTF-8", nullptr);
     return utf8_locale != nullptr && iswalpha_l(static_cast<wint_t>(first), utf8_locale) != 0;
+#endif
 }
 
 } // namespace

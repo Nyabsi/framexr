@@ -24,7 +24,10 @@
 #define MINIAUDIO_IMPLEMENTATION
 #define MA_NO_ENCODING
 #define MA_NO_GENERATION
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
 #include <miniaudio.h>
+#pragma GCC diagnostic pop
 
 #include <format>
 

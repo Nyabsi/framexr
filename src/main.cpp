@@ -52,7 +52,7 @@
 #error "No VR support! Enable either openvr or openxr features!"
 #endif
 
-#if !FRAMEXR_FEATURE_WAYLAND && !FRAMEXR_FEATURE_X11
+#if !FRAMEXR_FEATURE_WAYLAND && !FRAMEXR_FEATURE_X11 && !defined(_WIN32)
 #error "No desktop support! Enable either wayland or x11 features!"
 #endif
 
@@ -141,8 +141,14 @@ auto BuildVersion() -> std::string {
 auto LocalTime() -> std::string {
     const std::tm local = Platform::LocalTime(std::time(nullptr));
     std::array<char, 64> buffer{};
-    const auto length = std::strftime(buffer.data(), buffer.size(), "%a %b %e %H:%M:%S %Y", &local);
-    return {buffer.data(), length};
+    const auto date_length = std::strftime(buffer.data(), buffer.size(), "%a %b", &local);
+    const auto time_length = std::strftime(buffer.data() + date_length, buffer.size() - date_length, " %H:%M:%S %Y", &local);
+    return std::format(
+        "{} {:>2}{}",
+        std::string_view(buffer.data(), date_length),
+        local.tm_mday,
+        std::string_view(buffer.data() + date_length, time_length)
+    );
 }
 
 auto HandleResult(const BackendResult& result) -> bool {

@@ -252,6 +252,10 @@ auto Keymap::FromX11() -> Result<Keymap> {
 #endif
 }
 
+auto Keymap::FromWindows() -> Result<Keymap> {
+    return Unexpected("Windows support not enabled.");
+}
+
 auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
     std::unique_ptr<xkb_context, XkbContextDeleter> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS));
     if (!context) {

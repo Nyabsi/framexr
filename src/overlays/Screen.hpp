@@ -163,6 +163,9 @@ class Screens final {
     ) -> std::unique_ptr<ScreenRenderer>;
     static auto CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverlay>>;
     static auto CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>>;
+#ifdef _WIN32
+    static auto CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>>;
+#endif
     static auto ArrangeInFrontOfHead(std::vector<ScreenOverlay>& screens) -> void;
     static auto SelectScreen(std::string_view instructions, const ScreenCastOptions& options) -> Result<ScreenSelection>;
     static auto LoadTokens() -> Result<std::map<std::string, std::string>>;

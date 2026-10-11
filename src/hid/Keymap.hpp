@@ -53,6 +53,12 @@ struct XkbStateDeleter {
     auto operator()(xkb_state* state) const -> void;
 };
 
+struct KeyboardLayoutDeleter {
+    bool owned = false;
+
+    auto operator()(void* layout) const -> void;
+};
+
 struct WaylandKeymapQuery {
     wl_seat* seat = nullptr;
     wl_keyboard* keyboard = nullptr;
@@ -64,6 +70,7 @@ class Keymap final {
   public:
     static auto FromWayland() -> Result<Keymap>;
     static auto FromX11() -> Result<Keymap>;
+    static auto FromWindows() -> Result<Keymap>;
     static auto FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap>;
 
     [[nodiscard]] auto LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string;
@@ -73,8 +80,14 @@ class Keymap final {
     [[nodiscard]] auto Find(char32_t character) const -> std::optional<TranslatedKey>;
 
   private:
+#ifdef _WIN32
+    explicit Keymap(std::unique_ptr<void, KeyboardLayoutDeleter> layout);
+
+    std::unique_ptr<void, KeyboardLayoutDeleter> layout_;
+#else
     Keymap(std::unique_ptr<xkb_context, XkbContextDeleter> context, std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap);
 
     std::unique_ptr<xkb_context, XkbContextDeleter> context_;
     std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap_;
+#endif
 };

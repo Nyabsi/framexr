@@ -5,6 +5,7 @@ framexr_inc = include_directories(
   'capture',
   'capture/pipewire',
   'capture/wayland',
+  'capture/win32',
   'capture/x11',
   'config',
   'core',
@@ -21,10 +22,20 @@ framexr_inc = include_directories(
 core_sources = files(
   'core/Error.cpp',
   'core/Logger.cpp',
-  'platform/posix/Platform.cpp',
-  'platform/posix/Process.cpp',
-  'platform/posix/UdpSocket.cpp',
 )
+if is_windows
+  core_sources += files(
+    'platform/win32/Platform.cpp',
+    'platform/win32/Process.cpp',
+    'platform/win32/UdpSocket.cpp',
+  )
+else
+  core_sources += files(
+    'platform/posix/Platform.cpp',
+    'platform/posix/Process.cpp',
+    'platform/posix/UdpSocket.cpp',
+  )
+endif
 
 config_sources = files(
   'config/Config.cpp',
@@ -41,7 +52,7 @@ backend_sources = files(
   'backend/Input.cpp',
   'backend/OneEuroFilter.cpp',
   'backend/Notifications.cpp',
-  'backend/linux/Notifications.cpp',
+  is_windows ? 'backend/win32/Notifications.cpp' : 'backend/linux/Notifications.cpp',
   'backend/Osc.cpp',
   'backend/Overlay.cpp',
   'backend/OverlayContainer.cpp',
@@ -60,7 +71,7 @@ editor_sources = files(
 
 gui_sources = files(
   'gui/Font.cpp',
-  'gui/linux/FontLookup.cpp',
+  is_windows ? 'gui/win32/FontLookup.cpp' : 'gui/linux/FontLookup.cpp',
   'gui/Theme.cpp',
   'gui/canvas/Canvas.cpp',
   'gui/canvas/Control.cpp',
@@ -73,9 +84,19 @@ hid_sources = files(
   'hid/Hid.cpp',
   'hid/KeyTranslator.cpp',
   'hid/VirtualKey.cpp',
-  'hid/linux/Keymap.cpp',
-  'hid/linux/UInputProvider.cpp',
 )
+if is_windows
+  hid_sources += files(
+    'hid/win32/Keymap.cpp',
+    'hid/win32/Scancodes.cpp',
+    'hid/win32/SendInputProvider.cpp',
+  )
+else
+  hid_sources += files(
+    'hid/linux/Keymap.cpp',
+    'hid/linux/UInputProvider.cpp',
+  )
+endif
 
 overlay_sources = files(
   'overlays/CustomUi.cpp',

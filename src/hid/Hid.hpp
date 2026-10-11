@@ -113,3 +113,21 @@ class UInputProvider final : public HidProvider {
     uint8_t current_modifiers_ = 0;
     PendingMouseAction pending_;
 };
+
+class SendInputProvider final : public HidProvider {
+  public:
+    auto MouseMove(const Eigen::Vector2f& position) -> void override;
+    auto SendButton(uint16_t button, bool down) -> void override;
+    auto Wheel(int32_t delta_y, int32_t delta_x) -> void override;
+    auto SetModifiers(uint8_t modifiers) -> void override;
+    auto SendKey(VirtualKey key, bool down) -> void override;
+    auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void override;
+    auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void override;
+    auto Commit() -> void override;
+
+  private:
+    Eigen::Vector2f desktop_extent_ = Eigen::Vector2f::Ones();
+    Eigen::Vector2f desktop_origin_ = Eigen::Vector2f::Zero();
+    uint8_t current_modifiers_ = 0;
+    PendingMouseAction pending_;
+};

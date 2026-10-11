@@ -27,13 +27,16 @@
 #include <chrono>
 #include <cstdlib>
 #include <format>
+#include <limits>
 #include <fstream>
 #include <numbers>
 #include <ranges>
 #include <utility>
 
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
@@ -56,6 +59,10 @@
 
 #if FRAMEXR_FEATURE_X11
 #include "XshmCapture.hpp"
+#endif
+
+#ifdef _WIN32
+#include "DxgiCapture.hpp"
 #endif
 
 namespace {
@@ -179,19 +186,23 @@ CapturedFrame::CapturedFrame(std::shared_ptr<Image> captured_image, FrameFormat 
 }
 
 PendingFrame::PendingFrame(Frame&& source) : frame(std::move(source)) {
+#ifndef _WIN32
     if (auto* dmabuf = std::get_if<DmabufFrame>(&frame)) {
         for (auto& plane : dmabuf->planes) {
             plane.fd = plane.fd >= 0 ? dup(plane.fd) : -1;
         }
     } else if (auto* memfd = std::get_if<MemFdFrame>(&frame)) {
         memfd->plane.fd = memfd->plane.fd >= 0 ? dup(memfd->plane.fd) : -1;
-    } else if (auto* memptr = std::get_if<MemPtrFrame>(&frame); memptr != nullptr && memptr->data != nullptr) {
+    } else
+#endif
+        if (auto* memptr = std::get_if<MemPtrFrame>(&frame); memptr != nullptr && memptr->data != nullptr) {
         bytes.assign(memptr->data, memptr->data + memptr->size);
         memptr->data = bytes.data();
     }
 }
 
 PendingFrame::~PendingFrame() {
+#ifndef _WIN32
     if (const auto* dmabuf = std::get_if<DmabufFrame>(&frame)) {
         for (const auto& plane : dmabuf->planes) {
             if (plane.fd >= 0) {
@@ -201,6 +212,7 @@ PendingFrame::~PendingFrame() {
     } else if (const auto* memfd = std::get_if<MemFdFrame>(&frame); memfd != nullptr && memfd->plane.fd >= 0) {
         close(memfd->plane.fd);
     }
+#endif
 }
 
 FrameUploader::FrameUploader(std::string name, std::shared_ptr<Device> device, Queue& queue)
@@ -249,6 +261,12 @@ auto FrameUploader::Process(Frame&& frame) const -> std::unique_ptr<CapturedFram
         return std::make_unique<CapturedFrame>(std::move(*image), dmabuf->format, std::nullopt);
     }
 
+#ifdef _WIN32
+    if (std::holds_alternative<MemFdFrame>(frame)) {
+        LOG_ERROR("{}: MemFd frames are not supported on Windows", name_);
+        return nullptr;
+    }
+#else
     if (const auto* memfd = std::get_if<MemFdFrame>(&frame)) {
         if (memfd->plane.fd < 0) {
             LOG_ERROR("{}: No fd in MemFd frame", name_);
@@ -267,6 +285,7 @@ auto FrameUploader::Process(Frame&& frame) const -> std::unique_ptr<CapturedFram
         }
         return std::make_unique<CapturedFrame>(std::move(image), memfd->format, std::nullopt);
     }
+#endif
 
     const auto& memptr = std::get<MemPtrFrame>(frame);
     LOG_TRACE("{}: New MemPtr frame", name_);
@@ -879,6 +898,43 @@ auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverl
 
 auto Screens::CreateX11Pipewire(AppState&) -> Result<std::vector<ScreenOverlay>> {
     return Unexpected("Pipewire support not enabled");
+}
+
+#endif
+
+#ifdef _WIN32
+
+auto Screens::CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>> {
+    ASSIGN_OR_RETURN(auto outputs, DxgiCapture::Outputs());
+
+    Eigen::Vector2f origin = Eigen::Vector2f::Constant(std::numeric_limits<float>::max());
+    Eigen::Vector2f end = Eigen::Vector2f::Constant(std::numeric_limits<float>::lowest());
+    std::vector<ScreenOverlay> screens;
+    for (auto& output : outputs) {
+        const Eigen::Vector2f position(static_cast<float>(output.x), static_cast<float>(output.y));
+        const Eigen::Vector2f size(static_cast<float>(output.width), static_cast<float>(output.height));
+        origin = origin.cwiseMin(position);
+        end = end.cwiseMax(position + size);
+
+        LOG_INFO("{}: Init Windows screen of res ({}, {}) at ({}, {})", output.name, output.width, output.height, output.x, output.y);
+
+        auto state = CreateState(output.name, {output.width, output.height}, output.transform, app.config);
+        ScreenMeta meta{.name = output.name, .id = state.id, .native_handle = 0};
+        auto backend = std::make_unique<SplitOverlayBackend>(
+            std::make_unique<ScreenRenderer>(output.name, std::make_unique<DxgiCapture>(output.name, std::move(output.device))),
+            std::make_unique<ScreenInteraction>(position, size, output.transform)
+        );
+        screens.push_back({
+            .meta = std::move(meta),
+            .state = std::move(state),
+            .backend = std::move(backend),
+            .desktop_position = {output.x, output.y},
+        });
+    }
+
+    app.hid->SetDesktopExtent(end - origin);
+    app.hid->SetDesktopOrigin(origin);
+    return screens;
 }
 
 #endif

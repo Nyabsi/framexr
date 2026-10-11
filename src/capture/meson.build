@@ -28,3 +28,7 @@ if get_option('x11').allowed()
     dependency('xrandr', include_type: 'system'),
   ]
 endif
+
+if is_windows
+  capture_sources += files('win32/DxgiCapture.cpp')
+endif

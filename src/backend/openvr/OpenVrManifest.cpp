@@ -41,6 +41,12 @@ auto ManifestPath() -> std::filesystem::path {
     return Config::Root() / "framexr.vrmanifest";
 }
 
+#ifdef _WIN32
+constexpr const char* kBinaryPathKey = "binary_path_windows";
+#else
+constexpr const char* kBinaryPathKey = "binary_path_linux";
+#endif
+
 auto ExecutablePath() -> Result<std::string> {
     ASSIGN_OR_RETURN(const auto path, Platform::ExecutablePath());
     return path.string();
@@ -62,7 +68,7 @@ auto OpenVrManifest::Install() -> Result<> {
             if (manifest.is_discarded()) {
                 return Unexpected(std::format("Invalid manifest at {}", manifest_path.string()));
             }
-            const auto& binary = manifest["applications"][0]["binary_path_linux"];
+            const auto& binary = manifest["applications"][0][kBinaryPathKey];
             if (binary.is_string() && binary.get<std::string>() == executable_path) {
                 LOG_INFO("Manifest already up to date");
                 return {};
@@ -77,7 +83,7 @@ auto OpenVrManifest::Install() -> Result<> {
     nlohmann::ordered_json application;
     application["app_key"] = kAppKey;
     application["launch_type"] = "binary";
-    application["binary_path_linux"] = executable_path;
+    application[kBinaryPathKey] = executable_path;
     application["is_dashboard_overlay"] = true;
     application["strings"]["en_us"] = strings;
 
@@ -95,7 +101,7 @@ auto OpenVrManifest::Install() -> Result<> {
     }
     stream.close();
 
-    if (const auto error = vr::VRApplications()->AddApplicationManifest(manifest_path.c_str(), false);
+    if (const auto error = vr::VRApplications()->AddApplicationManifest(manifest_path.string().c_str(), false);
         error != vr::VRApplicationError_None) {
         return Unexpected(std::format("Failed to add manifest to OpenVR: {}", ApplicationError(error)));
     }
@@ -109,7 +115,7 @@ auto OpenVrManifest::Uninstall() -> Result<> {
     if (!vr::VRApplications()->IsApplicationInstalled(kAppKey)) {
         return {};
     }
-    if (const auto error = vr::VRApplications()->RemoveApplicationManifest(ManifestPath().c_str());
+    if (const auto error = vr::VRApplications()->RemoveApplicationManifest(ManifestPath().string().c_str());
         error != vr::VRApplicationError_None) {
         return Unexpected(std::format("Failed to remove manifest from OpenVR: {}", ApplicationError(error)));
     }

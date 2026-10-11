@@ -24,7 +24,9 @@
 #include <utility>
 #include <vector>
 
+#ifndef _WIN32
 #include <sys/types.h>
+#endif
 
 #include "Error.hpp"
 
@@ -59,9 +61,16 @@ class Process final {
     auto ReadStdout() -> std::optional<std::string>;
 
   private:
+#ifdef _WIN32
+    Process(void* process, void* stdout_pipe);
+
+    void* process_ = nullptr;
+    void* stdout_pipe_ = nullptr;
+#else
     Process(pid_t pid, int stdout_fd);
 
     pid_t pid_ = -1;
     int stdout_fd_ = -1;
+#endif
     std::optional<ExitStatus> exit_status_;
 };

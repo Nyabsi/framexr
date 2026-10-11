@@ -15,6 +15,7 @@ project(
 
 cpp = meson.get_compiler('cpp')
 fs = import('fs')
+is_windows = host_machine.system() == 'windows'
 
 add_project_arguments(
   cpp.get_supported_arguments(
@@ -39,6 +40,15 @@ add_project_arguments(
   ),
   language: 'cpp',
 )
+
+if is_windows
+  add_project_link_arguments(
+    '-static-libgcc',
+    '-static-libstdc++',
+    '-Wl,-Bstatic,--whole-archive', '-lwinpthread', '-Wl,--no-whole-archive,-Bdynamic',
+    language: ['c', 'cpp'],
+  )
+endif
 
 # ---------------------------------------------------------------------------
 # Vendored libraries (git submodules in external/)
@@ -120,11 +130,21 @@ dl_dep = cpp.find_library('dl', required: false)
 vulkan_dep = dependency('vulkan', include_type: 'system')
 freetype_dep = dependency('freetype2', include_type: 'system')
 
-platform_deps = [
-  dependency('fontconfig', include_type: 'system'),
-  dependency('dbus-1', include_type: 'system'),
-  dependency('xkbcommon', include_type: 'system'),
-]
+if is_windows
+  platform_deps = [
+    cpp.find_library('ws2_32'),
+    cpp.find_library('d3d11'),
+    cpp.find_library('dxgi'),
+    cpp.find_library('shell32'),
+    cpp.find_library('ole32'),
+  ]
+else
+  platform_deps = [
+    dependency('fontconfig', include_type: 'system'),
+    dependency('dbus-1', include_type: 'system'),
+    dependency('xkbcommon', include_type: 'system'),
+  ]
+endif
 
 feat_openvr = get_option('openvr')
 feat_openxr = get_option('openxr')
@@ -135,7 +155,11 @@ feat_wayland = get_option('wayland')
 if feat_openvr.disabled() and feat_openxr.disabled()
   error('No VR support! Enable either openvr or openxr features!')
 endif
-if feat_wayland.disabled() and feat_x11.disabled()
+if is_windows
+  if feat_openxr.allowed() or feat_x11.allowed() or feat_wayland.allowed()
+    error('Windows builds are OpenVR only, configure with --cross-file cross/windows.ini')
+  endif
+elif feat_wayland.disabled() and feat_x11.disabled()
   error('No desktop support! Enable either wayland or x11 features!')
 endif
 

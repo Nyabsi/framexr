@@ -60,6 +60,10 @@ OverlayContainer::OverlayContainer() = default;
 OverlayContainer::~OverlayContainer() = default;
 
 auto OverlayContainer::CreateScreens(AppState& app, std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>> {
+#ifdef _WIN32
+    keymap = LoadKeymap(Keymap::FromWindows());
+    return Screens::CreateWindows(app);
+#else
 #if FRAMEXR_FEATURE_WAYLAND
     wayland_ = WaylandClient::Connect();
     if (wayland_) {
@@ -74,6 +78,7 @@ auto OverlayContainer::CreateScreens(AppState& app, std::optional<Keymap>& keyma
         LOG_INFO("Will not use PipeWire capture: {}", created.error().Message());
     }
     return Screens::CreateXshm(app);
+#endif
 }
 
 auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayContainer>> {
