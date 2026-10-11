@@ -29,11 +29,6 @@
 #include "Keymap.hpp"
 #include "VirtualKey.hpp"
 
-struct TranslatedKey {
-    VirtualKey key = VirtualKey::Escape;
-    uint8_t modifiers = 0;
-};
-
 struct KeyboardRegion {
     std::string layout;
     std::string variant;

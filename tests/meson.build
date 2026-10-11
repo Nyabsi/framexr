@@ -47,6 +47,7 @@ test('unit', unit_tests, env: test_env, protocol: 'gtest')
 
 integration_tests = executable(
   'framexr-integration-tests',
+  'ActionTest.cpp',
   'InteractionTest.cpp',
   'KeyStateTest.cpp',
   'OverlayRenderTest.cpp',
@@ -56,6 +57,7 @@ integration_tests = executable(
   'support/IntegrationMain.cpp',
   'support/Png.cpp',
   'support/RecordingBackend.cpp',
+  'support/RecordingHid.cpp',
   'support/TestApp.cpp',
   include_directories: test_support_inc,
   dependencies: [framexr_dep, gtest_dep],

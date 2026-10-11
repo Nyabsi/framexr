@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -34,6 +35,11 @@ struct xkb_keymap;
 struct xkb_state;
 struct wl_seat;
 struct wl_keyboard;
+
+struct TranslatedKey {
+    VirtualKey key = VirtualKey::Escape;
+    uint8_t modifiers = 0;
+};
 
 struct XkbContextDeleter {
     auto operator()(xkb_context* context) const -> void;
@@ -63,6 +69,7 @@ class Keymap final {
     [[nodiscard]] auto LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string;
     [[nodiscard]] auto HasAltGr() const -> bool;
     [[nodiscard]] auto KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t;
+    [[nodiscard]] auto Find(char32_t character) const -> std::optional<TranslatedKey>;
 
   private:
     Keymap(std::unique_ptr<xkb_context, XkbContextDeleter> context, std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap);

@@ -153,6 +153,10 @@ constexpr auto kDeadKeyLabels = std::to_array<std::pair<xkb_keysym_t, std::strin
     {XKB_KEY_dead_ogonek, "˛"},
 });
 
+constexpr auto kTypingModifiers = std::to_array<uint8_t>({0, kModShift, kModMeta, kModShift | kModMeta});
+constexpr uint32_t kFirstKeycode = 8;
+constexpr uint32_t kLastKeycode = 255;
+
 auto DeadKeyLabel(xkb_keysym_t symbol) -> std::string {
     const auto* found = std::ranges::find(kDeadKeyLabels, symbol, &std::pair<xkb_keysym_t, std::string_view>::first);
     return found == kDeadKeyLabels.end() ? std::string() : std::string(found->second);
@@ -281,6 +285,22 @@ auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
         }
     }
     return xkb_state_key_get_one_sym(state.get(), static_cast<xkb_keycode_t>(key));
+}
+
+auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
+    const auto wanted = xkb_utf32_to_keysym(static_cast<uint32_t>(character));
+    if (wanted == XKB_KEY_NoSymbol) {
+        return std::nullopt;
+    }
+    for (const uint8_t modifiers : kTypingModifiers) {
+        for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code) {
+            const auto key = static_cast<VirtualKey>(code);
+            if (!VirtualKeys::ModifierOf(key) && KeySym(key, modifiers) == wanted) {
+                return TranslatedKey{.key = key, .modifiers = modifiers};
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {

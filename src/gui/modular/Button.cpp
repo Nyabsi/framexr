@@ -21,13 +21,18 @@
 
 #include "Button.hpp"
 
+#include <algorithm>
 #include <array>
 #include <format>
 #include <numbers>
+#include <ranges>
 #include <utility>
 
 #include "CustomUi.hpp"
+#include "Font.hpp"
 #include "Hid.hpp"
+#include "Keyboard.hpp"
+#include "Keymap.hpp"
 #include "Json.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
@@ -246,6 +251,21 @@ auto from_json(const nlohmann::json& json, ButtonAction& value) -> void {
             osc.values = std::move(values);
         }
         value = std::move(osc);
+    } else if (type == "Shortcut") {
+        ShortcutButtonAction shortcut;
+        for (const auto& name : json.at("keys")) {
+            const auto key_name = name.get<std::string>();
+            const auto key = VirtualKeys::Parse(key_name);
+            if (!key) {
+                throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for VirtualKey", key_name), &json);
+            }
+            shortcut.keys.push_back(*key);
+        }
+        value = std::move(shortcut);
+    } else if (type == "TypeText") {
+        value = TypeTextButtonAction{.text = json.at("text").get<std::string>()};
+    } else if (type == "KeyboardProfile") {
+        value = KeyboardProfileButtonAction{.profile = OptionalString(json, "profile")};
     } else {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for ButtonAction", type), &json);
     }
@@ -269,10 +289,6 @@ auto from_json(const nlohmann::json& json, ButtonData& value) -> void {
 }
 
 ModularButton::ModularButton(ButtonData data) : data_(std::move(data)), last_down_(std::chrono::steady_clock::now()) {
-}
-
-auto ModularButton::PlayThump(AppState& app) -> void {
-    app.audio.Play(std::as_bytes(std::span(kThumpSound)));
 }
 
 auto ModularButton::OnPress(AppState& app, PointerMode mode) -> void {
@@ -319,15 +335,56 @@ auto ModularButton::HighlightColor(AppState& app) -> std::optional<Eigen::Vector
 }
 
 auto ModularButton::Run(AppState& app, const std::optional<std::vector<ButtonAction>>& actions) -> void {
-    if (!actions) {
+    if (actions) {
+        runner_.Run(app, *actions);
+    }
+}
+
+auto ActionRunner::PlayThump(AppState& app) -> void {
+    app.audio.Play(std::as_bytes(std::span(kThumpSound)));
+}
+
+auto ActionRunner::PressShortcut(AppState& app, const std::vector<VirtualKey>& keys) -> void {
+    for (const auto key : keys) {
+        app.hid->SendKey(key, true);
+    }
+    for (const auto key : std::views::reverse(keys)) {
+        app.hid->SendKey(key, false);
+    }
+}
+
+auto ActionRunner::TypeText(AppState& app, std::string_view text) -> void {
+    if (!app.keymap) {
+        LOG_WARN("Cannot type text without a keyboard layout");
         return;
     }
-    for (const auto& action : *actions) {
+    for (const auto character : FontCache::DecodeUtf8(text)) {
+        std::optional<TranslatedKey> typed;
+        if (character == U'\n') {
+            typed = TranslatedKey{.key = VirtualKey::Return};
+        } else if (character == U'\t') {
+            typed = TranslatedKey{.key = VirtualKey::Tab};
+        } else {
+            typed = app.keymap->Find(static_cast<char32_t>(character));
+        }
+        if (!typed) {
+            LOG_WARN("Cannot type U+{:04X} with the desktop layout", static_cast<uint32_t>(character));
+            continue;
+        }
+        app.hid->SetModifiers(typed->modifiers);
+        app.hid->SendKey(typed->key, true);
+        app.hid->SendKey(typed->key, false);
+    }
+    app.hid->SetModifiers(0);
+}
+
+auto ActionRunner::Run(AppState& app, const std::vector<ButtonAction>& actions) -> void {
+    for (const auto& action : actions) {
         Run(app, action);
     }
 }
 
-auto ModularButton::Run(AppState& app, const ButtonAction& action) -> void {
+auto ActionRunner::Run(AppState& app, const ButtonAction& action) -> void {
     std::visit(
         [&](const auto& item) -> void {
             using Item = std::decay_t<decltype(item)>;
@@ -355,6 +412,12 @@ auto ModularButton::Run(AppState& app, const ButtonAction& action) -> void {
                 RunSystem(app, item.action);
             } else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>) {
                 app.config.space_drag_multiplier += item.delta;
+            } else if constexpr (std::is_same_v<Item, ShortcutButtonAction>) {
+                PressShortcut(app, item.keys);
+            } else if constexpr (std::is_same_v<Item, TypeTextButtonAction>) {
+                TypeText(app, item.text);
+            } else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>) {
+                RunProfile(app, item.profile);
             } else if constexpr (std::is_same_v<Item, SendOscButtonAction>) {
 #if FRAMEXR_FEATURE_OSC
                 if (app.osc) {
@@ -375,7 +438,12 @@ auto ModularButton::Run(AppState& app, const ButtonAction& action) -> void {
     );
 }
 
-auto ModularButton::RunExec(AppState& app, const ExecButtonAction& action) -> void {
+auto ActionRunner::RunProfile(AppState& app, const std::optional<std::string>& profile) -> void {
+    const auto& next = profile ? KeyboardProfiles::Find(*profile) : KeyboardProfiles::After(app.config.keyboard_profile);
+    Keyboard::SwitchProfile(app, app.keymap, next.name);
+}
+
+auto ActionRunner::RunExec(AppState& app, const ExecButtonAction& action) -> void {
     if (child_) {
         const auto status = child_->TryWait();
         if (!status) {
@@ -402,7 +470,7 @@ auto ModularButton::RunExec(AppState& app, const ExecButtonAction& action) -> vo
     }
 }
 
-auto ModularButton::RunSystem(AppState& app, SystemAction action) -> void {
+auto ActionRunner::RunSystem(AppState& app, SystemAction action) -> void {
     auto& config = app.config;
     const auto state_name = [](bool value) -> std::string_view { return kEnabledDisabled[value ? 1 : 0]; };
     switch (action) {
@@ -453,7 +521,7 @@ auto ModularButton::RunSystem(AppState& app, SystemAction action) -> void {
     }
 }
 
-auto ModularButton::RunWatch(AppState& app, const WatchAction& action) -> void {
+auto ActionRunner::RunWatch(AppState& app, const WatchAction& action) -> void {
     std::visit(
         [&](const auto& item) -> void {
             using Item = std::decay_t<decltype(item)>;
@@ -562,7 +630,7 @@ auto ModularButton::RunWatch(AppState& app, const WatchAction& action) -> void {
     );
 }
 
-auto ModularButton::RunOverlay(AppState& app, const OverlaySelector& target, const OverlayAction& action) -> void {
+auto ActionRunner::RunOverlay(AppState& app, const OverlaySelector& target, const OverlayAction& action) -> void {
     std::visit(
         [&](const auto& item) -> void {
             using Item = std::decay_t<decltype(item)>;
@@ -644,7 +712,7 @@ auto ModularButton::RunOverlay(AppState& app, const OverlaySelector& target, con
     );
 }
 
-auto ModularButton::RunWindow(AppState& app, const std::string& target, WindowAction action) -> void {
+auto ActionRunner::RunWindow(AppState& app, const std::string& target, WindowAction action) -> void {
     switch (action) {
     case WindowAction::ShowMirror:
 #if FRAMEXR_FEATURE_WAYLAND

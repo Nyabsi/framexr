@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -160,6 +161,18 @@ struct SendOscButtonAction {
     std::optional<std::vector<OscValue>> values;
 };
 
+struct ShortcutButtonAction {
+    std::vector<VirtualKey> keys;
+};
+
+struct TypeTextButtonAction {
+    std::string text;
+};
+
+struct KeyboardProfileButtonAction {
+    std::optional<std::string> profile;
+};
+
 using ButtonAction = std::variant<
     ExecButtonAction,
     VirtualKeyButtonAction,
@@ -170,7 +183,10 @@ using ButtonAction = std::variant<
     ColorAdjustButtonAction,
     DragMultiplierButtonAction,
     SystemButtonAction,
-    SendOscButtonAction>;
+    SendOscButtonAction,
+    ShortcutButtonAction,
+    TypeTextButtonAction,
+    KeyboardProfileButtonAction>;
 
 struct ButtonData {
     std::optional<std::vector<ButtonAction>> click_down;
@@ -192,6 +208,27 @@ auto from_json(const nlohmann::json& json, OverlayAction& value) -> void;
 auto from_json(const nlohmann::json& json, ButtonAction& value) -> void;
 auto from_json(const nlohmann::json& json, ButtonData& value) -> void;
 
+class ActionRunner final {
+  public:
+    auto Run(AppState& app, const std::vector<ButtonAction>& actions) -> void;
+    auto Run(AppState& app, const ButtonAction& action) -> void;
+
+    static auto PlayThump(AppState& app) -> void;
+    static auto PressShortcut(AppState& app, const std::vector<VirtualKey>& keys) -> void;
+    static auto TypeText(AppState& app, std::string_view text) -> void;
+
+  private:
+    auto RunExec(AppState& app, const ExecButtonAction& action) -> void;
+
+    static auto RunSystem(AppState& app, SystemAction action) -> void;
+    static auto RunWatch(AppState& app, const WatchAction& action) -> void;
+    static auto RunOverlay(AppState& app, const OverlaySelector& target, const OverlayAction& action) -> void;
+    static auto RunWindow(AppState& app, const std::string& target, WindowAction action) -> void;
+    static auto RunProfile(AppState& app, const std::optional<std::string>& profile) -> void;
+
+    std::optional<Process> child_;
+};
+
 class ModularButton final : public Control {
   public:
     explicit ModularButton(ButtonData data);
@@ -201,20 +238,11 @@ class ModularButton final : public Control {
     auto OnScroll(AppState& app, float delta_y, float delta_x) -> void override;
     auto HighlightColor(AppState& app) -> std::optional<Eigen::Vector4f> override;
 
-    static auto PlayThump(AppState& app) -> void;
-
   private:
     auto Run(AppState& app, const std::optional<std::vector<ButtonAction>>& actions) -> void;
-    auto Run(AppState& app, const ButtonAction& action) -> void;
-    auto RunExec(AppState& app, const ExecButtonAction& action) -> void;
-
-    static auto RunSystem(AppState& app, SystemAction action) -> void;
-    static auto RunWatch(AppState& app, const WatchAction& action) -> void;
-    static auto RunOverlay(AppState& app, const OverlaySelector& target, const OverlayAction& action) -> void;
-    static auto RunWindow(AppState& app, const std::string& target, WindowAction action) -> void;
 
     ButtonData data_;
+    ActionRunner runner_;
     std::chrono::steady_clock::time_point last_down_;
     PointerMode last_mode_ = PointerMode::Left;
-    std::optional<Process> child_;
 };
