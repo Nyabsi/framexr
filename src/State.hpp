@@ -69,6 +69,7 @@ class AudioOutput final {
 class FontCache;
 class HidProvider;
 class Keymap;
+class TextInput;
 class OscSender;
 
 struct ScreenMeta {
@@ -95,6 +96,7 @@ class AppState final {
     AudioOutput audio;
     std::vector<ScreenMeta> screens;
     std::shared_ptr<const Keymap> keymap;
+    std::shared_ptr<TextInput> text_input;
     Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
     std::map<std::string, std::shared_ptr<Image>, std::less<>> sprites;
     std::vector<std::byte> toast_sound;

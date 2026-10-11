@@ -37,6 +37,7 @@
 #include "Hid.hpp"
 #include "Logger.hpp"
 #include "State.hpp"
+#include "TextInput.hpp"
 #include "Theme.hpp"
 #include "framexr_config.h"
 
@@ -110,6 +111,22 @@ auto KeyboardState::RefreshLetterCase() -> void {
     }
 }
 
+auto KeyboardState::Text(VirtualKey key, uint8_t pressed_modifiers) const -> std::string {
+    const uint8_t level = static_cast<uint8_t>((pressed_modifiers & (kModShift | kModMeta)) | (caps_lock ? kModCapsLock : 0));
+    if (typing_keymap) {
+        return typing_keymap->Text(key, level);
+    }
+    if (key == VirtualKey::Space) {
+        return " ";
+    }
+    const auto name = VirtualKeys::Name(key);
+    if (name.size() != 1 || std::isalpha(static_cast<unsigned char>(name.front())) == 0) {
+        return {};
+    }
+    const bool upper = caps_lock != ((pressed_modifiers & kModShift) != 0);
+    return std::string(1, static_cast<char>(upper ? name.front() : std::tolower(static_cast<unsigned char>(name.front()))));
+}
+
 KeyControl::KeyControl(std::shared_ptr<KeyboardState> state, VirtualKey key)
     : state_(std::move(state)),
       key_(key),
@@ -123,6 +140,19 @@ auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
         state_->modifiers |= kModShift;
     } else if (mode == PointerMode::Middle) {
         state_->modifiers |= state_->alt_modifier;
+    }
+    captured_ = app.text_input != nullptr;
+    if (captured_) {
+        const auto input = app.text_input;
+        if (latches_ && !input->WantsRawKeys()) {
+            latched_ = !latched_;
+            if (key_ == VirtualKey::Caps) {
+                state_->caps_lock = latched_;
+            }
+            return;
+        }
+        input->Key(app, key_, state_->modifiers, state_->Text(key_, state_->modifiers));
+        return;
     }
     sent_ = key_;
     translated_ = false;
@@ -145,6 +175,12 @@ auto KeyControl::OnPress(AppState& app, PointerMode mode) -> void {
 }
 
 auto KeyControl::OnRelease(AppState& app) -> void {
+    if (std::exchange(captured_, false)) {
+        state_->modifiers = 0;
+        Keyboard::SetModifiers(app, 0);
+        state_->RefreshLetterCase();
+        return;
+    }
     Keyboard::SendKey(app, sent_, false);
     if (translated_) {
         Keyboard::SetModifiers(app, state_->modifiers);
@@ -172,6 +208,15 @@ ModifierControl::ModifierControl(std::shared_ptr<KeyboardState> state, uint8_t m
 }
 
 auto ModifierControl::OnPress(AppState& app, PointerMode) -> void {
+    captured_ = app.text_input != nullptr && app.text_input->WantsRawKeys();
+    if (captured_) {
+        Keyboard::Click(app);
+        if (const auto key = VirtualKeys::KeyForModifier(modifier_)) {
+            const auto input = app.text_input;
+            input->Key(app, *key, state_->modifiers, {});
+        }
+        return;
+    }
     sticky_ = (state_->modifiers & modifier_) == 0;
     state_->modifiers |= modifier_;
     Keyboard::Click(app);
@@ -180,6 +225,9 @@ auto ModifierControl::OnPress(AppState& app, PointerMode) -> void {
 }
 
 auto ModifierControl::OnRelease(AppState& app) -> void {
+    if (std::exchange(captured_, false)) {
+        return;
+    }
     if (!sticky_) {
         state_->modifiers &= static_cast<uint8_t>(~modifier_);
         Keyboard::SetModifiers(app, state_->modifiers);
@@ -330,7 +378,8 @@ auto Keyboard::Fill(
             state->translator = std::make_shared<const KeyTranslator>(KeyTranslator::Create(region_keymap, keymap));
         }
     }
-    const Keymap* typing_keymap = region_keymap ? region_keymap.get() : keymap.get();
+    state->typing_keymap = region_keymap ? region_keymap : keymap;
+    const Keymap* typing_keymap = state->typing_keymap.get();
     const bool has_altgr = typing_keymap != nullptr && typing_keymap->HasAltGr();
     const Keymap* label_keymap = layout.auto_labels.value_or(true) ? typing_keymap : nullptr;
 

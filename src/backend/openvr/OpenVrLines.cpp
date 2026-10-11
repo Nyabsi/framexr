@@ -155,6 +155,14 @@ auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t
     LOG_WARN("Line {} does not exist", id);
 }
 
+auto OpenVrLines::Hide(size_t id) -> void {
+    for (auto& line : lines_) {
+        if (line.id == id) {
+            line.overlay->state.want_visible = false;
+        }
+    }
+}
+
 auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> Result<> {
     for (auto& line : lines_) {
         RETURN_IF_ERROR(OpenVrOverlay::AfterInput(app, *line.overlay, line.data));

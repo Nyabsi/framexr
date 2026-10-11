@@ -53,9 +53,11 @@ struct KeyboardState {
     uint8_t alt_modifier = 0;
     bool caps_lock = false;
     std::shared_ptr<const KeyTranslator> translator;
+    std::shared_ptr<const Keymap> typing_keymap;
     std::vector<LetterLabel> letters;
 
     auto RefreshLetterCase() -> void;
+    [[nodiscard]] auto Text(VirtualKey key, uint8_t pressed_modifiers) const -> std::string;
 };
 
 class KeyControl final : public Control {
@@ -76,6 +78,7 @@ class KeyControl final : public Control {
     bool latches_;
     bool latched_ = false;
     bool translated_ = false;
+    bool captured_ = false;
 };
 
 class ModifierControl final : public Control {
@@ -90,6 +93,7 @@ class ModifierControl final : public Control {
     std::shared_ptr<KeyboardState> state_;
     uint8_t modifier_;
     bool sticky_ = false;
+    bool captured_ = false;
 };
 
 class ActionKeyControl final : public Control {

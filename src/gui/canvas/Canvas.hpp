@@ -83,6 +83,9 @@ class Canvas : public OverlayBackend {
     [[nodiscard]] auto ControlCount() const -> size_t { return controls_.size(); }
     [[nodiscard]] auto ControlAt(size_t index) -> Control& { return *controls_[index]; }
 
+    auto Clear() -> void;
+    auto MarkHighlightDirty() -> void { highlight_dirty_ = true; }
+
     auto Panel(float x, float y, float w, float h, float radius) -> Control&;
     auto Label(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
         -> Control&;
@@ -92,6 +95,7 @@ class Canvas : public OverlayBackend {
     auto SpriteInteractive(float x, float y, float w, float h) -> Control&;
     auto Button(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
         -> Control&;
+    auto Decoration(float x, float y, float w, float h, float radius, std::unique_ptr<Control> control) -> Control&;
     auto KeyButton(
         float x,
         float y,

@@ -187,6 +187,14 @@ auto OverlayState::RememberRelativeToHead(const AppState& app) -> Eigen::Affine3
 auto OverlayRenderer::SetTexelFootprint(const TexelFootprint&) -> void {
 }
 
+auto InteractionHandler::Accepts(const Eigen::Vector2f&) const -> bool {
+    return true;
+}
+
+auto SplitOverlayBackend::Accepts(const Eigen::Vector2f& uv) const -> bool {
+    return interaction_->Accepts(uv);
+}
+
 Overlay::Overlay(OverlayState overlay_state, std::unique_ptr<OverlayBackend> overlay_backend)
     : state(std::move(overlay_state)),
       backend(overlay_backend ? std::move(overlay_backend) : std::make_unique<SplitOverlayBackend>()) {

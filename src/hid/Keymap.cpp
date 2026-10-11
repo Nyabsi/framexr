@@ -287,6 +287,26 @@ auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
     return xkb_state_key_get_one_sym(state.get(), static_cast<xkb_keycode_t>(key));
 }
 
+auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
+    std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
+    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
+        if ((modifiers & modifier) != 0) {
+            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
+                xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
+            }
+        }
+    }
+    const auto keycode = static_cast<xkb_keycode_t>(key);
+    const auto size = xkb_state_key_get_utf8(state.get(), keycode, nullptr, 0);
+    if (size <= 0) {
+        return {};
+    }
+    std::string text(static_cast<size_t>(size) + 1, '\0');
+    xkb_state_key_get_utf8(state.get(), keycode, text.data(), text.size());
+    text.resize(static_cast<size_t>(size));
+    return text;
+}
+
 auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
     const auto wanted = xkb_utf32_to_keysym(static_cast<uint32_t>(character));
     if (wanted == XKB_KEY_NoSymbol) {

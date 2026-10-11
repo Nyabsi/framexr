@@ -241,6 +241,9 @@ auto OpenXrMainLoop::Initialize(bool show_by_default) -> Result<> {
     for (auto& line : pointer_lines_) {
         ASSIGN_OR_RETURN(line, lines_->Allocate(xr_, *app_->device));
     }
+    for (auto& line : editor_lines_) {
+        ASSIGN_OR_RETURN(line, lines_->Allocate(xr_, *app_->device));
+    }
 
     const auto* watch = overlays_->ByName(kWatchName);
     if (watch == nullptr) {
@@ -501,6 +504,8 @@ auto OpenXrMainLoop::RunSystemTask(const SystemTask& task) -> void {
                 overlays_->ShowHide(*app_);
             } else if constexpr (std::is_same_v<TaskType, RecenterTask>) {
                 overlays_->Recenter(*app_);
+            } else if constexpr (std::is_same_v<TaskType, OpenEditorTask>) {
+                overlays_->OpenEditor(*app_);
             }
         },
         task
@@ -606,6 +611,7 @@ auto OpenXrMainLoop::Run(std::atomic<bool>& running) -> Result<> {
         for (auto& overlay : overlays_->Overlays()) {
             overlay->state.AutoMovement(*app_);
         }
+        overlays_->UpdateEditor(*app_);
 
         const auto results = InputState::Interact(*app_, *overlays_);
         for (size_t i = 0; i < results.size(); ++i) {
@@ -620,6 +626,11 @@ auto OpenXrMainLoop::Run(std::atomic<bool>& running) -> Result<> {
             if (const auto& haptics = results.at(i).haptics) {
                 input_->ApplyHaptics(xr_, i, *haptics);
             }
+        }
+
+        const auto guides = overlays_->EditorLines();
+        for (size_t i = 0; i < guides.size() && i < editor_lines_.size(); ++i) {
+            lines_->DrawFrom(editor_lines_.at(i), guides[i].pose, guides[i].length, 0, app_->input.hmd);
         }
 
         app_->hid->Commit();

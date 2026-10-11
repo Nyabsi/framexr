@@ -74,6 +74,7 @@ constexpr auto kSystemActions = std::to_array<std::pair<SystemAction, std::strin
     {SystemAction::RecalculateExtent, "RecalculateExtent"},
     {SystemAction::PersistConfig, "PersistConfig"},
     {SystemAction::PersistLayout, "PersistLayout"},
+    {SystemAction::Edit, "Edit"},
 });
 
 constexpr auto kHighlightTests = std::to_array<std::pair<HighlightTest, std::string_view>>({
@@ -697,6 +698,7 @@ auto ActionRunner::RunSystem(AppState& app, SystemAction action) -> void {
             Toast::ShowError(app, std::format("Failed to save layout: {}", result.error().Message()));
         }
         break;
+    case SystemAction::Edit: app.tasks.Enqueue(SystemTask{OpenEditorTask{}}); break;
     }
 }
 

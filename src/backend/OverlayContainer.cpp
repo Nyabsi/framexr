@@ -28,6 +28,7 @@
 #include <set>
 #include <utility>
 
+#include "Editor.hpp"
 #include "Hid.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
@@ -283,11 +284,15 @@ auto OverlayContainer::ShowHide(AppState& app) -> void {
     const auto hideable = [](const OverlayState& state) -> bool {
         return state.show_hide || (state.recenter && state.relative_to == RelativeTo::None);
     };
-    const bool any_shown = std::ranges::any_of(overlays_, [&](const auto& overlay) -> bool {
-        return hideable(overlay->state) && overlay->state.want_visible;
-    });
+    const bool editor_shown = editor_ && !editor_->Closing() && !editor_->Hidden();
+    const bool any_shown = editor_shown || std::ranges::any_of(overlays_, [&](const auto& overlay) -> bool {
+                               return hideable(overlay->state) && overlay->state.want_visible;
+                           });
 
     if (any_shown) {
+        if (editor_) {
+            editor_->SetHidden(true);
+        }
         hidden_by_show_hide_.clear();
         for (auto& overlay : overlays_) {
             auto& state = overlay->state;
@@ -315,10 +320,17 @@ auto OverlayContainer::ShowHide(AppState& app) -> void {
         }
     }
     hidden_by_show_hide_.clear();
+    if (editor_ && editor_->Hidden()) {
+        editor_->SetHidden(false);
+        editor_->Recenter(app);
+    }
     ArrangeVisible(app);
 }
 
 auto OverlayContainer::Recenter(AppState& app) -> void {
+    if (editor_) {
+        editor_->Recenter(app);
+    }
     for (auto& overlay : overlays_) {
         auto& state = overlay->state;
         if (state.want_visible && state.recenter && state.relative_to == RelativeTo::None) {
@@ -403,6 +415,29 @@ auto OverlayContainer::UpdateTexelFootprints(const AppState& app) -> void {
             overlay->backend->SetTexelFootprint(*footprint);
         }
     }
+}
+
+auto OverlayContainer::OpenEditor(AppState& app) -> void {
+    if (editor_ && !editor_->Closing()) {
+        editor_->Suspend(app);
+        return;
+    }
+    editor_ = Editor::Create(app);
+    editor_->Open(app);
+}
+
+auto OverlayContainer::UpdateEditor(AppState& app) -> void {
+    if (!editor_) {
+        return;
+    }
+    editor_->Update(app, *this);
+    if (editor_->Finished()) {
+        editor_.reset();
+    }
+}
+
+auto OverlayContainer::EditorLines() -> std::vector<EditorLine> {
+    return editor_ ? editor_->Lines(*this) : std::vector<EditorLine>{};
 }
 
 auto OverlayContainer::ArrangeVisible(const AppState& app) -> void {

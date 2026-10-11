@@ -69,6 +69,7 @@ class Keymap final {
     [[nodiscard]] auto LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string;
     [[nodiscard]] auto HasAltGr() const -> bool;
     [[nodiscard]] auto KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t;
+    [[nodiscard]] auto Text(VirtualKey key, uint8_t modifiers) const -> std::string;
     [[nodiscard]] auto Find(char32_t character) const -> std::optional<TranslatedKey>;
 
   private:

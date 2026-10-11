@@ -65,6 +65,7 @@ class OpenVrLines final {
 
     auto Allocate() -> size_t;
     auto DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void;
+    auto Hide(size_t id) -> void;
     auto Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> Result<>;
     auto MarkDirty() -> void;
 

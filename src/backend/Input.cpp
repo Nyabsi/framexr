@@ -131,7 +131,7 @@ auto Pointer::NearestHit(OverlayContainer& overlays) const -> std::optional<Poin
             continue;
         }
         const Eigen::Vector2f uv = overlay->state.interaction_transform * hit.local_position;
-        if (uv.x() < 0.0f || uv.x() > 1.0f || uv.y() < 0.0f || uv.y() > 1.0f) {
+        if (uv.x() < 0.0f || uv.x() > 1.0f || uv.y() < 0.0f || uv.y() > 1.0f || !overlay->backend->Accepts(uv)) {
             continue;
         }
         return PointerHit{

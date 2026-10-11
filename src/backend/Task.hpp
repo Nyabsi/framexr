@@ -57,8 +57,9 @@ struct ResetPlayspaceTask {};
 struct FixFloorTask {};
 struct ShowHideTask {};
 struct RecenterTask {};
+struct OpenEditorTask {};
 
-using SystemTask = std::variant<ColorGainTask, ResetPlayspaceTask, FixFloorTask, ShowHideTask, RecenterTask>;
+using SystemTask = std::variant<ColorGainTask, ResetPlayspaceTask, FixFloorTask, ShowHideTask, RecenterTask, OpenEditorTask>;
 
 struct ModifyOverlayTask {
     OverlaySelector selector;

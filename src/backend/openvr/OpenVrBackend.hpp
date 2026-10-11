@@ -84,6 +84,7 @@ class OpenVrSession final {
     OpenVrInput input_;
     OpenVrLines lines_;
     std::array<size_t, 2> pointer_lines_{};
+    std::array<size_t, 2> editor_lines_{};
     OverlayId watch_id_{};
     uint32_t frame_timeout_ = 0;
     std::chrono::steady_clock::time_point next_device_update_;

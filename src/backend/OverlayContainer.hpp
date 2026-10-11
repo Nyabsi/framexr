@@ -34,9 +34,15 @@
 #include "framexr_config.h"
 
 class AppState;
+class Editor;
 class Keymap;
 class WaylandClient;
 struct ScreenOverlay;
+
+struct EditorLine {
+    Eigen::Affine3f pose = Eigen::Affine3f::Identity();
+    float length = 0.0f;
+};
 
 class OverlayContainer final {
   public:
@@ -62,6 +68,10 @@ class OverlayContainer final {
     auto RememberUserPlacement(const AppState& app, Overlay& placed) -> void;
     auto PlaceShown(const AppState& app, Overlay& shown) -> void;
     auto UpdateTexelFootprints(const AppState& app) -> void;
+    auto OpenEditor(AppState& app) -> void;
+    auto UpdateEditor(AppState& app) -> void;
+    [[nodiscard]] auto EditorLines() -> std::vector<EditorLine>;
+    [[nodiscard]] auto ActiveEditor() -> Editor* { return editor_.get(); }
 
   private:
     OverlayContainer();
@@ -78,6 +88,7 @@ class OverlayContainer final {
     std::vector<std::unique_ptr<Overlay>> overlays_;
     std::set<OverlayPair> user_overlaps_;
     std::vector<OverlayId> hidden_by_show_hide_;
+    std::shared_ptr<Editor> editor_;
 #if FRAMEXR_FEATURE_WAYLAND
     std::unique_ptr<WaylandClient> wayland_;
 #endif

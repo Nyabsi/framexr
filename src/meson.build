@@ -5,6 +5,7 @@ framexr_inc = include_directories(
   'capture',
   'config',
   'core',
+  'editor',
   'graphics',
   'gui',
   'gui/canvas',
@@ -39,6 +40,15 @@ backend_sources = files(
   'backend/OverlayContainer.cpp',
   'backend/OverlayLayout.cpp',
   'backend/Task.cpp',
+)
+
+editor_sources = files(
+  'editor/Editor.cpp',
+  'editor/EditorPanel.cpp',
+  'editor/EditorProperties.cpp',
+  'editor/FormDesigner.cpp',
+  'editor/KeyboardDesigner.cpp',
+  'editor/PanelBuilder.cpp',
 )
 
 gui_sources = files(
@@ -86,7 +96,7 @@ graphics_sources = files(
   'graphics/Shaders.cpp',
 )
 
-framexr_all_sources = (core_sources + config_sources + state_sources + backend_sources + hid_sources + gui_sources + overlay_sources
+framexr_all_sources = (core_sources + config_sources + editor_sources + state_sources + backend_sources + hid_sources + gui_sources + overlay_sources
   + capture_sources + graphics_sources + openvr_sources + openxr_sources)
 
 hid_deps = [xkbcommon_dep]

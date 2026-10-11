@@ -225,6 +225,7 @@ OpenVrSession::OpenVrSession(
     }
     watch_id_ = watch->state.id;
     pointer_lines_ = {lines_.Allocate(), lines_.Allocate()};
+    editor_lines_ = {lines_.Allocate(), lines_.Allocate()};
 }
 
 auto OpenVrSession::DataFor(OverlayId id) -> OpenVrOverlayData& {
@@ -309,8 +310,10 @@ auto OpenVrSession::RunSystemTask(const SystemTask& task) -> void {
             } else if constexpr (std::is_same_v<TaskType, ShowHideTask>) {
                 lines_.MarkDirty();
                 overlays_->ShowHide(*app_);
-            } else {
+            } else if constexpr (std::is_same_v<TaskType, RecenterTask>) {
                 overlays_->Recenter(*app_);
+            } else {
+                overlays_->OpenEditor(*app_);
             }
         },
         task
@@ -429,6 +432,7 @@ auto OpenVrSession::Run(std::atomic<bool>& running) -> Result<> {
         for (auto& overlay : overlays_->Overlays()) {
             overlay->state.AutoMovement(*app_);
         }
+        overlays_->UpdateEditor(*app_);
 
         if (auto* watch = overlays_->ById(watch_id_)) {
             Watch::Fade(*app_, *watch);
@@ -447,6 +451,15 @@ auto OpenVrSession::Run(std::atomic<bool>& running) -> Result<> {
             );
             if (const auto& haptics = results[i].haptics) {
                 input_.TriggerHaptics(i, *haptics);
+            }
+        }
+
+        const auto guides = overlays_->EditorLines();
+        for (size_t i = 0; i < editor_lines_.size(); ++i) {
+            if (i < guides.size()) {
+                lines_.DrawFrom(editor_lines_[i], guides[i].pose, guides[i].length, 0, app_->input.hmd);
+            } else {
+                lines_.Hide(editor_lines_[i]);
             }
         }
 

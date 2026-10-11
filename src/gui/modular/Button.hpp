@@ -75,6 +75,7 @@ enum class SystemAction : uint8_t {
     RecalculateExtent,
     PersistConfig,
     PersistLayout,
+    Edit,
 };
 
 enum class WindowAction : uint8_t {

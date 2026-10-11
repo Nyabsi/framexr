@@ -119,6 +119,7 @@ class OpenXrMainLoop final {
     std::vector<OpenXrPendingDelete> delete_queue_;
     XrEnvironmentBlendMode blend_mode_ = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
     std::array<size_t, 2> pointer_lines_{};
+    std::array<size_t, 2> editor_lines_{};
     OverlayId watch_id_{};
     bool session_running_ = false;
     bool main_session_visible_ = false;

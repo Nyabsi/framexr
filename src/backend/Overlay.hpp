@@ -88,6 +88,7 @@ class InteractionHandler {
     virtual auto OnLeft(AppState& app, size_t pointer) -> void = 0;
     virtual auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void = 0;
     virtual auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void = 0;
+    [[nodiscard]] virtual auto Accepts(const Eigen::Vector2f& uv) const -> bool;
 };
 
 class OverlayBackend : public OverlayRenderer, public InteractionHandler {
@@ -134,6 +135,7 @@ class SplitOverlayBackend final : public OverlayBackend {
     auto OnLeft(AppState& app, size_t pointer) -> void override;
     auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
     auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
+    [[nodiscard]] auto Accepts(const Eigen::Vector2f& uv) const -> bool override;
 
   private:
     std::unique_ptr<OverlayRenderer> renderer_;

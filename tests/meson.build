@@ -29,6 +29,7 @@ test_env = {'XDG_CONFIG_HOME': meson.current_build_dir() / 'config-home', 'FRAME
 unit_tests = executable(
   'framexr-tests',
   'ConfigTest.cpp',
+  'DesignerTest.cpp',
   'KeyboardTest.cpp',
   'KeyTranslatorTest.cpp',
   'LabelTest.cpp',
@@ -48,6 +49,7 @@ test('unit', unit_tests, env: test_env, protocol: 'gtest')
 integration_tests = executable(
   'framexr-integration-tests',
   'ActionTest.cpp',
+  'EditorTest.cpp',
   'InteractionTest.cpp',
   'KeyStateTest.cpp',
   'OverlayRenderTest.cpp',

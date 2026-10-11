@@ -88,10 +88,22 @@ elements:
       - type: System
         action: ShowHide
 
+  # Edit button: opens the in-headset editor for the watch and keyboard
+  - type: Button
+    region: Toolbar
+    width: 44
+    font_size: 15
+    fg_color: "@on-accent"
+    bg_color: "@pink"
+    text: Edit
+    click_up:
+      - type: System
+        action: Edit
+
   # bottom row, of keyboard + overlays
   - type: OverlayList
     region: Toolbar
-    width: 214
+    width: 166
     font_size: 15
     fg_color: "@text"
     bg_color: "@panel"

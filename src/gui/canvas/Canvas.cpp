@@ -124,6 +124,17 @@ auto Canvas::FallbackColor() -> Eigen::Vector4f {
     return {1.0f, 0.0f, 1.0f, 1.0f};
 }
 
+auto Canvas::Clear() -> void {
+    controls_.clear();
+    std::ranges::fill(interact_map_, std::nullopt);
+    hovered_ = {};
+    pressed_ = {};
+    released_.clear();
+    background_dirty_ = true;
+    foreground_dirty_ = true;
+    highlight_dirty_ = true;
+}
+
 auto Canvas::AddControl(std::unique_ptr<Control> control) -> Control& {
     controls_.push_back(control ? std::move(control) : std::make_unique<Control>());
     return *controls_.back();
@@ -202,6 +213,14 @@ auto Canvas::Button(float x, float y, float w, float h, float radius, std::strin
     button.foreground = ForegroundStyle::TextCentered;
     button.highlight = HighlightStyle::RoundedRect;
     return button;
+}
+
+auto Canvas::Decoration(float x, float y, float w, float h, float radius, std::unique_ptr<Control> control) -> Control& {
+    auto& decoration = AddControl(std::move(control));
+    decoration.rect = {x, y, w, h};
+    decoration.corner_radius = radius;
+    decoration.highlight = HighlightStyle::RoundedRect;
+    return decoration;
 }
 
 auto Canvas::KeyButton(
