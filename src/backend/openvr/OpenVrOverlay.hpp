@@ -40,6 +40,7 @@ struct OpenVrOverlayData {
     float width = 0.0f;
     bool override_width = false;
     std::shared_ptr<Image> image;
+    std::shared_ptr<Image> retired_image;
     bool image_dirty = false;
 };
 

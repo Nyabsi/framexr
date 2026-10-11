@@ -29,10 +29,18 @@
 #include "State.hpp"
 
 auto OpenXrOverlay::EnsureSwapchain(Overlay& overlay, AppState& app, const OpenXrState& xr) -> Result<bool> {
+    const auto meta = overlay.backend->Meta();
+    if (swapchain && meta) {
+        const auto extent = swapchain->Extent();
+        if (extent.width == meta->extent.width && extent.height == meta->extent.height) {
+            return true;
+        }
+        RETURN_IF_ERROR(swapchain->EnsureImageReleased());
+        swapchain.reset();
+    }
     if (swapchain) {
         return true;
     }
-    const auto meta = overlay.backend->Meta();
     if (!meta) {
         LOG_WARN("{}: swapchain cannot be created due to missing metadata", overlay.state.name);
         return false;

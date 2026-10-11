@@ -62,10 +62,17 @@ auto OpenVrOverlay::Initialize(AppState& app, Overlay& overlay, OpenVrOverlayDat
 }
 
 auto OpenVrOverlay::EnsureImageAllocated(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<bool> {
+    const auto meta = overlay.backend->Meta();
+    if (data.image && meta) {
+        const auto extent = data.image->Extent();
+        if (extent.width == meta->extent.width && extent.height == meta->extent.height) {
+            return true;
+        }
+        data.retired_image = std::move(data.image);
+    }
     if (data.image) {
         return true;
     }
-    const auto meta = overlay.backend->Meta();
     if (!meta) {
         return false;
     }
