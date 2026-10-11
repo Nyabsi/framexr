@@ -22,71 +22,25 @@
 #pragma once
 
 #include <cstdint>
-#include <filesystem>
-#include <map>
 #include <memory>
 #include <optional>
-#include <span>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
-#include <nlohmann/json.hpp>
-
+#include "Button.hpp"
 #include "Canvas.hpp"
 #include "Control.hpp"
 #include "Error.hpp"
 #include "KeyTranslator.hpp"
+#include "KeyboardLayout.hpp"
 #include "Keymap.hpp"
 #include "Overlay.hpp"
-#include "Process.hpp"
 #include "VirtualKey.hpp"
 
 class AppState;
 
 constexpr std::string_view kKeyboardName = "kbd";
-constexpr std::string_view kProfileSwitchKey = "PROFILE";
-
-enum class AltModifier : uint8_t {
-    None,
-    Shift,
-    Ctrl,
-    Alt,
-    Super,
-    Meta,
-};
-
-struct KeyboardLayout {
-    std::string name;
-    float row_size = 0.0f;
-    std::vector<std::vector<float>> key_sizes;
-    std::vector<std::vector<std::optional<std::string>>> main_layout;
-    AltModifier alt_modifier = AltModifier::None;
-    std::map<std::string, std::vector<std::string>, std::less<>> exec_commands;
-    std::map<std::string, std::vector<std::string>, std::less<>> macros;
-    std::map<std::string, std::vector<std::string>, std::less<>> labels;
-    std::optional<bool> auto_labels;
-    std::optional<std::string> region;
-
-    static auto Parse(std::string_view text) -> Result<KeyboardLayout>;
-
-    [[nodiscard]] auto Validate() const -> Result<>;
-    [[nodiscard]] auto LabelForKey(std::string_view key) const -> std::vector<std::string>;
-    [[nodiscard]] auto AltModifierMask() const -> uint8_t;
-};
-
-class KeyboardProfiles final {
-  public:
-    static auto All() -> const std::vector<KeyboardLayout>&;
-    static auto Find(std::string_view name) -> const KeyboardLayout&;
-    static auto After(std::string_view name) -> const KeyboardLayout&;
-    static auto Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
-        -> std::vector<KeyboardLayout>;
-};
-
-auto from_json(const nlohmann::json& json, AltModifier& value) -> void;
-auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void;
 
 struct LetterLabel {
     Control* label = nullptr;
@@ -99,10 +53,8 @@ struct KeyboardState {
     uint8_t alt_modifier = 0;
     bool caps_lock = false;
     std::shared_ptr<const KeyTranslator> translator;
-    std::vector<Process> processes;
     std::vector<LetterLabel> letters;
 
-    auto ReapProcesses() -> void;
     auto RefreshLetterCase() -> void;
 };
 
@@ -140,29 +92,17 @@ class ModifierControl final : public Control {
     bool sticky_ = false;
 };
 
-class MacroControl final : public Control {
+class ActionKeyControl final : public Control {
   public:
-    explicit MacroControl(std::vector<std::pair<VirtualKey, bool>> events);
-
-    auto OnPress(AppState& app, PointerMode mode) -> void override;
-
-  private:
-    std::vector<std::pair<VirtualKey, bool>> events_;
-};
-
-class ExecControl final : public Control {
-  public:
-    ExecControl(std::shared_ptr<KeyboardState> state, std::vector<std::string> press, std::vector<std::string> release);
+    explicit ActionKeyControl(ActionKey action);
 
     auto OnPress(AppState& app, PointerMode mode) -> void override;
     auto OnRelease(AppState& app) -> void override;
 
   private:
-    auto Spawn(const std::vector<std::string>& command) -> void;
-
-    std::shared_ptr<KeyboardState> state_;
-    std::vector<std::string> press_;
-    std::vector<std::string> release_;
+    ActionKey action_;
+    ActionRunner press_runner_;
+    ActionRunner release_runner_;
 };
 
 class ProfileControl final : public Control {
@@ -200,13 +140,33 @@ class KeyboardBackend final : public OverlayBackend {
     std::shared_ptr<KeyboardState> state_;
 };
 
+struct KeyboardPlacement {
+    float scale = 1.0f;
+    Eigen::Vector2f origin = Eigen::Vector2f::Zero();
+    bool interactive = true;
+};
+
 class Keyboard final {
   public:
+    static constexpr float kPixelsPerUnit = 80.0f;
+    static constexpr float kKeyboardMargin = 14.0f;
+
     static auto Create(AppState& app, const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Overlay>>;
+    static auto CreateFrom(AppState& app, const std::shared_ptr<const Keymap>& keymap, const KeyboardLayout& layout)
+        -> Result<std::unique_ptr<Overlay>>;
+    static auto CanvasSize(const KeyboardLayout& layout) -> Eigen::Vector2f;
+    static auto KeyRect(const KeyDefinition& key, const KeyboardPlacement& placement) -> CanvasRect;
+    static auto Fill(
+        Canvas& canvas,
+        const KeyboardLayout& layout,
+        AppState& app,
+        const std::shared_ptr<const Keymap>& keymap,
+        const std::shared_ptr<KeyboardState>& state,
+        const KeyboardPlacement& placement
+    ) -> void;
     static auto SwitchProfile(AppState& app, std::shared_ptr<const Keymap> keymap, std::string profile) -> void;
     static auto IsLatchingKey(VirtualKey key) -> bool;
     static auto SendKey(AppState& app, VirtualKey key, bool down) -> void;
     static auto SetModifiers(AppState& app, uint8_t modifiers) -> void;
     static auto Click(AppState& app) -> void;
-    static auto MacroEvents(const std::vector<std::string>& verbs) -> std::vector<std::pair<VirtualKey, bool>>;
 };

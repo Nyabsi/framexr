@@ -1,113 +1,107 @@
----
 # looking to make changes?
-# drop a copy in ~/.config/framexr/keyboards/
+# edit it in the headset with the watch's Edit button, or drop a copy in ~/.config/framexr/keyboards/
 # a file with the same name replaces this profile, any other name adds a new one
 
-# This file contains all data needed to generate the keyboard.
-# You can create any layout, as long as:
-# - All keys are rectangular with 1 unit of height.
-# This means:
-# - We're limited to the flat & boring ANSI enter key.
-# - Numpad + and Enter might not look so great.
+# The keyboard is a grid of 1-unit rows and quarter-unit columns.
+# Every key sits at [x, row] and is `width` units wide (default 1); keys may not overlap.
+# What a key does:
+# - key: <VirtualKey>      types it, modifiers are single use and Caps Lock latches
+# - action: Profile        switches to the next keyboard profile
+# - press / release: [..]  runs actions, like a Shortcut or an Exec command
+# Optional per key: label: [lower, upper], shifted_label, style: { bg_color, fg_color, corner_radius }
+# Labels follow the keyboard region unless the key sets its own.
 
-# *** Important ***
-# The keyboard layout uses virtual key codes, so they are layout-independent.
-# For example, Q on a French layout actually results in A.
-# If you're using a non-english layout, chances are you only need to edit the label section below.
-
-# Profile name, profiles are listed built-in first, then your own
 name: "keychron-v1-ansi"
-
-# How many units of key size in each row? 1 = standard letter key size
-row_size: 16
-
-# Specifies the size of each key. The sum of any given row must equal RowSize
-key_sizes:
-    - [1, 0.25, 1, 1, 1, 1, 0.25, 1, 1, 1, 1, 0.25, 1, 1, 1, 1, 0.25, 1, 1]
-    - [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1]
-    - [1.5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1]
-    - [1.75, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2.25, 1]
-    - [2.25, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.75, 1, 1]
-    - [1.25, 1.25, 1.25, 6.25, 1, 1, 1, 1, 1, 1]
-
-# The main (blue) layout of the keyboard.
-# Accepted are:
-# - virtual keys. For a full list, look at enum VirtualKey in https://github.com/galister/wlx-overlay-s/blob/main/src/hid.rs
-# - PROFILE switches to the next keyboard profile
-# - exec_commands (defined below)
-# - macros (defined below)
-# - ~ (null) will leave an empty space with the corresponding size from key_sizes
-main_layout:
-    - ["Escape", ~, "F1", "F2", "F3", "F4", ~, "F5", "F6", "F7", "F8", ~, "F9", "F10", "F11", "F12", ~, "Delete", "PROFILE"]
-    - ["Oem3", "N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9", "N0", "Minus", "Plus", "BackSpace", "Prior"]
-    - ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Oem4", "Oem6", "Oem5", "Next"]
-    - ["Caps", "A", "S", "D", "F", "G", "H", "J", "K", "L", "Oem1", "Oem7", "Return", "Home"]
-    - ["LShift", "Z", "X", "C", "V", "B", "N", "M", "Comma", "Period", "Oem2", "RShift", "Up", "End"]
-    - ["LCtrl", "LSuper", "LAlt", "Space", "Meta", "Menu", "RCtrl", "Left", "Down", "Right"]
+columns: 16
+rows: 6
+# When using the purple pointer: None, Shift (same as orange), Ctrl, Alt, Super or Meta (AltGr) is held for the key
+alt_modifier: None
 
 # Region of this keyboard, as an xkb layout like fi, de or fi(classic).
-# Labels follow it, and keys type its characters on whatever layout your desktop uses.
 # Leave it out to follow keyboard_region from the config, or the desktop layout.
 # region: fi
 
-# When using the purple pointer...
-# None   - No special functionality when using purple pointer (Default)
-# Shift  - Use same functionality as the orange pointer
-# Ctrl   - Use Main layout with Ctrl modifier
-# Alt    - Use Main layout with Alt modifier
-# Super  - Use Main layout with Super (WinKey) modifier
-# Meta   - Use Main layout with Meta (AltGr) modifier
-alt_modifier: None
-
-# Shell commands to be used in a layout.
-# Value is an array of string arguments.
-exec_commands: {}
-
-# Series of keypresses to be used in a layout.
-# Format: keyName [DOWN|UP]
-# keyName must be a valid virtual key from the VirtualKey enum (see above)
-# DOWN|UP: can be omitted for an implicit "keyName DOWN, keyName UP"
-macros: {}
-
-# Custom labels to use.
-# Key: element of main_layout
-# Value: Array of strings. 0th element is the upper row, 1st element is lower row.
-# For empty labels, use [] (do not use ~)
-labels:
-    "Escape":         ["Esc"]
-    "Delete":         ["Del"]
-    "PROFILE":        ["Layout"]
-    "Prior":          ["PgUp"]
-    "Next":           ["PgDn"]
-    "BackSpace":      ["Backspace"]
-    "Return":         ["Enter"]
-    "Caps":           ["Caps Lock"]
-    "Space":          []
-    "LAlt":           ["Alt"]
-    "Meta":           ["AltGr"]
-    "LCtrl":          ["Ctrl"]
-    "RCtrl":          ["Ctrl"]
-    "LSuper":         ["Super"]
-    "LShift":         ["Shift"]
-    "RShift":         ["Shift"]
-    "N1":             ["1", "!"]
-    "N2":             ["2", "@"]
-    "N3":             ["3", "#"]
-    "N4":             ["4", "$"]
-    "N5":             ["5", "%"]
-    "N6":             ["6", "^"]
-    "N7":             ["7", "&"]
-    "N8":             ["8", "*"]
-    "N9":             ["9", "("]
-    "N0":             ["0", ")"]
-    "Minus":          ["-", "_"]
-    "Plus":           ["=", "+"]
-    "Comma":          [" ,",  "<"]
-    "Period":         [" .",  ">"]
-    "Oem1":           [" ;",  ":"]
-    "Oem2":           [" /",  "?"]
-    "Oem3":           ["`", "~"]
-    "Oem4":           [" [",  "{"]
-    "Oem5":           [" \\", "|"]
-    "Oem6":           [" ]",  "}"]
-    "Oem7":           [" '",  "\""]
+keys:
+    - { at: [0, 0], key: Escape, label: ["Esc"] }
+    - { at: [1.25, 0], key: F1 }
+    - { at: [2.25, 0], key: F2 }
+    - { at: [3.25, 0], key: F3 }
+    - { at: [4.25, 0], key: F4 }
+    - { at: [5.5, 0], key: F5 }
+    - { at: [6.5, 0], key: F6 }
+    - { at: [7.5, 0], key: F7 }
+    - { at: [8.5, 0], key: F8 }
+    - { at: [9.75, 0], key: F9 }
+    - { at: [10.75, 0], key: F10 }
+    - { at: [11.75, 0], key: F11 }
+    - { at: [12.75, 0], key: F12 }
+    - { at: [14, 0], key: Delete, label: ["Del"] }
+    - { at: [15, 0], action: Profile, label: ["Layout"] }
+    - { at: [0, 1], key: Oem3 }
+    - { at: [1, 1], key: N1 }
+    - { at: [2, 1], key: N2 }
+    - { at: [3, 1], key: N3 }
+    - { at: [4, 1], key: N4 }
+    - { at: [5, 1], key: N5 }
+    - { at: [6, 1], key: N6 }
+    - { at: [7, 1], key: N7 }
+    - { at: [8, 1], key: N8 }
+    - { at: [9, 1], key: N9 }
+    - { at: [10, 1], key: N0 }
+    - { at: [11, 1], key: Minus }
+    - { at: [12, 1], key: Plus }
+    - { at: [13, 1], width: 2, key: BackSpace, label: ["Backspace"] }
+    - { at: [15, 1], key: Prior, label: ["PgUp"] }
+    - { at: [0, 2], width: 1.5, key: Tab }
+    - { at: [1.5, 2], key: Q }
+    - { at: [2.5, 2], key: W }
+    - { at: [3.5, 2], key: E }
+    - { at: [4.5, 2], key: R }
+    - { at: [5.5, 2], key: T }
+    - { at: [6.5, 2], key: Y }
+    - { at: [7.5, 2], key: U }
+    - { at: [8.5, 2], key: I }
+    - { at: [9.5, 2], key: O }
+    - { at: [10.5, 2], key: P }
+    - { at: [11.5, 2], key: Oem4 }
+    - { at: [12.5, 2], key: Oem6 }
+    - { at: [13.5, 2], width: 1.5, key: Oem5 }
+    - { at: [15, 2], key: Next, label: ["PgDn"] }
+    - { at: [0, 3], width: 1.75, key: Caps, label: ["Caps Lock"] }
+    - { at: [1.75, 3], key: A }
+    - { at: [2.75, 3], key: S }
+    - { at: [3.75, 3], key: D }
+    - { at: [4.75, 3], key: F }
+    - { at: [5.75, 3], key: G }
+    - { at: [6.75, 3], key: H }
+    - { at: [7.75, 3], key: J }
+    - { at: [8.75, 3], key: K }
+    - { at: [9.75, 3], key: L }
+    - { at: [10.75, 3], key: Oem1 }
+    - { at: [11.75, 3], key: Oem7 }
+    - { at: [12.75, 3], width: 2.25, key: Return, label: ["Enter"] }
+    - { at: [15, 3], key: Home }
+    - { at: [0, 4], width: 2.25, key: LShift, label: ["Shift"] }
+    - { at: [2.25, 4], key: Z }
+    - { at: [3.25, 4], key: X }
+    - { at: [4.25, 4], key: C }
+    - { at: [5.25, 4], key: V }
+    - { at: [6.25, 4], key: B }
+    - { at: [7.25, 4], key: N }
+    - { at: [8.25, 4], key: M }
+    - { at: [9.25, 4], key: Comma }
+    - { at: [10.25, 4], key: Period }
+    - { at: [11.25, 4], key: Oem2 }
+    - { at: [12.25, 4], width: 1.75, key: RShift, label: ["Shift"] }
+    - { at: [14, 4], key: Up }
+    - { at: [15, 4], key: End }
+    - { at: [0, 5], width: 1.25, key: LCtrl, label: ["Ctrl"] }
+    - { at: [1.25, 5], width: 1.25, key: LSuper, label: ["Super"] }
+    - { at: [2.5, 5], width: 1.25, key: LAlt, label: ["Alt"] }
+    - { at: [3.75, 5], width: 6.25, key: Space, label: [] }
+    - { at: [10, 5], key: Meta, label: ["AltGr"] }
+    - { at: [11, 5], key: Menu }
+    - { at: [12, 5], key: RCtrl, label: ["Ctrl"] }
+    - { at: [13, 5], key: Left }
+    - { at: [14, 5], key: Down }
+    - { at: [15, 5], key: Right }

@@ -61,6 +61,7 @@ hid_sources = files(
 overlay_sources = files(
   'overlays/CustomUi.cpp',
   'overlays/Keyboard.cpp',
+  'overlays/KeyboardLayout.cpp',
   'overlays/Screen.cpp',
   'overlays/Toast.cpp',
   'overlays/Watch.cpp',
