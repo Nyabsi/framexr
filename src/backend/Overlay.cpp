@@ -145,8 +145,8 @@ auto OverlayState::UiTransform(VkExtent2D extent) -> Eigen::Affine2f {
 auto OverlayState::ParentTransform(const AppState& app) const -> std::optional<Eigen::Affine3f> {
     switch (relative_to) {
     case RelativeTo::Head: return app.input.hmd;
-    case RelativeTo::LeftHand: return app.input.pointers[0].pose;
-    case RelativeTo::RightHand: return app.input.pointers[1].pose;
+    case RelativeTo::LeftHand: return app.input.pointers[0].tracked_pose;
+    case RelativeTo::RightHand: return app.input.pointers[1].tracked_pose;
     case RelativeTo::None:
     case RelativeTo::Stage: return std::nullopt;
     }

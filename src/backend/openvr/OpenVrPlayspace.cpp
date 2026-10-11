@@ -242,8 +242,8 @@ auto OpenVrPlayspace::ResetOffset(const InputState& input) -> void {
 }
 
 auto OpenVrPlayspace::FixFloor(const InputState& input) -> void {
-    const float y1 = input.pointers[0].pose.translation().y();
-    const float y2 = input.pointers[1].pose.translation().y();
+    const float y1 = input.pointers[0].tracked_pose.translation().y();
+    const float y2 = input.pointers[1].tracked_pose.translation().y();
     auto pose = WorkingCopy();
     if (!pose) {
         LOG_WARN("Can't fix floor - failed to get zero pose");

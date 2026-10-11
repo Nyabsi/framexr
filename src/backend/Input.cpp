@@ -35,6 +35,8 @@ namespace {
 constexpr float kGrabSlideRate = 4.0f;
 constexpr OneEuroSettings kGrabPositionSmoothing{.min_cutoff = 1.5f, .beta = 10.0f, .derivative_cutoff = 1.0f};
 constexpr OneEuroSettings kGrabRotationSmoothing{.min_cutoff = 1.5f, .beta = 3.0f, .derivative_cutoff = 1.0f};
+constexpr OneEuroSettings kAimPositionSmoothing{.min_cutoff = 2.0f, .beta = 6.0f, .derivative_cutoff = 1.0f};
+constexpr OneEuroSettings kAimRotationSmoothing{.min_cutoff = 1.0f, .beta = 1.5f, .derivative_cutoff = 1.0f};
 constexpr float kMaxDeltaSeconds = 0.1f;
 constexpr float kGrabSlideDeadzone = 0.2f;
 constexpr float kMinGrabDistance = 0.1f;
@@ -86,7 +88,8 @@ auto InteractionResult::LinePose(const Eigen::Affine3f& pointer) const -> Eigen:
 Pointer::Pointer(size_t pointer_index)
     : index(pointer_index),
       last_click(std::chrono::steady_clock::now()),
-      grab_filter(kGrabPositionSmoothing, kGrabRotationSmoothing) {
+      grab_filter(kGrabPositionSmoothing, kGrabRotationSmoothing),
+      aim_filter(kAimPositionSmoothing, kAimRotationSmoothing) {
 }
 
 auto Pointer::RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
@@ -143,15 +146,16 @@ auto Pointer::NearestHit(OverlayContainer& overlays) const -> std::optional<Poin
     return std::nullopt;
 }
 
-auto Pointer::StartGrab(Overlay& overlay) -> void {
+auto Pointer::StartGrab(Overlay& overlay, const Eigen::Vector3f& point) -> void {
     interaction.grabbed = GrabData{
         .offset = Eigen::Affine3f(pose.matrix().inverse()) * overlay.state.transform,
         .grabbed_id = overlay.state.id,
+        .grab_point = Eigen::Affine3f(overlay.state.transform.matrix().inverse()) * point,
         .old_curvature = overlay.state.curvature,
         .grab_all = interaction.mode == PointerMode::Right,
     };
     grab_filter.Reset();
-    grab_filter.Filter(pose, 0.0f);
+    grab_filter.Filter(tracked_pose, 0.0f);
     LOG_INFO("Hand {}: grabbed {}", index, overlay.state.name);
 }
 
@@ -163,7 +167,7 @@ auto Pointer::HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& 
             return;
         }
         auto& offset = interaction.grabbed->offset;
-        const Eigen::Affine3f hand = app.config.grab_smoothing ? grab_filter.Filter(pose, app.input.delta_seconds) : pose;
+        const Eigen::Affine3f hand = app.config.grab_smoothing ? grab_filter.Filter(tracked_pose, app.input.delta_seconds) : pose;
         if (const float slide = SlideAmount(now.scroll_y); app.config.allow_sliding && slide != 0.0f) {
             const float distance = offset.translation().norm();
             const Eigen::Matrix3f linear = offset.linear();
@@ -211,13 +215,10 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
         if (auto* grabbed = overlays.ById(interaction.grabbed->grabbed_id)) {
             HandleGrabbed(app, overlays, *grabbed);
             if (interaction.grabbed) {
-                const auto meta = grabbed->backend->Meta();
-                const Eigen::Matrix4f frame = meta ? meta->transform.matrix() : Eigen::Matrix4f::Identity();
-                const Eigen::Matrix4f placed = grabbed->state.transform.matrix() * frame;
-                const Eigen::Vector3f center = placed.block<3, 1>(0, 3);
+                const Eigen::Vector3f point = grabbed->state.transform * interaction.grabbed->grab_point;
                 const Eigen::Vector3f origin = pose.translation();
-                const Eigen::Vector3f reach = center - origin;
-                return {.length = std::sqrt(reach.dot(reach)), .target = center};
+                const Eigen::Vector3f reach = point - origin;
+                return {.length = std::sqrt(reach.dot(reach)), .target = point};
             }
         } else {
             LOG_WARN("Grabbed overlay {} does not exist", static_cast<uint64_t>(interaction.grabbed->grabbed_id));
@@ -267,7 +268,7 @@ auto Pointer::Interact(AppState& app, OverlayContainer& overlays) -> Interaction
     LOG_TRACE("Hit: {} uv=({}, {}) dist={}", hovered->state.name, hit->uv.x(), hit->uv.y(), hit->dist);
 
     if (now.grab && !before.grab && hovered->state.grabbable) {
-        StartGrab(*hovered);
+        StartGrab(*hovered, pose * (-Eigen::Vector3f::UnitZ() * hit->dist));
         return {.length = hit->dist, .haptics = Haptics{.intensity = 0.25f, .duration = 0.1f, .frequency = 0.1f}};
     }
 
@@ -334,6 +335,12 @@ auto InputState::LogChanges(const Pointer& pointer) const -> void {
 
 auto InputState::PostUpdate(const Config& config) -> void {
     for (auto& pointer : pointers) {
+        pointer.tracked_pose = pointer.pose;
+        if (config.pointer_smoothing) {
+            pointer.pose = pointer.aim_filter.Filter(pointer.pose, delta_seconds);
+        } else {
+            pointer.aim_filter.Reset();
+        }
         LogChanges(pointer);
 
         if (pointer.now.click) {

@@ -31,6 +31,10 @@ allow_sliding: true
 # Default: true
 grab_smoothing: true
 
+# Steady the laser pointers against hand tremor, while still following deliberate moves
+# Default: true
+pointer_smoothing: true
+
 # Smooth screens with a low-pass filter sized to how many screen pixels land on each headset pixel,
 # reducing shimmer and moire on small text
 # Default: true

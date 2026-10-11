@@ -55,6 +55,7 @@ class Interaction : public testing::Test {
         app_->config.curve_values.clear();
         app_->config.allow_sliding = true;
         app_->config.grab_smoothing = false;
+        app_->config.pointer_smoothing = false;
         app_->screens.clear();
         app_->input.hmd = Eigen::Affine3f::Identity();
         overlays_ = OverlayContainer::CreateEmpty();
@@ -776,25 +777,67 @@ TEST_F(Interaction, FootprintDescribesTheEyeRelativeToTheScreen) {
     EXPECT_FALSE(OverlayLayout::MeasureFootprint(*overlays_->ById(id), app_->input.hmd, Eigen::Vector2f::Zero()).has_value());
 }
 
-TEST_F(Interaction, GrabbedLaserPointsAtTheOverlayCenter) {
+TEST_F(Interaction, GrabbedLaserStaysOnTheGrabbedPoint) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.3f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
     Frame({.grab = true});
     const auto results = Frame({.grab = true});
 
-    const Eigen::Vector3f center(0.3f, 0.0f, -2.0f);
+    const Eigen::Vector3f grabbed(0.0f, 0.0f, -2.0f);
     ASSERT_TRUE(results[0].target.has_value());
-    EXPECT_TRUE(results[0].target->isApprox(center, 1e-5f));
-    EXPECT_NEAR(results[0].length, center.norm(), 1e-5f);
-    const Eigen::Affine3f line = results[0].LinePose(Pointer(0).pose);
+    EXPECT_TRUE(results[0].target->isApprox(grabbed, 1e-5f));
+    EXPECT_NEAR(results[0].length, 2.0f, 1e-5f);
+
+    Aim(0, {0.0f, 0.2f, 0.0f});
+    const auto moved = Frame({.grab = true});
+    const Eigen::Vector3f point(0.0f, 0.2f, -2.0f);
+    ASSERT_TRUE(moved[0].target.has_value());
+    EXPECT_TRUE(moved[0].target->isApprox(point, 1e-5f));
+    const Eigen::Affine3f line = moved[0].LinePose(Pointer(0).pose);
     const Eigen::Matrix3f line_linear = line.linear();
-    EXPECT_TRUE((line_linear * -Eigen::Vector3f::UnitZ()).isApprox(center.normalized(), 1e-5f));
-    EXPECT_TRUE(line.translation().isApprox(Pointer(0).pose.translation()));
-    EXPECT_TRUE(overlays_->ById(id)->state.transform.translation().isApprox(center, 1e-6f));
+    EXPECT_TRUE((line_linear * -Eigen::Vector3f::UnitZ()).isApprox(-Eigen::Vector3f::UnitZ(), 1e-5f));
+    EXPECT_TRUE(overlays_->ById(id)->state.transform.translation().isApprox(Eigen::Vector3f(0.3f, 0.2f, -2.0f), 1e-6f));
 
     const auto released = Frame({});
     EXPECT_FALSE(released[0].target.has_value());
+}
+
+TEST_F(Interaction, PointerSmoothingSteadiesTheLaser) {
+    app_->config.pointer_smoothing = true;
+    Aim(0, Eigen::Vector3f::Zero());
+    Frame({});
+    Frame({});
+    float drift = 0.0f;
+    for (int i = 0; i < 30; ++i) {
+        const float jitter = (i % 2 == 0 ? 1.0f : -1.0f) * 0.004f;
+        app_->input.pointers[0].pose = Eigen::Affine3f(Eigen::AngleAxisf(jitter, Eigen::Vector3f::UnitY()));
+        Frame({});
+        const Eigen::Matrix3f linear = Pointer(0).pose.linear();
+        drift = std::max(drift, std::abs((linear * -Eigen::Vector3f::UnitZ()).x()));
+    }
+    EXPECT_LT(drift, 0.0015f);
+
+    for (int i = 0; i < 30; ++i) {
+        app_->input.pointers[0].pose = Eigen::Affine3f(Eigen::AngleAxisf(0.5f, Eigen::Vector3f::UnitY()));
+        Frame({});
+    }
+    const Eigen::Matrix3f settled = Pointer(0).pose.linear();
+    EXPECT_NEAR(std::asin(-(settled * -Eigen::Vector3f::UnitZ()).x()), 0.5f, 0.01f);
+    app_->config.pointer_smoothing = false;
+}
+
+TEST_F(Interaction, HandAttachedOverlaysIgnorePointerSmoothing) {
+    app_->config.pointer_smoothing = true;
+    Frame({});
+    app_->input.pointers[0].pose = Eigen::Affine3f(Eigen::Translation3f(0.3f, 0.1f, -0.2f));
+    Frame({});
+    OverlayState watch;
+    watch.relative_to = RelativeTo::LeftHand;
+    watch.AutoMovement(*app_);
+    EXPECT_TRUE(watch.transform.translation().isApprox(Eigen::Vector3f(0.3f, 0.1f, -0.2f) + watch.spawn_point, 1e-5f));
+    EXPECT_FALSE(Pointer(0).pose.translation().isApprox(Eigen::Vector3f(0.3f, 0.1f, -0.2f), 1e-3f));
+    app_->config.pointer_smoothing = false;
 }
 
 TEST_F(Interaction, ScrollWithOtherHandWhileGrabbedCurves) {

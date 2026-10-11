@@ -94,6 +94,7 @@ struct PointerState {
 struct GrabData {
     Eigen::Affine3f offset = Eigen::Affine3f::Identity();
     OverlayId grabbed_id{};
+    Eigen::Vector3f grab_point = Eigen::Vector3f::Zero();
     std::optional<float> old_curvature;
     bool grab_all = false;
 };
@@ -131,7 +132,9 @@ class Pointer {
     PointerState now;
     PointerState before;
     std::chrono::steady_clock::time_point last_click;
+    Eigen::Affine3f tracked_pose = Eigen::Affine3f::Identity();
     PoseFilter grab_filter;
+    PoseFilter aim_filter;
     InteractionState interaction;
 
     auto Interact(AppState& app, OverlayContainer& overlays) -> InteractionResult;
@@ -140,7 +143,7 @@ class Pointer {
     [[nodiscard]] auto NearestHit(OverlayContainer& overlays) const -> std::optional<PointerHit>;
     [[nodiscard]] auto RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
         -> std::optional<RayHit>;
-    auto StartGrab(Overlay& overlay) -> void;
+    auto StartGrab(Overlay& overlay, const Eigen::Vector3f& point) -> void;
     auto HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& overlay) -> void;
 };
 
