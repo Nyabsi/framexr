@@ -21,89 +21,38 @@
 
 #pragma once
 
-#include <cstddef>
-#include <list>
-#include <cstdint>
-#include <map>
 #include <memory>
-#include <span>
-#include <string>
-#include <vector>
 
-#include <Eigen/Geometry>
+#include "Error.hpp"
 
-#include "Config.hpp"
-#include "Device.hpp"
-#include "Input.hpp"
-#include "Overlay.hpp"
-#include "Task.hpp"
-#include "Toast.hpp"
-
-struct ma_engine;
-struct ma_decoder;
-struct ma_sound;
-
-struct PlayingSound {
-    std::unique_ptr<ma_decoder> decoder;
-    std::unique_ptr<ma_sound> sound;
-};
-
-class AudioOutput final {
-  public:
-    AudioOutput();
-    ~AudioOutput();
-    AudioOutput(const AudioOutput&) = delete;
-    auto operator=(const AudioOutput&) -> AudioOutput& = delete;
-
-    auto Play(std::span<const std::byte> wav) -> void;
-
-  private:
-    auto Engine() -> ma_engine*;
-    auto ReapFinished() -> void;
-
-    std::unique_ptr<ma_engine> engine_;
-    std::list<PlayingSound> playing_;
-    bool first_try_ = true;
-};
-
+struct Config;
+class AudioOutput;
 class FontCache;
 class HidProvider;
-class Keymap;
-class TextInput;
+class InputState;
+class KeyboardProfiles;
 class OscSender;
-
-struct ScreenMeta {
-    std::string name;
-    OverlayId id{};
-    uint32_t native_handle = 0;
-};
+class TaskQueue;
+class Theme;
 
 class AppState final {
   public:
-    static auto Create(std::shared_ptr<Device> device) -> Result<std::unique_ptr<AppState>>;
+    static auto Create() -> Result<std::unique_ptr<AppState>>;
 
     ~AppState();
     AppState(const AppState&) = delete;
     auto operator=(const AppState&) -> AppState& = delete;
 
-    std::shared_ptr<Device> device;
-    Config config;
-    std::map<ToastTopic, ToastDisplay> toast_topics;
-    std::unique_ptr<FontCache> fonts;
-    TaskQueue tasks;
-    InputState input;
-    std::unique_ptr<HidProvider> hid;
-    AudioOutput audio;
-    std::vector<ScreenMeta> screens;
-    std::shared_ptr<const Keymap> keymap;
-    std::shared_ptr<TextInput> text_input;
-    Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
-    std::map<std::string, std::shared_ptr<Image>, std::less<>> sprites;
-    std::vector<std::byte> toast_sound;
-    std::unique_ptr<OscSender> osc;
-
-    static auto LoadBytes(std::string_view path, std::span<const std::byte> fallback) -> std::vector<std::byte>;
-
   private:
-    AppState();
+    AppState() = default;
+
+    std::unique_ptr<Theme> m_themes;
+    std::unique_ptr<KeyboardProfiles> m_keyboard_profiles;
+    std::unique_ptr<Config> m_config;
+    std::unique_ptr<TaskQueue> m_tasks;
+    std::unique_ptr<InputState> m_input;
+    std::unique_ptr<AudioOutput> m_audio;
+    std::unique_ptr<FontCache> m_fonts;
+    std::unique_ptr<HidProvider> m_hid;
+    std::unique_ptr<OscSender> m_osc;
 };

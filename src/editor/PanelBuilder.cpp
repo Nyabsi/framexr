@@ -23,15 +23,21 @@
 #include <numeric>
 #include <utility>
 
+#include "CallbackControl.hpp"
+#include "Device.hpp"
+#include "EditorColors.hpp"
 #include "Font.hpp"
-#include "State.hpp"
+#include "OutlineControl.hpp"
 #include "Theme.hpp"
 
 namespace {
 
 constexpr int kTitleFont = 18;
+
 constexpr int kTextFont = 14;
+
 constexpr int kCaptionFont = 12;
+
 constexpr int kSectionFont = 14;
 
 auto AppendUtf8(std::string& text, uint32_t codepoint) -> void {
@@ -60,96 +66,18 @@ auto WithAlpha(Eigen::Vector4f color, float alpha) -> Eigen::Vector4f {
 
 } // namespace
 
-auto EditorColors::Hex(std::string_view hex) -> Eigen::Vector4f {
-    return Canvas::ParseColor(hex).value_or(Canvas::FallbackColor());
-}
-
-auto EditorColors::Readable(const Eigen::Vector4f& background) -> Eigen::Vector4f {
-    const float luminance = 0.2126f * background.x() + 0.7152f * background.y() + 0.0722f * background.z();
-    return luminance > 0.5f ? Hex("#181926") : Hex("#eff1f5");
-}
-
-auto EditorColors::Background() -> Eigen::Vector4f {
-    return Hex("@panel");
-}
-
-auto EditorColors::Surface() -> Eigen::Vector4f {
-    return Hex("@surface");
-}
-
-auto EditorColors::Accent() -> Eigen::Vector4f {
-    return Hex("@accent");
-}
-
-auto EditorColors::Text() -> Eigen::Vector4f {
-    return Hex("@text");
-}
-
-auto EditorColors::Dim() -> Eigen::Vector4f {
-    return Hex("@subtle");
-}
-
-auto EditorColors::Dark() -> Eigen::Vector4f {
-    return Hex("@shadow");
-}
-
-auto EditorColors::OnAccent() -> Eigen::Vector4f {
-    return Hex("@on-accent");
-}
-
-auto EditorColors::Danger() -> Eigen::Vector4f {
-    return Hex("@red");
-}
-
-CallbackControl::CallbackControl(Click click, Click press, Scroll scroll)
-    : click_(std::move(click)),
-      press_(std::move(press)),
-      scroll_(std::move(scroll)) {
-}
-
-auto CallbackControl::OnPress(AppState& app, PointerMode) -> void {
-    if (press_) {
-        press_(app);
-    }
-}
-
-auto CallbackControl::OnRelease(AppState& app) -> void {
-    if (click_) {
-        click_(app);
-    }
-}
-
-auto CallbackControl::OnScroll(AppState& app, float delta_y, float) -> void {
-    if (scroll_) {
-        scroll_(app, delta_y);
-    }
-}
-
-OutlineControl::OutlineControl(std::optional<Eigen::Vector4f> fill, std::optional<HighlightOutline> outline)
-    : fill_(std::move(fill)),
-      outline_(std::move(outline)) {
-}
-
-auto OutlineControl::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
-    return fill_;
-}
-
-auto OutlineControl::Outline(AppState&) -> std::optional<HighlightOutline> {
-    return outline_;
-}
-
-PanelBuilder::PanelBuilder(Canvas& canvas, AppState& app)
-    : canvas_(canvas),
-      app_(app),
-      width_(static_cast<float>(canvas.Width())),
-      radius_(Theme::Radius(Theme::Active().rounding, Shape::Control)) {
-    canvas_.bg_color = EditorColors::Background();
-    canvas_.Panel(0.0f, 0.0f, width_, static_cast<float>(canvas.Height()), Theme::Radius(Theme::Active().rounding, Shape::Panel));
+PanelBuilder::PanelBuilder(Canvas& canvas)
+    : m_canvas(canvas),
+      m_width(static_cast<float>(canvas.Width())),
+      m_radius(Theme::Radius(g_themes->Active().rounding, Shape::Control)) {
+    m_canvas.SetBgColor(EditorColors::Background());
+    m_canvas
+        .Panel(0.0f, 0.0f, m_width, static_cast<float>(canvas.Height()), Theme::Radius(g_themes->Active().rounding, Shape::Panel));
 }
 
 auto PanelBuilder::TextWidth(std::string_view text, int font_size) const -> float {
-    if (app_.fonts && app_.device) {
-        if (const auto size = app_.fonts->MeasureText(text, font_size, *app_.device)) {
+    if (g_fonts && g_device) {
+        if (const auto size = g_fonts->MeasureText(text, font_size)) {
             return size->width;
         }
     }
@@ -186,23 +114,23 @@ auto PanelBuilder::Label(
     const Eigen::Vector4f& color,
     bool centered
 ) -> void {
-    canvas_.font_size = font_size;
-    canvas_.fg_color = color;
+    m_canvas.SetFontSize(font_size);
+    m_canvas.SetFgColor(color);
     auto shown = Ellipsize(text, font_size, std::max(w - (centered ? 12.0f : 0.0f), 8.0f));
     if (centered) {
-        canvas_.LabelCentered(x, y, w, h, 0.0f, std::move(shown));
+        m_canvas.LabelCentered(x, y, w, h, 0.0f, std::move(shown));
     } else {
-        canvas_.Label(x, y + static_cast<float>(font_size), w, h, 0.0f, std::move(shown));
+        m_canvas.Label(x, y + static_cast<float>(font_size), w, h, 0.0f, std::move(shown));
     }
 }
 
 auto PanelBuilder::Rim(float x, float y, float w, float h) -> void {
-    canvas_.Decoration(
+    m_canvas.Decoration(
         x,
         y,
         w,
         h,
-        radius_,
+        m_radius,
         std::make_unique<OutlineControl>(
             std::nullopt,
             HighlightOutline{.color = WithAlpha(EditorColors::Dim(), 0.35f), .width = 1.0f}
@@ -211,22 +139,22 @@ auto PanelBuilder::Rim(float x, float y, float w, float h) -> void {
 }
 
 auto PanelBuilder::Title(std::string_view text) -> void {
-    Label(kPadding, y_, width_ - 2.0f * kPadding, 24.0f, text, kTitleFont, EditorColors::Text(), false);
-    y_ += 24.0f + kGap;
+    Label(kPadding, m_y, m_width - 2.0f * kPadding, 24.0f, text, kTitleFont, EditorColors::Text(), false);
+    m_y += 24.0f + kGap;
 }
 
 auto PanelBuilder::Section(std::string_view text) -> void {
-    y_ += kGap;
-    canvas_.bg_color = WithAlpha(EditorColors::Dim(), 0.25f);
-    canvas_.Panel(kPadding, y_, width_ - 2.0f * kPadding, 1.0f, 0.0f);
-    y_ += kGap;
-    Label(kPadding, y_, width_ - 2.0f * kPadding, 18.0f, text, kSectionFont, EditorColors::Accent(), false);
-    y_ += 18.0f + kGap;
+    m_y += kGap;
+    m_canvas.SetBgColor(WithAlpha(EditorColors::Dim(), 0.25f));
+    m_canvas.Panel(kPadding, m_y, m_width - 2.0f * kPadding, 1.0f, 0.0f);
+    m_y += kGap;
+    Label(kPadding, m_y, m_width - 2.0f * kPadding, 18.0f, text, kSectionFont, EditorColors::Accent(), false);
+    m_y += 18.0f + kGap;
 }
 
 auto PanelBuilder::Caption(std::string_view text) -> void {
-    Label(kPadding, y_, width_ - 2.0f * kPadding, 16.0f, text, kCaptionFont, EditorColors::Dim(), false);
-    y_ += 16.0f + kGap;
+    Label(kPadding, m_y, m_width - 2.0f * kPadding, 16.0f, text, kCaptionFont, EditorColors::Dim(), false);
+    m_y += 16.0f + kGap;
 }
 
 auto PanelBuilder::Row(std::vector<Cell> cells, float height) -> void {
@@ -238,38 +166,38 @@ auto PanelBuilder::Row(std::vector<Cell> cells, float height) -> void {
     const float total = std::accumulate(cells.begin(), cells.end(), 0.0f, [](float sum, const Cell& cell) -> float {
         return sum + cell.weight;
     });
-    const float available = width_ - 2.0f * kPadding - kGap * static_cast<float>(cells.size() - 1);
+    const float available = m_width - 2.0f * kPadding - kGap * static_cast<float>(cells.size() - 1);
     float x = kPadding;
     for (auto& cell : cells) {
         const float w = available * cell.weight / total;
         const bool interactive = cell.click || cell.press || cell.scroll;
         const auto bg = cell.selected ? EditorColors::Accent() : cell.color.value_or(EditorColors::Surface());
         const auto fg = cell.text_color.value_or(cell.selected ? EditorColors::OnAccent() : EditorColors::Text());
-        canvas_.font_size = kTextFont;
-        canvas_.fg_color = fg;
-        canvas_.bg_color = bg;
+        m_canvas.SetFontSize(kTextFont);
+        m_canvas.SetFgColor(fg);
+        m_canvas.SetBgColor(bg);
         if (interactive) {
-            canvas_.Button(
+            m_canvas.Button(
                 x,
-                y_,
+                m_y,
                 w,
                 height,
-                radius_,
+                m_radius,
                 Ellipsize(cell.text, kTextFont, std::max(w - 12.0f, 8.0f)),
                 std::make_unique<CallbackControl>(std::move(cell.click), std::move(cell.press), std::move(cell.scroll))
             );
         } else {
             if (cell.color || cell.selected) {
-                canvas_.Panel(x, y_, w, height, radius_);
+                m_canvas.Panel(x, m_y, w, height, m_radius);
             }
-            Label(x, y_, w, height, cell.text, kTextFont, fg, cell.color.has_value() || cell.selected);
+            Label(x, m_y, w, height, cell.text, kTextFont, fg, cell.color.has_value() || cell.selected);
         }
         if (cell.rim) {
-            Rim(x, y_, w, height);
+            Rim(x, m_y, w, height);
         }
         x += w + kGap;
     }
-    y_ += height + kGap;
+    m_y += height + kGap;
 }
 
 auto PanelBuilder::Button(Cell cell) -> void {
@@ -278,7 +206,7 @@ auto PanelBuilder::Button(Cell cell) -> void {
     Row(std::move(cells));
 }
 
-auto PanelBuilder::Stepper(std::string_view label, std::string_view value, Click minus, Click plus, Scroll scroll) -> void {
+auto PanelBuilder::Stepper(std::string_view label, std::string_view value, Click minus, Click plus, ScrollCallback scroll) -> void {
     std::vector<Cell> cells;
     cells.push_back({.text = std::string(label), .weight = 2.2f, .text_color = EditorColors::Dim()});
     cells.push_back({.text = std::string(value), .weight = 1.4f, .color = EditorColors::Dark(), .scroll = std::move(scroll)});
@@ -318,7 +246,7 @@ auto PanelBuilder::Swatch(std::string_view label, std::string_view color, Click 
 auto PanelBuilder::Swatches(
     std::span<const std::string> colors,
     std::string_view current,
-    const std::function<void(AppState&, const std::string&)>& pick,
+    const std::function<void(const std::string&)>& pick,
     size_t columns
 ) -> void {
     for (size_t start = 0; start < colors.size(); start += columns) {
@@ -328,7 +256,7 @@ auto PanelBuilder::Swatches(
             const auto swatch = EditorColors::Hex(color);
             cells.push_back({
                 .text = color == current ? "*" : "",
-                .click = [pick, color](AppState& app) -> void { pick(app, color); },
+                .click = [pick, color]() -> void { pick(color); },
                 .color = swatch,
                 .text_color = EditorColors::Readable(swatch),
                 .rim = true,
@@ -342,5 +270,5 @@ auto PanelBuilder::Swatches(
 }
 
 auto PanelBuilder::Gap(float height) -> void {
-    y_ += height;
+    m_y += height;
 }

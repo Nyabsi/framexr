@@ -26,13 +26,13 @@
 #include "Device.hpp"
 #include "OpenXrInstance.hpp"
 
-auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, Device& device, VkExtent2D extent, bool immutable)
+auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, VkExtent2D extent, bool immutable)
     -> Result<std::unique_ptr<OpenXrSwapchain>> {
     const XrSwapchainCreateInfo create_info{
         .type = XR_TYPE_SWAPCHAIN_CREATE_INFO,
         .createFlags = immutable ? XR_SWAPCHAIN_CREATE_STATIC_IMAGE_BIT : XrSwapchainCreateFlags{0},
         .usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_SAMPLED_BIT,
-        .format = device.NativeFormat(),
+        .format = g_device->NativeFormat(),
         .sampleCount = 1,
         .width = extent.width,
         .height = extent.height,
@@ -54,50 +54,50 @@ auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, 
     for (const auto& image : images) {
         ASSIGN_OR_RETURN(
             auto wrapped,
-            device.WrapImage(image.image, device.NativeFormat(), extent, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+            g_device->WrapImage(image.image, g_device->NativeFormat(), extent, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
         );
-        swapchain->images_.push_back(std::move(wrapped));
+        swapchain->m_images.push_back(std::move(wrapped));
     }
     return swapchain;
 }
 
 OpenXrSwapchain::OpenXrSwapchain(const OpenXrInstance& instance, XrSwapchain swapchain, VkExtent2D extent)
-    : instance_(&instance),
-      swapchain_(swapchain),
-      extent_(extent) {
+    : m_instance(&instance),
+      m_swapchain(swapchain),
+      m_extent(extent) {
 }
 
 OpenXrSwapchain::~OpenXrSwapchain() {
-    images_.clear();
-    xrDestroySwapchain(swapchain_);
+    m_images.clear();
+    xrDestroySwapchain(m_swapchain);
 }
 
 auto OpenXrSwapchain::AcquireWaitImage() -> Result<std::shared_ptr<Image>> {
     const XrSwapchainImageAcquireInfo acquire_info{.type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
     uint32_t index = 0;
-    RETURN_IF_ERROR(instance_->Check(xrAcquireSwapchainImage(swapchain_, &acquire_info, &index)));
+    RETURN_IF_ERROR(m_instance->Check(xrAcquireSwapchainImage(m_swapchain, &acquire_info, &index)));
     const XrSwapchainImageWaitInfo wait_info{.type = XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO, .timeout = XR_INFINITE_DURATION};
-    RETURN_IF_ERROR(instance_->Check(xrWaitSwapchainImage(swapchain_, &wait_info)));
-    ever_acquired_ = true;
-    acquired_ = true;
-    return images_.at(index);
+    RETURN_IF_ERROR(m_instance->Check(xrWaitSwapchainImage(m_swapchain, &wait_info)));
+    m_ever_acquired = true;
+    m_acquired = true;
+    return m_images.at(index);
 }
 
 auto OpenXrSwapchain::EnsureImageReleased() -> Result<> {
-    if (acquired_) {
+    if (m_acquired) {
         const XrSwapchainImageReleaseInfo release_info{.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-        RETURN_IF_ERROR(instance_->Check(xrReleaseSwapchainImage(swapchain_, &release_info)));
-        acquired_ = false;
+        RETURN_IF_ERROR(m_instance->Check(xrReleaseSwapchainImage(m_swapchain, &release_info)));
+        m_acquired = false;
     }
     return {};
 }
 
 auto OpenXrSwapchain::SubImage() const -> XrSwapchainSubImage {
     return XrSwapchainSubImage{
-        .swapchain = swapchain_,
+        .swapchain = m_swapchain,
         .imageRect =
             {.offset = {.x = 0, .y = 0},
-             .extent = {.width = static_cast<int32_t>(extent_.width), .height = static_cast<int32_t>(extent_.height)}},
+             .extent = {.width = static_cast<int32_t>(m_extent.width), .height = static_cast<int32_t>(m_extent.height)}},
         .imageArrayIndex = 0,
     };
 }

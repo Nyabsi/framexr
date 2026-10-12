@@ -16,8 +16,6 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-#include "Font.hpp"
-
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -25,6 +23,8 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+
+#include "Font.hpp"
 
 namespace {
 
@@ -62,14 +62,14 @@ auto FontCache::InitLocator() -> void {
 
 auto FontCache::Locate(uint32_t codepoint, int) const -> std::optional<FontFile> {
     std::error_code error;
-    if (const std::filesystem::path primary(primary_font_);
-        std::filesystem::is_regular_file(primary, error) && Covers(library_, primary, codepoint)) {
+    if (const std::filesystem::path primary(m_primary_font);
+        std::filesystem::is_regular_file(primary, error) && Covers(m_library, primary, codepoint)) {
         return FontFile{.path = primary.string(), .name = primary.filename().string()};
     }
     const auto directory = FontsDirectory();
     for (const auto file : kFallbacks) {
         const auto path = directory / file;
-        if (std::filesystem::is_regular_file(path, error) && Covers(library_, path, codepoint)) {
+        if (std::filesystem::is_regular_file(path, error) && Covers(m_library, path, codepoint)) {
             return FontFile{.path = path.string(), .name = std::string(file)};
         }
     }

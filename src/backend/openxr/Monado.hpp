@@ -132,7 +132,7 @@ class Monado final {
 
     auto DeviceInfo(uint32_t index) -> std::expected<MonadoDevice, MonadoResult>;
 
-    void* library_;
-    MonadoApi api_;
-    void* root_;
+    void* m_library;
+    MonadoApi m_api;
+    void* m_root;
 };

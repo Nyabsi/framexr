@@ -34,8 +34,6 @@
 #include "History.hpp"
 #include "Modular.hpp"
 
-class AppState;
-
 enum class FormHitKind : uint8_t {
     None,
     Element,
@@ -88,18 +86,27 @@ class FormDesigner final {
 
     explicit FormDesigner(ModularUiConfig config);
 
-    History<ModularUiConfig> history;
-    std::optional<size_t> selected;
-    std::optional<size_t> selected_form;
-    std::optional<size_t> hovered;
-    std::optional<std::pair<FormPart, Eigen::Vector2f>> carrying;
-    bool snap = true;
-    std::chrono::milliseconds hold{250};
+    [[nodiscard]] auto Revisions() const -> const History<ModularUiConfig>& { return m_revisions; }
+    [[nodiscard]] auto Revisions() -> History<ModularUiConfig>& { return m_revisions; }
+    [[nodiscard]] auto Selected() const -> const std::optional<size_t>& { return m_selected; }
+    [[nodiscard]] auto Selected() -> std::optional<size_t>& { return m_selected; }
+    [[nodiscard]] auto SelectedForm() const -> const std::optional<size_t>& { return m_selected_form; }
+    [[nodiscard]] auto SelectedForm() -> std::optional<size_t>& { return m_selected_form; }
+    [[nodiscard]] auto Hovered() const -> const std::optional<size_t>& { return m_hovered; }
+    [[nodiscard]] auto Hovered() -> std::optional<size_t>& { return m_hovered; }
+    [[nodiscard]] auto Carrying() const -> const std::optional<std::pair<FormPart, Eigen::Vector2f>>& { return m_carrying; }
+    [[nodiscard]] auto Carrying() -> std::optional<std::pair<FormPart, Eigen::Vector2f>>& { return m_carrying; }
+    [[nodiscard]] auto Snap() const -> bool { return m_snap; }
+
+    auto SetSelected(std::optional<size_t> selected) -> void { m_selected = selected; }
+    auto SetCarrying(std::optional<std::pair<FormPart, Eigen::Vector2f>> carrying) -> void { m_carrying = std::move(carrying); }
+    auto SetSnap(bool snap) -> void { m_snap = snap; }
+    auto SetHold(std::chrono::milliseconds hold) -> void { m_hold = hold; }
     std::function<float(std::string_view, int)> measure;
     std::function<std::string(const LabelContent&)> label_text;
     std::function<std::string(const ClockLabelContent&)> city_text;
 
-    [[nodiscard]] auto Document() const -> const ModularUiConfig& { return history.Current(); }
+    [[nodiscard]] auto Document() const -> const ModularUiConfig& { return Revisions().Current(); }
     [[nodiscard]] auto PreviewSize() const -> Eigen::Vector2f;
     [[nodiscard]] auto ToDocument(const Eigen::Vector2f& preview) const -> Eigen::Vector2f;
     [[nodiscard]] auto ToPreview(const Eigen::Vector2f& document) const -> Eigen::Vector2f;
@@ -110,13 +117,13 @@ class FormDesigner final {
     [[nodiscard]] auto VisualRect(size_t index) const -> CanvasRect;
     [[nodiscard]] auto HitTest(const Eigen::Vector2f& point, std::optional<int> layer = std::nullopt) const -> FormHit;
     [[nodiscard]] auto Accepts(const Eigen::Vector2f& point, int layer) const -> bool;
-    [[nodiscard]] auto Guides() const -> std::span<const Guide> { return guides_; }
+    [[nodiscard]] auto Guides() const -> std::span<const Guide> { return m_guides; }
     [[nodiscard]] auto MinimumSize(const ModularElement& element) const -> Eigen::Vector2f;
     [[nodiscard]] auto MinimumForm(const ModularUiConfig& config, size_t form = 0) const -> Eigen::Vector2f;
     [[nodiscard]] auto MinimumToolbarHeight(const ModularUiConfig& config) const -> float;
     auto Fit(ModularUiConfig& config, size_t index) const -> void;
-    [[nodiscard]] auto Dragging() const -> bool { return drag_.has_value(); }
-    [[nodiscard]] auto Engaged() const -> bool { return drag_ && drag_->engaged; }
+    [[nodiscard]] auto Dragging() const -> bool { return m_drag.has_value(); }
+    [[nodiscard]] auto Engaged() const -> bool { return m_drag && m_drag->engaged; }
 
     auto Hover(const Eigen::Vector2f& point) -> void;
     auto Press(const Eigen::Vector2f& point, std::optional<int> layer = std::nullopt) -> void;
@@ -127,7 +134,7 @@ class FormDesigner final {
     auto Remove(size_t index) -> void;
     auto RemoveForm(size_t form) -> void;
     auto Restack(size_t index, int direction) -> void;
-    auto Draw(Canvas& canvas, AppState& app, std::optional<int> layer = std::nullopt) const -> void;
+    auto Draw(Canvas& canvas, std::optional<int> layer = std::nullopt) const -> void;
 
     static auto LayerOf(const ModularElement& element) -> int;
     static auto MakePart(FormPart part) -> ModularElement;
@@ -169,12 +176,20 @@ class FormDesigner final {
     auto InsertForm(const std::optional<Eigen::Vector2f>& point) -> void;
     auto SnapAxis(float start, float size, std::span<const float> targets, bool vertical, float offset, SnapLock& lock) -> float;
 
-    std::optional<Drag> drag_;
-    std::vector<Guide> guides_;
-    std::optional<float> toolbar_marker_;
-    std::optional<CanvasRect> landing_;
-    std::optional<Eigen::Vector2f> frozen_origin_;
-    std::optional<size_t> drop_form_;
-    SnapLock snap_x_;
-    SnapLock snap_y_;
+    std::optional<Drag> m_drag;
+    std::vector<Guide> m_guides;
+    std::optional<float> m_toolbar_marker;
+    std::optional<CanvasRect> m_landing;
+    std::optional<Eigen::Vector2f> m_frozen_origin;
+    std::optional<size_t> m_drop_form;
+    SnapLock m_snap_x;
+    SnapLock m_snap_y;
+
+    History<ModularUiConfig> m_revisions;
+    std::optional<size_t> m_selected;
+    std::optional<size_t> m_selected_form;
+    std::optional<size_t> m_hovered;
+    std::optional<std::pair<FormPart, Eigen::Vector2f>> m_carrying;
+    bool m_snap = true;
+    std::chrono::milliseconds m_hold{250};
 };

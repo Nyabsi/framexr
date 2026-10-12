@@ -18,19 +18,19 @@
 
 #include "DxgiCapture.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-#include <d3d11.h>
-#include <dxgi1_2.h>
-#include <wrl/client.h>
-
 #include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <optional>
 #include <span>
 #include <utility>
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <wrl/client.h>
 
 #include "Logger.hpp"
 
@@ -60,17 +60,6 @@ auto Transform(DXGI_MODE_ROTATION rotation) -> FrameTransform {
     default: return FrameTransform::Normal;
     }
 }
-
-struct Duplication {
-    ComPtr<ID3D11Device> device;
-    ComPtr<ID3D11DeviceContext> context;
-    ComPtr<IDXGIOutputDuplication> duplication;
-    ComPtr<ID3D11Texture2D> staging;
-    FrameFormat format;
-    FrameTransform rotation = FrameTransform::Normal;
-    LONG desktop_width = 0;
-    LONG desktop_height = 0;
-};
 
 auto FindOutput(const std::wstring& device, ComPtr<IDXGIAdapter1>& adapter_out) -> ComPtr<IDXGIOutput1> {
     ComPtr<IDXGIFactory1> factory;
@@ -257,27 +246,27 @@ auto DxgiCapture::Outputs() -> Result<std::vector<DxgiOutput>> {
     return outputs;
 }
 
-DxgiCapture::DxgiCapture(std::string name, std::wstring device) : name_(std::move(name)), device_(std::move(device)) {
+DxgiCapture::DxgiCapture(std::string name, std::wstring device) : m_name(std::move(name)), m_device(std::move(device)) {
 }
 
 DxgiCapture::~DxgiCapture() {
-    running_.store(false);
-    if (thread_.joinable()) {
-        thread_.join();
+    m_running.store(false);
+    if (m_thread.joinable()) {
+        m_thread.join();
     }
 }
 
 auto DxgiCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
-    channel_ = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
-    processor_ = std::move(processor);
-    thread_ = std::thread(&DxgiCapture::Run, this);
+    m_channel = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
+    m_processor = std::move(processor);
+    m_thread = std::thread(&DxgiCapture::Run, this);
 }
 
 auto DxgiCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!channel_) {
+    if (!m_channel) {
         return nullptr;
     }
-    auto frames = channel_->TakeAll();
+    auto frames = m_channel->TakeAll();
     if (frames.empty()) {
         return nullptr;
     }
@@ -285,15 +274,15 @@ auto DxgiCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
 }
 
 auto DxgiCapture::Pause() -> void {
-    paused_.store(true);
+    m_paused.store(true);
 }
 
 auto DxgiCapture::Resume() -> void {
-    if (channel_) {
-        channel_->TakeAll();
+    if (m_channel) {
+        m_channel->TakeAll();
     }
-    refresh_.store(true);
-    paused_.store(false);
+    m_refresh.store(true);
+    m_paused.store(false);
 }
 
 auto DxgiCapture::Run() -> void {
@@ -301,19 +290,19 @@ auto DxgiCapture::Run() -> void {
     std::vector<std::byte> pixels;
     std::optional<MouseMeta> mouse;
 
-    while (running_.load()) {
-        if (paused_.load()) {
+    while (m_running.load()) {
+        if (m_paused.load()) {
             std::this_thread::sleep_for(kPausedDelay);
             continue;
         }
         if (!duplication) {
-            duplication = Duplicate(name_, device_);
+            duplication = Duplicate(m_name, m_device);
             if (!duplication) {
                 std::this_thread::sleep_for(kRetryDelay);
                 continue;
             }
             pixels.clear();
-            refresh_.store(true);
+            m_refresh.store(true);
         }
 
         DXGI_OUTDUPL_FRAME_INFO info{};
@@ -323,12 +312,12 @@ auto DxgiCapture::Run() -> void {
             continue;
         }
         if (FAILED(acquired)) {
-            LOG_INFO("{}: duplication lost (0x{:08x}), recreating", name_, static_cast<uint32_t>(acquired));
+            LOG_INFO("{}: duplication lost (0x{:08x}), recreating", m_name, static_cast<uint32_t>(acquired));
             duplication.reset();
             continue;
         }
 
-        bool changed = refresh_.exchange(false);
+        bool changed = m_refresh.exchange(false);
         if ((pixels.empty() || info.LastPresentTime.QuadPart != 0) && CopyFrame(*duplication, resource.Get(), pixels)) {
             changed = true;
         }
@@ -348,8 +337,8 @@ auto DxgiCapture::Run() -> void {
             .size = pixels.size(),
             .mouse = mouse,
         };
-        if (auto processed = processor_(Frame(frame))) {
-            channel_->Push(std::move(processed));
+        if (auto processed = m_processor(Frame(frame))) {
+            m_channel->Push(std::move(processed));
         }
     }
 }

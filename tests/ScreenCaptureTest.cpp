@@ -18,22 +18,25 @@
 
 #include <chrono>
 #include <cmath>
-#include <vector>
 #include <cstdlib>
 #include <format>
-#include <string>
 #include <memory>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
+#include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
+#include "Config.hpp"
 #include "Device.hpp"
 #include "FakeCapture.hpp"
 #include "GpuReadback.hpp"
+#include "OverlayRenderer.hpp"
 #include "Png.hpp"
 #include "Screen.hpp"
-#include "State.hpp"
+#include "ScreenRenderer.hpp"
 #include "TestApp.hpp"
 #include "framexr_config.h"
 
@@ -45,11 +48,10 @@
 namespace {
 
 auto RenderUntilReady(ScreenRenderer& renderer, const std::string& name) -> void {
-    auto& app = TestApp::Get();
     bool ready = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     while (!ready && std::chrono::steady_clock::now() < deadline) {
-        const auto readiness = renderer.ShouldRender(app);
+        const auto readiness = renderer.ShouldRender();
         ASSERT_TRUE(readiness.has_value());
         ready = *readiness == RenderReadiness::Should;
         if (!ready) {
@@ -60,20 +62,20 @@ auto RenderUntilReady(ScreenRenderer& renderer, const std::string& name) -> void
 
     const auto meta = renderer.Meta();
     ASSERT_TRUE(meta.has_value());
-    auto target = app.device->CreateRenderTexture(
+    auto target = g_device->CreateRenderTexture(
         meta->extent.width,
         meta->extent.height,
-        app.device->NativeFormat(),
+        g_device->NativeFormat(),
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     );
     ASSERT_TRUE(target.has_value());
     CommandBatch batch;
-    const auto rendered = renderer.Render(app, *target, batch, 1.0f);
+    const auto rendered = renderer.Render(*target, batch, 1.0f);
     ASSERT_TRUE(rendered.has_value() && *rendered);
     ASSERT_TRUE(batch.Submit().has_value());
-    app.device->GraphicsQueue().WaitIdle();
+    g_device->GraphicsQueue().WaitIdle();
 
-    const auto pixels = GpuReadback::Read(*app.device, **target);
+    const auto pixels = GpuReadback::Read(**target);
     EXPECT_EQ(pixels.size(), size_t{meta->extent.width} * meta->extent.height * 4);
     EXPECT_TRUE(GpuReadback::IsOpaque(pixels));
     Png::Write(TestApp::OutputDir() / std::format("{}.png", name), meta->extent.width, meta->extent.height, pixels);
@@ -88,18 +90,17 @@ TEST(ScreenCapture, ScreenPipelineBlendsLikeOriginal) {
     ScreenRenderer renderer("fake", std::make_unique<FakeCapture>(kSize, kSize, std::move(bgra)));
     RenderUntilReady(renderer, "fake-capture");
 
-    auto& app = TestApp::Get();
-    auto target = app.device->CreateRenderTexture(kSize, kSize, app.device->NativeFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    auto target = g_device->CreateRenderTexture(kSize, kSize, g_device->NativeFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     ASSERT_TRUE(target.has_value());
     CommandBatch batch;
-    ASSERT_TRUE(renderer.ShouldRender(app).has_value());
-    const auto rendered = renderer.Render(app, *target, batch, 1.0f);
+    ASSERT_TRUE(renderer.ShouldRender().has_value());
+    const auto rendered = renderer.Render(*target, batch, 1.0f);
     ASSERT_TRUE(rendered.has_value());
     ASSERT_TRUE(*rendered);
     ASSERT_TRUE(batch.Submit().has_value());
-    app.device->GraphicsQueue().WaitIdle();
+    g_device->GraphicsQueue().WaitIdle();
 
-    const auto pixels = GpuReadback::Read(*app.device, **target);
+    const auto pixels = GpuReadback::Read(**target);
     ASSERT_FALSE(pixels.empty());
     const double sampled = kGray / 255.0;
     const double squared = sampled * sampled;
@@ -127,28 +128,26 @@ TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
     ScreenRenderer renderer("stripes", std::make_unique<FakeCapture>(kSize, kSize, std::move(stripes)));
     RenderUntilReady(renderer, "stripes");
 
-    auto& app = TestApp::Get();
     const auto render = [&](const TexelFootprint& footprint) -> std::vector<unsigned char> {
         renderer.SetTexelFootprint(footprint);
         bool ready = false;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         while (!ready && std::chrono::steady_clock::now() < deadline) {
-            const auto readiness = renderer.ShouldRender(app);
+            const auto readiness = renderer.ShouldRender();
             ready = readiness && *readiness == RenderReadiness::Should;
             if (!ready) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
         }
         EXPECT_TRUE(ready);
-        auto target = app.device
-                          ->CreateRenderTexture(kSize, kSize, app.device->NativeFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        auto target = g_device->CreateRenderTexture(kSize, kSize, g_device->NativeFormat(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         EXPECT_TRUE(target.has_value());
         CommandBatch batch;
-        const auto rendered = renderer.Render(app, *target, batch, 1.0f);
+        const auto rendered = renderer.Render(*target, batch, 1.0f);
         EXPECT_TRUE(rendered.has_value() && *rendered);
         EXPECT_TRUE(batch.Submit().has_value());
-        app.device->GraphicsQueue().WaitIdle();
-        return GpuReadback::Read(*app.device, **target);
+        g_device->GraphicsQueue().WaitIdle();
+        return GpuReadback::Read(**target);
     };
     const auto contrast = [](const std::vector<unsigned char>& pixels, size_t x) -> int {
         const size_t row = size_t{kSize} / 2 * kSize;
@@ -164,9 +163,9 @@ TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
 
     const int sharp = contrast(render(facing(0.9f)), 32);
     const int soft = contrast(render(facing(2.5f)), 32);
-    app.config.screen_lowpass_filter = false;
+    g_config->screen_lowpass_filter = false;
     const int unfiltered = contrast(render(facing(2.5f)), 32);
-    app.config.screen_lowpass_filter = true;
+    g_config->screen_lowpass_filter = true;
 
     EXPECT_GT(sharp, 200);
     EXPECT_LT(soft, sharp / 4);

@@ -79,8 +79,8 @@ class FontCache final {
     FontCache(const FontCache&) = delete;
     auto operator=(const FontCache&) -> FontCache& = delete;
 
-    auto MeasureText(std::string_view text, int size, Device& device) -> Result<TextSize>;
-    auto Glyphs(std::string_view text, int size, Device& device) -> Result<std::vector<std::shared_ptr<Glyph>>>;
+    auto MeasureText(std::string_view text, int size) -> Result<TextSize>;
+    auto Glyphs(std::string_view text, int size) -> Result<std::vector<std::shared_ptr<Glyph>>>;
 
   private:
     FontCache(std::string primary_font, FT_LibraryRec_* library);
@@ -89,10 +89,11 @@ class FontCache final {
     auto FontForCodepoint(uint32_t codepoint, int size) -> size_t;
     [[nodiscard]] auto Locate(uint32_t codepoint, int size) const -> std::optional<FontFile>;
     static auto InitLocator() -> void;
-    auto GlyphForCodepoint(uint32_t codepoint, int size, Device& device, std::optional<CommandBuffer>& uploads)
-        -> Result<std::shared_ptr<Glyph>>;
+    auto GlyphForCodepoint(uint32_t codepoint, int size, std::optional<CommandBuffer>& uploads) -> Result<std::shared_ptr<Glyph>>;
 
-    std::string primary_font_;
-    FT_LibraryRec_* library_;
-    std::map<int, FontCollection> collections_;
+    std::string m_primary_font;
+    FT_LibraryRec_* m_library;
+    std::map<int, FontCollection> m_collections;
 };
+
+extern FontCache* g_fonts;

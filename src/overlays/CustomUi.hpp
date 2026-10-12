@@ -30,10 +30,8 @@
 #include "Modular.hpp"
 #include "Overlay.hpp"
 
-class AppState;
-
 class CustomUi {
   public:
     static auto Load(const std::string& name) -> Result<ModularUiConfig>;
-    static auto Create(AppState& app, std::string name) -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>>;
+    static auto Create(std::string name) -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>>;
 };

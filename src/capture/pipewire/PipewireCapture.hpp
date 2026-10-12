@@ -46,7 +46,7 @@ class PipewireCapture final : public Capture {
     ~PipewireCapture() override;
 
     auto Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void override;
-    [[nodiscard]] auto IsStarted() const -> bool override { return channel_ != nullptr; }
+    [[nodiscard]] auto IsStarted() const -> bool override { return m_channel != nullptr; }
     [[nodiscard]] auto SupportsDmabuf() const -> bool override { return true; }
     auto Receive() -> std::unique_ptr<ProcessedFrame> override;
     auto Pause() -> void override;
@@ -71,22 +71,22 @@ class PipewireCapture final : public Capture {
     static auto OnCommand(void* data, uint64_t count) -> void;
     static auto OnRetry(void* data, uint64_t expirations) -> void;
 
-    std::string name_;
-    uint32_t node_id_;
-    std::vector<DrmFormat> dmabuf_formats_;
-    FrameProcessor processor_;
-    std::shared_ptr<FrameChannel<std::unique_ptr<ProcessedFrame>>> channel_;
-    std::thread thread_;
+    std::string m_name;
+    uint32_t m_node_id;
+    std::vector<DrmFormat> m_dmabuf_formats;
+    FrameProcessor m_processor;
+    std::shared_ptr<FrameChannel<std::unique_ptr<ProcessedFrame>>> m_channel;
+    std::thread m_thread;
 
-    std::mutex command_mutex_;
-    std::deque<PipewireCommand> commands_;
-    pw_main_loop* loop_ = nullptr;
-    spa_source* command_event_ = nullptr;
+    std::mutex m_command_mutex;
+    std::deque<PipewireCommand> m_commands;
+    pw_main_loop* m_loop = nullptr;
+    spa_source* m_command_event = nullptr;
 
-    pw_stream* stream_ = nullptr;
-    spa_hook stream_listener_{};
-    spa_source* retry_timer_ = nullptr;
-    uint32_t failures_ = 0;
-    bool active_ = true;
-    FrameFormat format_;
+    pw_stream* m_stream = nullptr;
+    spa_hook m_stream_listener{};
+    spa_source* m_retry_timer = nullptr;
+    uint32_t m_failures = 0;
+    bool m_active = true;
+    FrameFormat m_format;
 };

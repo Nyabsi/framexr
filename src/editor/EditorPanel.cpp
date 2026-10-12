@@ -20,10 +20,12 @@
 
 #include <cmath>
 
+#include "CommandBatch.hpp"
 #include "Device.hpp"
-#include "State.hpp"
+#include "InteractionHandler.hpp"
+#include "OverlayRenderer.hpp"
 
-EditorPanel::EditorPanel(std::weak_ptr<Editor> editor, PanelKind kind) : editor_(std::move(editor)), kind_(kind) {
+EditorPanel::EditorPanel(std::weak_ptr<Editor> editor, PanelKind kind) : m_editor(std::move(editor)), m_kind(kind) {
 }
 
 auto EditorPanel::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
@@ -32,141 +34,141 @@ auto EditorPanel::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
 auto EditorPanel::SetInteraction(std::unique_ptr<InteractionHandler>) -> void {
 }
 
-auto EditorPanel::Init(AppState& app) -> Result<> {
-    return Refresh(app);
+auto EditorPanel::Init() -> Result<> {
+    return Refresh();
 }
 
-auto EditorPanel::Pause(AppState&) -> Result<> {
+auto EditorPanel::Pause() -> Result<> {
     return {};
 }
 
-auto EditorPanel::Resume(AppState&) -> Result<> {
+auto EditorPanel::Resume() -> Result<> {
     return {};
 }
 
-auto EditorPanel::Refresh(AppState& app) -> Result<> {
-    const auto editor = editor_.lock();
+auto EditorPanel::Refresh() -> Result<> {
+    const auto editor = m_editor.lock();
     if (!editor) {
         return {};
     }
-    const Eigen::Vector2f size = editor->PanelSize(kind_);
+    const Eigen::Vector2f size = editor->PanelSize(m_kind);
     const auto width = static_cast<uint32_t>(std::lround(size.x()));
     const auto height = static_cast<uint32_t>(std::lround(size.y()));
-    if (!canvas_ || canvas_->Width() != width || canvas_->Height() != height) {
-        ASSIGN_OR_RETURN(canvas_, Canvas::Create(app.device, width, height, app.device->NativeFormat()));
-        built_ = 0;
+    if (!m_canvas || m_canvas->Width() != width || m_canvas->Height() != height) {
+        ASSIGN_OR_RETURN(m_canvas, Canvas::Create(width, height, g_device->NativeFormat()));
+        m_built = 0;
     }
-    if (const auto revision = editor->Revision(kind_); revision != built_) {
-        canvas_->Clear();
-        editor->BuildPanel(kind_, *canvas_, app);
-        built_ = revision;
+    if (const auto revision = editor->Revision(m_kind); revision != m_built) {
+        m_canvas->Clear();
+        editor->BuildPanel(m_kind, *m_canvas);
+        m_built = revision;
     }
     return {};
 }
 
-auto EditorPanel::ShouldRender(AppState& app) -> Result<RenderReadiness> {
-    RETURN_IF_ERROR(Refresh(app));
-    if (!canvas_) {
+auto EditorPanel::ShouldRender() -> Result<RenderReadiness> {
+    RETURN_IF_ERROR(Refresh());
+    if (!m_canvas) {
         return RenderReadiness::Unable;
     }
-    return canvas_->ShouldRender(app);
+    return m_canvas->ShouldRender();
 }
 
-auto EditorPanel::Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
-    if (!canvas_) {
+auto EditorPanel::Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
+    if (!m_canvas) {
         return false;
     }
-    return canvas_->Render(app, target, batch, alpha);
+    return m_canvas->Render(target, batch, alpha);
 }
 
 auto EditorPanel::Meta() -> std::optional<FrameMeta> {
-    if (canvas_) {
-        return canvas_->Meta();
+    if (m_canvas) {
+        return m_canvas->Meta();
     }
-    const auto editor = editor_.lock();
+    const auto editor = m_editor.lock();
     if (!editor) {
         return std::nullopt;
     }
-    const Eigen::Vector2f size = editor->PanelSize(kind_);
+    const Eigen::Vector2f size = editor->PanelSize(m_kind);
     return FrameMeta{.extent = {static_cast<uint32_t>(std::lround(size.x())), static_cast<uint32_t>(std::lround(size.y()))}};
 }
 
 auto EditorPanel::IsPreview() const -> bool {
-    return kind_ == PanelKind::Preview || Editor::LayerOf(kind_).has_value();
+    return m_kind == PanelKind::Preview || Editor::LayerOf(m_kind).has_value();
 }
 
 auto EditorPanel::Accepts(const Eigen::Vector2f& uv) const -> bool {
-    const auto editor = editor_.lock();
-    if (!editor || !Editor::LayerOf(kind_)) {
+    const auto editor = m_editor.lock();
+    if (!editor || !Editor::LayerOf(m_kind)) {
         return true;
     }
-    return editor->Accepts(kind_, uv.cwiseProduct(editor->PanelSize(kind_)));
+    return editor->Accepts(m_kind, uv.cwiseProduct(editor->PanelSize(m_kind)));
 }
 
 auto EditorPanel::ToCanvas(const PointerHit& hit) const -> Eigen::Vector2f {
-    if (!canvas_) {
+    if (!m_canvas) {
         return Eigen::Vector2f::Zero();
     }
-    return hit.uv.cwiseProduct(Eigen::Vector2f(static_cast<float>(canvas_->Width()), static_cast<float>(canvas_->Height())));
+    return hit.uv.cwiseProduct(Eigen::Vector2f(static_cast<float>(m_canvas->Width()), static_cast<float>(m_canvas->Height())));
 }
 
-auto EditorPanel::OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> {
-    const auto editor = editor_.lock();
-    if (!editor || !canvas_ || !editor->Allows(hit.pointer)) {
+auto EditorPanel::OnHover(const PointerHit& hit) -> std::optional<Haptics> {
+    const auto editor = m_editor.lock();
+    if (!editor || !m_canvas || !editor->Allows(hit.pointer)) {
         return std::nullopt;
     }
     if (IsPreview()) {
-        return editor->PreviewHover(app, ToCanvas(hit));
+        return editor->PreviewHover(ToCanvas(hit));
     }
-    if (kind_ == PanelKind::Dialog && editor->DialogHover(app, ToCanvas(hit))) {
+    if (m_kind == PanelKind::Dialog && editor->DialogHover(ToCanvas(hit))) {
         return std::nullopt;
     }
-    return canvas_->OnHover(app, hit);
+    return m_canvas->OnHover(hit);
 }
 
-auto EditorPanel::OnLeft(AppState& app, size_t pointer) -> void {
-    const auto editor = editor_.lock();
-    if (!editor || !canvas_ || !editor->Allows(pointer)) {
+auto EditorPanel::OnLeft(size_t pointer) -> void {
+    const auto editor = m_editor.lock();
+    if (!editor || !m_canvas || !editor->Allows(pointer)) {
         return;
     }
     if (IsPreview()) {
-        editor->PreviewLeft(app);
+        editor->PreviewLeft();
         return;
     }
-    canvas_->OnLeft(app, pointer);
+    m_canvas->OnLeft(pointer);
 }
 
-auto EditorPanel::OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void {
-    const auto editor = editor_.lock();
-    if (!editor || !canvas_ || !editor->Allows(hit.pointer)) {
+auto EditorPanel::OnPointer(const PointerHit& hit, bool pressed) -> void {
+    const auto editor = m_editor.lock();
+    if (!editor || !m_canvas || !editor->Allows(hit.pointer)) {
         return;
     }
     if (pressed) {
         editor->Claim(hit.pointer);
     }
     if (IsPreview()) {
-        editor->PreviewPointer(app, kind_, hit, ToCanvas(hit), pressed);
-    } else if (!(kind_ == PanelKind::Dialog && editor->DialogPointer(app, ToCanvas(hit), pressed))) {
+        editor->PreviewPointer(m_kind, hit, ToCanvas(hit), pressed);
+    } else if (!(m_kind == PanelKind::Dialog && editor->DialogPointer(ToCanvas(hit), pressed))) {
         if (pressed) {
-            editor->CommitText(app);
+            editor->CommitText();
         } else {
-            editor->PanelReleased(app, kind_, hit);
+            editor->PanelReleased(m_kind, hit);
         }
-        canvas_->OnPointer(app, hit, pressed);
+        m_canvas->OnPointer(hit, pressed);
     }
     if (!pressed) {
         editor->Unclaim(hit.pointer);
     }
 }
 
-auto EditorPanel::OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void {
-    const auto editor = editor_.lock();
-    if (!editor || !canvas_ || !editor->Allows(hit.pointer)) {
+auto EditorPanel::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void {
+    const auto editor = m_editor.lock();
+    if (!editor || !m_canvas || !editor->Allows(hit.pointer)) {
         return;
     }
     if (IsPreview()) {
-        editor->PreviewScroll(app, ToCanvas(hit), delta_y);
+        editor->PreviewScroll(ToCanvas(hit), delta_y);
         return;
     }
-    canvas_->OnScroll(app, hit, delta_y, delta_x);
+    m_canvas->OnScroll(hit, delta_y, delta_x);
 }

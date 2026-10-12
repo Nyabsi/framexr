@@ -30,26 +30,26 @@
 template <typename T>
 class FrameChannel final {
   public:
-    explicit FrameChannel(size_t capacity) : capacity_(capacity) {}
+    explicit FrameChannel(size_t capacity) : m_capacity(capacity) {}
 
     auto Push(T value) -> std::optional<T> {
-        std::scoped_lock lock(mutex_);
+        std::scoped_lock lock(m_mutex);
         std::optional<T> evicted;
-        if (queue_.size() >= capacity_) {
-            evicted.emplace(std::move(queue_.front()));
-            queue_.pop_front();
+        if (m_queue.size() >= m_capacity) {
+            evicted.emplace(std::move(m_queue.front()));
+            m_queue.pop_front();
         }
-        queue_.push_back(std::move(value));
+        m_queue.push_back(std::move(value));
         return evicted;
     }
 
     auto TakeAll() -> std::deque<T> {
-        std::scoped_lock lock(mutex_);
-        return std::exchange(queue_, {});
+        std::scoped_lock lock(m_mutex);
+        return std::exchange(m_queue, {});
     }
 
   private:
-    size_t capacity_;
-    std::mutex mutex_;
-    std::deque<T> queue_;
+    size_t m_capacity;
+    std::mutex m_mutex;
+    std::deque<T> m_queue;
 };

@@ -20,7 +20,7 @@
 
 #include <format>
 
-Queue::Queue(VkQueue queue, uint32_t family) : queue_(queue), family_(family) {
+Queue::Queue(VkQueue queue, uint32_t family) : m_queue(queue), m_family(family) {
 }
 
 auto Queue::Submit(std::span<const VkCommandBuffer> command_buffers, VkFence fence) -> Result<> {
@@ -29,14 +29,14 @@ auto Queue::Submit(std::span<const VkCommandBuffer> command_buffers, VkFence fen
         .commandBufferCount = static_cast<uint32_t>(command_buffers.size()),
         .pCommandBuffers = command_buffers.data(),
     };
-    std::scoped_lock lock(mutex_);
-    if (const auto result = vkQueueSubmit(queue_, 1, &submit_info, fence); result != VK_SUCCESS) {
+    std::scoped_lock lock(m_mutex);
+    if (const auto result = vkQueueSubmit(m_queue, 1, &submit_info, fence); result != VK_SUCCESS) {
         return Unexpected(std::format("vkQueueSubmit failed: {}", static_cast<int>(result)));
     }
     return {};
 }
 
 auto Queue::WaitIdle() -> void {
-    std::scoped_lock lock(mutex_);
-    vkQueueWaitIdle(queue_);
+    std::scoped_lock lock(m_mutex);
+    vkQueueWaitIdle(m_queue);
 }

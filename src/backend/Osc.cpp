@@ -30,6 +30,8 @@
 #include "OverlayContainer.hpp"
 #include "Watch.hpp"
 
+OscSender* g_osc = nullptr;
+
 namespace {
 
 auto AppendPadded(std::vector<std::byte>& packet, std::string_view text) -> void {
@@ -76,9 +78,9 @@ auto ElapsedMs(std::chrono::steady_clock::time_point since) -> int64_t {
 } // namespace
 
 OscSender::OscSender(UdpSocket socket)
-    : socket_(std::move(socket)),
-      last_sent_overlay_(std::chrono::steady_clock::now()),
-      last_sent_battery_(std::chrono::steady_clock::now()) {
+    : m_socket(std::move(socket)),
+      m_last_sent_overlay(std::chrono::steady_clock::now()),
+      m_last_sent_battery(std::chrono::steady_clock::now()) {
 }
 
 OscSender::~OscSender() = default;
@@ -96,29 +98,29 @@ auto OscSender::Create(uint16_t port) -> Result<std::unique_ptr<OscSender>> {
 
 auto OscSender::SendMessage(const std::string& address, const std::vector<OscValue>& values) const -> Result<> {
     const auto packet = Encode(address, values);
-    if (!socket_.Send(packet)) {
+    if (!m_socket.Send(packet)) {
         return Unexpected("Could not send OSC packet.");
     }
     return {};
 }
 
-auto OscSender::SendParams(const OverlayContainer& overlays, const std::vector<TrackedDevice>& devices) -> Result<> {
-    if (ElapsedMs(last_sent_overlay_) >= 100) {
-        last_sent_overlay_ = std::chrono::steady_clock::now();
+auto OscSender::SendParams(const std::vector<TrackedDevice>& devices) -> Result<> {
+    if (ElapsedMs(m_last_sent_overlay) >= 100) {
+        m_last_sent_overlay = std::chrono::steady_clock::now();
 
         int32_t num_overlays = 0;
         bool has_keyboard = false;
         bool has_wrist = false;
-        for (const auto& overlay : overlays.Overlays()) {
-            const auto& state = overlay->state;
-            if (!state.want_visible) {
+        for (const auto& overlay : g_overlays->Overlays()) {
+            const auto& state = overlay->State();
+            if (!state.WantVisible()) {
                 continue;
             }
-            if (state.name == kWatchName) {
+            if (state.Name() == kWatchName) {
                 has_wrist = true;
-            } else if (state.name == kKeyboardName) {
+            } else if (state.Name() == kKeyboardName) {
                 has_keyboard = true;
-            } else if (state.interactable) {
+            } else if (state.Interactable()) {
                 ++num_overlays;
             }
         }
@@ -129,8 +131,8 @@ auto OscSender::SendParams(const OverlayContainer& overlays, const std::vector<T
         RETURN_IF_ERROR(SendMessage("/avatar/parameters/openOverlayCount", {num_overlays}));
     }
 
-    if (ElapsedMs(last_sent_battery_) >= 10000) {
-        last_sent_battery_ = std::chrono::steady_clock::now();
+    if (ElapsedMs(m_last_sent_battery) >= 10000) {
+        m_last_sent_battery = std::chrono::steady_clock::now();
 
         int32_t tracker_count = 0;
         int32_t controller_count = 0;

@@ -29,8 +29,6 @@
 #include "Error.hpp"
 #include "Input.hpp"
 
-class AppState;
-
 struct OpenVrHandSource {
     std::optional<vr::TrackedDeviceIndex_t> device;
     vr::VRInputValueHandle_t input = vr::k_ulInvalidInputValueHandle;
@@ -56,8 +54,8 @@ class OpenVrInput final {
     static auto SetActionManifest() -> Result<>;
     static auto Create() -> Result<OpenVrInput>;
 
-    auto Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> void;
-    auto UpdateDevices(AppState& app) -> void;
+    auto Update(vr::ETrackingUniverseOrigin universe) -> void;
+    auto UpdateDevices() -> void;
     auto TriggerHaptics(size_t hand, const Haptics& haptics) const -> void;
 
   private:
@@ -66,6 +64,6 @@ class OpenVrInput final {
     [[nodiscard]] auto Digital(vr::VRActionHandle_t action, vr::VRInputValueHandle_t source) const -> bool;
     static auto ReadTrackedDevice(vr::TrackedDeviceIndex_t index, TrackedDeviceRole role) -> std::optional<TrackedDevice>;
 
-    OpenVrActions actions_;
-    std::array<OpenVrHandSource, 2> hands_;
+    OpenVrActions m_actions;
+    std::array<OpenVrHandSource, 2> m_hands;
 };

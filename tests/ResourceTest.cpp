@@ -22,7 +22,7 @@
 #include <nlohmann/json.hpp>
 
 #include "Config.hpp"
-#include "Modular.hpp"
+#include "ModularUiConfig.hpp"
 #include "Yaml.hpp"
 #include "framexr_config.h"
 
@@ -55,11 +55,11 @@ constexpr char kOpenXrActionsJson[] = {
 };
 
 auto ExpectModularUi(std::string_view name, std::string_view text) -> void {
-    const auto ui = Config::LoadKnownYaml<ModularUiConfig>(name, text);
-    EXPECT_FALSE(ui.elements.empty()) << name;
+    const auto ui = ConfigStore::LoadKnownYaml<ModularUiConfig>(name, text);
+    EXPECT_FALSE(ui.Elements().empty()) << name;
     EXPECT_GT(ui.Size()[0], 0U) << name;
     EXPECT_GT(ui.Size()[1], 0U) << name;
-    EXPECT_GT(ui.width, 0.0f) << name;
+    EXPECT_GT(ui.Width(), 0.0f) << name;
 }
 
 } // namespace

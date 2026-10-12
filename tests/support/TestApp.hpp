@@ -24,16 +24,19 @@
 #include <gtest/gtest.h>
 
 class AppState;
+class Device;
+class Logger;
 
 class TestApp final : public testing::Environment {
   public:
-    static auto Get() -> AppState&;
     static auto OutputDir() -> const std::filesystem::path&;
 
     auto SetUp() -> void override;
     auto TearDown() -> void override;
 
   private:
-    static std::unique_ptr<AppState> app_;
-    static std::filesystem::path output_dir_;
+    static std::unique_ptr<Logger> m_logger;
+    static std::unique_ptr<Device> m_device;
+    static std::unique_ptr<AppState> m_app;
+    static std::filesystem::path m_output_dir;
 };

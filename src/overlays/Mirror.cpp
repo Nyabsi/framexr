@@ -23,71 +23,74 @@
 
 #include <chrono>
 
+#include "CommandBatch.hpp"
 #include "Config.hpp"
 #include "Logger.hpp"
+#include "OverlayRenderer.hpp"
 #include "PipewireCapture.hpp"
-#include "State.hpp"
+#include "ScreenRenderer.hpp"
+#include "SplitOverlayBackend.hpp"
+#include "Task.hpp"
 
-MirrorRenderer::MirrorRenderer(std::string name) : name_(std::move(name)), selection_(ScreenCastPortal::SelectScreen({})) {
+MirrorRenderer::MirrorRenderer(std::string name) : m_name(std::move(name)), m_selection(ScreenCastPortal::SelectScreen({})) {
 }
 
-auto MirrorRenderer::Create(std::string name, bool show_hide, const Config& config)
-    -> std::pair<OverlayState, std::unique_ptr<OverlayBackend>> {
+auto MirrorRenderer::Create(std::string name, bool show_hide) -> std::pair<OverlayState, std::unique_ptr<OverlayBackend>> {
     OverlayState state;
-    state.name = name;
-    state.show_hide = show_hide;
-    state.want_visible = true;
-    state.spawn_scale = 0.5f * config.desktop_view_scale;
+    state.SetName(name);
+    state.SetShowHide(show_hide);
+    state.SetWantVisible(true);
+    state.SetSpawnScale(0.5f * g_config->desktop_view_scale);
 
     auto backend = std::make_unique<SplitOverlayBackend>();
     backend->SetRenderer(std::make_unique<MirrorRenderer>(std::move(name)));
     return {std::move(state), std::move(backend)};
 }
 
-auto MirrorRenderer::Init(AppState&) -> Result<> {
+auto MirrorRenderer::Init() -> Result<> {
     return {};
 }
 
-auto MirrorRenderer::Pause(AppState& app) -> Result<> {
-    if (renderer_) {
-        RETURN_IF_ERROR(renderer_->Pause(app));
+auto MirrorRenderer::Pause() -> Result<> {
+    if (m_renderer) {
+        RETURN_IF_ERROR(m_renderer->Pause());
     }
     return {};
 }
 
-auto MirrorRenderer::Resume(AppState& app) -> Result<> {
-    if (renderer_) {
-        RETURN_IF_ERROR(renderer_->Resume(app));
+auto MirrorRenderer::Resume() -> Result<> {
+    if (m_renderer) {
+        RETURN_IF_ERROR(m_renderer->Resume());
     }
     return {};
 }
 
-auto MirrorRenderer::ShouldRender(AppState& app) -> Result<RenderReadiness> {
-    if (!renderer_) {
+auto MirrorRenderer::ShouldRender() -> Result<RenderReadiness> {
+    if (!m_renderer) {
         return RenderReadiness::Unable;
     }
-    return renderer_->ShouldRender(app);
+    return m_renderer->ShouldRender();
 }
 
-auto MirrorRenderer::Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
-    if (selection_) {
-        if (selection_->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+auto MirrorRenderer::Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
+    if (m_selection) {
+        if (m_selection->wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
             return false;
         }
-        auto selection = selection_->get();
-        selection_.reset();
+        auto selection = m_selection->get();
+        m_selection.reset();
 
         if (selection && !selection->streams.empty()) {
             const uint32_t node_id = selection->streams.front().node_id;
-            LOG_INFO("{}: PipeWire node selected: {}", name_, node_id);
-            renderer_ = std::make_unique<ScreenRenderer>(name_, std::make_unique<PipewireCapture>(name_, node_id));
-            app.tasks.Enqueue(
+            LOG_INFO("{}: PipeWire node selected: {}", m_name, node_id);
+            m_renderer = std::make_unique<ScreenRenderer>(m_name, std::make_unique<PipewireCapture>(m_name, node_id));
+            g_tasks->Enqueue(
                 ModifyOverlayTask{
-                    .selector = name_,
-                    .modify = [](AppState& state, OverlayState& overlay) -> void {
-                        overlay.grabbable = true;
-                        overlay.interactable = true;
-                        overlay.Reset(state, false);
+                    .selector = m_name,
+                    .modify = [](OverlayState& overlay) -> void {
+                        overlay.SetGrabbable(true);
+                        overlay.SetInteractable(true);
+                        overlay.Reset(false);
                     },
                 }
             );
@@ -96,25 +99,25 @@ auto MirrorRenderer::Render(AppState& app, const std::shared_ptr<Image>& target,
                 "Failed to create mirror due to PipeWire error: {}",
                 selection ? std::string("no streams selected") : selection.error().Message()
             );
-            renderer_.reset();
-            app.tasks.Enqueue(DropOverlayTask{.selector = name_});
+            m_renderer.reset();
+            g_tasks->Enqueue(DropOverlayTask{.selector = m_name});
         }
     }
 
-    if (!renderer_) {
+    if (!m_renderer) {
         return false;
     }
 
-    ASSIGN_OR_RETURN(const bool rendered, renderer_->Render(app, target, batch, alpha));
-    if (const auto meta = renderer_->Meta()) {
+    ASSIGN_OR_RETURN(const bool rendered, m_renderer->Render(target, batch, alpha));
+    if (const auto meta = m_renderer->Meta()) {
         const VkExtent2D extent = meta->extent;
-        if (extent.width != last_extent_.width || extent.height != last_extent_.height) {
-            last_extent_ = extent;
-            app.tasks.Enqueue(
+        if (extent.width != m_last_extent.width || extent.height != m_last_extent.height) {
+            m_last_extent = extent;
+            g_tasks->Enqueue(
                 ModifyOverlayTask{
-                    .selector = name_,
-                    .modify = [extent](AppState&, OverlayState& overlay) -> void {
-                        overlay.interaction_transform = OverlayState::UiTransform(extent);
+                    .selector = m_name,
+                    .modify = [extent](OverlayState& overlay) -> void {
+                        overlay.SetInteractionTransform(OverlayState::UiTransform(extent));
                     },
                 }
             );
@@ -124,5 +127,5 @@ auto MirrorRenderer::Render(AppState& app, const std::shared_ptr<Image>& target,
 }
 
 auto MirrorRenderer::Meta() -> std::optional<FrameMeta> {
-    return FrameMeta{.extent = last_extent_};
+    return FrameMeta{.extent = m_last_extent};
 }

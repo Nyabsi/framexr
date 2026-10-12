@@ -38,9 +38,9 @@ class FakeCapture final : public Capture {
     auto RequestNewFrame() -> void override;
 
   private:
-    uint32_t width_;
-    uint32_t height_;
-    std::vector<std::byte> bgra_;
-    FrameProcessor processor_;
-    std::unique_ptr<ProcessedFrame> pending_;
+    uint32_t m_width;
+    uint32_t m_height;
+    std::vector<std::byte> m_bgra;
+    FrameProcessor m_processor;
+    std::unique_ptr<ProcessedFrame> m_pending;
 };

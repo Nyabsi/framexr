@@ -34,115 +34,18 @@
 #include <vulkan/vulkan.h>
 
 #include "Capture.hpp"
+#include "CommandBatch.hpp"
 #include "Error.hpp"
 #include "Frame.hpp"
 #include "Overlay.hpp"
+#include "OverlayContainer.hpp"
+#include "OverlayRenderer.hpp"
 #include "ScreenCastPortal.hpp"
-#include "State.hpp"
+#include "ScreenRenderer.hpp"
 
-class Device;
-class Image;
-class Pipeline;
-class Queue;
 class WaylandClient;
+
 struct WaylandOutput;
-struct Config;
-
-class CapturedFrame final : public ProcessedFrame {
-  public:
-    CapturedFrame(std::shared_ptr<Image> captured_image, FrameFormat frame_format, std::optional<MouseMeta> mouse_meta);
-
-    std::shared_ptr<Image> image;
-    FrameFormat format;
-    std::optional<MouseMeta> mouse;
-};
-
-class PendingFrame final : public ProcessedFrame {
-  public:
-    explicit PendingFrame(Frame&& frame);
-    ~PendingFrame() override;
-
-    PendingFrame(const PendingFrame&) = delete;
-    auto operator=(const PendingFrame&) -> PendingFrame& = delete;
-
-    Frame frame;
-    std::vector<std::byte> bytes;
-};
-
-class FrameUploader final {
-  public:
-    FrameUploader(std::string name, std::shared_ptr<Device> device, Queue& queue);
-
-    auto Process(Frame&& frame) const -> std::unique_ptr<CapturedFrame>;
-
-  private:
-    [[nodiscard]] auto Upload(const FrameFormat& format, std::span<const std::byte> data, int32_t stride) const
-        -> std::shared_ptr<Image>;
-
-    std::string name_;
-    std::shared_ptr<Device> device_;
-    Queue* queue_;
-};
-
-class ScreenPipeline final {
-  public:
-    static auto Create(AppState& app, VkExtent2D extent) -> Result<ScreenPipeline>;
-
-    auto Render(
-        AppState& app,
-        const CapturedFrame& frame,
-        const std::shared_ptr<Image>& target,
-        CommandBatch& batch,
-        float alpha,
-        const TexelFootprint& footprint
-    ) -> Result<>;
-
-  private:
-    ScreenPipeline(std::shared_ptr<Pipeline> pipeline, std::shared_ptr<Image> mouse, VkExtent2D extent);
-
-    std::shared_ptr<Pipeline> pipeline_;
-    std::shared_ptr<Image> mouse_;
-    VkExtent2D extent_;
-};
-
-class ScreenRenderer final : public OverlayRenderer {
-  public:
-    ScreenRenderer(std::string name, std::unique_ptr<Capture> capture);
-
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
-    auto Meta() -> std::optional<FrameMeta> override;
-    auto SetTexelFootprint(const TexelFootprint& footprint) -> void override;
-
-  private:
-    auto Start(AppState& app) -> void;
-
-    std::string name_;
-    std::unique_ptr<Capture> capture_;
-    std::shared_ptr<FrameUploader> uploader_;
-    bool main_thread_ = false;
-    std::optional<ScreenPipeline> pipeline_;
-    std::unique_ptr<CapturedFrame> current_;
-    std::optional<FrameMeta> meta_;
-    TexelFootprint footprint_;
-};
-
-class ScreenInteraction final : public InteractionHandler {
-  public:
-    ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform);
-
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
-
-  private:
-    Eigen::Affine2f mouse_transform_;
-    std::array<std::optional<uint16_t>, 2> held_{};
-};
 
 struct ScreenOverlay {
     ScreenMeta meta;
@@ -153,18 +56,17 @@ struct ScreenOverlay {
 
 class Screens final {
   public:
-    static auto CreateWayland(WaylandClient& client, AppState& app) -> std::vector<ScreenOverlay>;
+    static auto CreateWayland(WaylandClient& client) -> std::vector<ScreenOverlay>;
     static auto CreateWaylandRenderer(
         const WaylandOutput& output,
         bool has_wlr_dmabuf,
         bool has_wlr_screencopy,
-        std::map<std::string, std::string>& tokens,
-        const AppState& app
+        std::map<std::string, std::string>& tokens
     ) -> std::unique_ptr<ScreenRenderer>;
-    static auto CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverlay>>;
-    static auto CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>>;
+    static auto CreateX11Pipewire() -> Result<std::vector<ScreenOverlay>>;
+    static auto CreateXshm() -> Result<std::vector<ScreenOverlay>>;
 #ifdef _WIN32
-    static auto CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>>;
+    static auto CreateWindows() -> Result<std::vector<ScreenOverlay>>;
 #endif
     static auto ArrangeInFrontOfHead(std::vector<ScreenOverlay>& screens) -> void;
     static auto SelectScreen(std::string_view instructions, const ScreenCastOptions& options) -> Result<ScreenSelection>;
@@ -172,6 +74,5 @@ class Screens final {
     static auto SaveTokens(const std::map<std::string, std::string>& tokens) -> Result<>;
 
   private:
-    static auto CreateState(std::string name, const Eigen::Vector2i& resolution, FrameTransform transform, const Config& config)
-        -> OverlayState;
+    static auto CreateState(std::string name, const Eigen::Vector2i& resolution, FrameTransform transform) -> OverlayState;
 };

@@ -23,8 +23,10 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include "ButtonAction.hpp"
 #include "Config.hpp"
-#include "Modular.hpp"
+#include "ModularElements.hpp"
+#include "ModularUiConfig.hpp"
 #include "Theme.hpp"
 #include "Yaml.hpp"
 
@@ -166,8 +168,8 @@ auto Emit(const ModularUiConfig& config) -> std::string {
 auto ToolbarRects(const ModularUiConfig& config) -> std::vector<std::array<float, 4>> {
     std::vector<std::array<float, 4>> rects;
     const auto arranged = config.Arrange();
-    for (size_t i = 0; i < config.elements.size(); ++i) {
-        if (ModularElements::RegionOf(config.elements[i]) == Region::Toolbar) {
+    for (size_t i = 0; i < config.Elements().size(); ++i) {
+        if (ModularElements::RegionOf(config.Elements()[i]) == Region::Toolbar) {
             rects.push_back(ModularElements::Rect(arranged[i]));
         }
     }
@@ -177,8 +179,8 @@ auto ToolbarRects(const ModularUiConfig& config) -> std::vector<std::array<float
 } // namespace
 
 TEST(ModularLayout, WatchHasAFormAndAToolbarBelowIt) {
-    const auto watch = Config::LoadKnownYaml<ModularUiConfig>("watch.yaml", kWatchYaml);
-    ASSERT_TRUE(watch.form.toolbar.has_value());
+    const auto watch = ConfigStore::LoadKnownYaml<ModularUiConfig>("watch.yaml", kWatchYaml);
+    ASSERT_TRUE(watch.Form().toolbar.has_value());
     EXPECT_EQ(watch.Size(), (std::array<uint32_t, 2>{400, 200}));
 
     const auto rects = ToolbarRects(watch);
@@ -199,7 +201,7 @@ TEST(ModularLayout, FormElementsAreRelativeToTheForm) {
     EXPECT_FLOAT_EQ(config.FormRect().y, 34.0f);
     EXPECT_FLOAT_EQ(ModularElements::Rect(config.Arrange()[0])[1], 34.0f);
 
-    config.form.toolbar->position = ToolbarPosition::Below;
+    config.Form().toolbar->position = ToolbarPosition::Below;
     EXPECT_FLOAT_EQ(config.FormRect().y, 0.0f);
     EXPECT_FLOAT_EQ(config.ToolbarRect()->y, 104.0f);
     EXPECT_FLOAT_EQ(ModularElements::Rect(config.Arrange()[0])[1], 0.0f);
@@ -220,7 +222,7 @@ TEST(ModularLayout, ToolbarSpreadsItemsEvenlyAndPadsButtons) {
 
 TEST(ModularLayout, CrowdedToolbarShrinksItemsToFit) {
     auto config = Parse(kEveryActionYaml);
-    config.form.width = 100.0f;
+    config.Form().width = 100.0f;
     const auto rects = ToolbarRects(config);
     ASSERT_EQ(rects.size(), 2U);
     EXPECT_FLOAT_EQ(rects[0][0], 2.0f);
@@ -229,13 +231,13 @@ TEST(ModularLayout, CrowdedToolbarShrinksItemsToFit) {
 }
 
 TEST(ModularLayout, FormWithoutAToolbarFillsTheCanvas) {
-    const auto settings = Config::LoadKnownYaml<ModularUiConfig>("settings.yaml", kSettingsYaml);
-    EXPECT_FALSE(settings.form.toolbar.has_value());
+    const auto settings = ConfigStore::LoadKnownYaml<ModularUiConfig>("settings.yaml", kSettingsYaml);
+    EXPECT_FALSE(settings.Form().toolbar.has_value());
     EXPECT_EQ(settings.Size(), (std::array<uint32_t, 2>{600, 700}));
     const auto arranged = settings.Arrange();
-    ASSERT_EQ(arranged.size(), settings.elements.size());
+    ASSERT_EQ(arranged.size(), settings.Elements().size());
     for (size_t i = 0; i < arranged.size(); ++i) {
-        EXPECT_EQ(ModularElements::Rect(arranged[i]), ModularElements::Rect(settings.elements[i]));
+        EXPECT_EQ(ModularElements::Rect(arranged[i]), ModularElements::Rect(settings.Elements()[i]));
     }
 }
 
@@ -244,12 +246,12 @@ TEST(ModularLayout, EveryElementAndActionSurvivesASaveAndLoad) {
     const auto saved = Emit(config);
     const auto reloaded = Parse(saved);
     EXPECT_EQ(Emit(reloaded), saved);
-    EXPECT_EQ(reloaded.elements.size(), config.elements.size());
+    EXPECT_EQ(reloaded.Elements().size(), config.Elements().size());
     EXPECT_NE(saved.find("SendOscValue"), std::string::npos);
     EXPECT_NE(saved.find("rect: [0, 0, 300, 100]"), std::string::npos);
     EXPECT_NE(saved.find("width: 120"), std::string::npos);
 
-    const auto& button = std::get<ButtonElement>(reloaded.elements[4]);
+    const auto& button = std::get<ButtonElement>(reloaded.Elements()[4]);
     ASSERT_TRUE(button.data.click_down.has_value());
     EXPECT_EQ(button.data.click_down->size(), 13U);
     EXPECT_EQ(button.data.highlight, HighlightTest::Notifications);
@@ -257,7 +259,7 @@ TEST(ModularLayout, EveryElementAndActionSurvivesASaveAndLoad) {
 
 TEST(ModularLayout, BundledLayoutsSurviveASaveAndLoad) {
     for (const auto& [name, text] : {std::pair{"watch.yaml", std::string_view(kWatchYaml)}, {"settings.yaml", kSettingsYaml}}) {
-        const auto config = Config::LoadKnownYaml<ModularUiConfig>(name, text);
+        const auto config = ConfigStore::LoadKnownYaml<ModularUiConfig>(name, text);
         const auto saved = Emit(config);
         EXPECT_EQ(Emit(Parse(saved)), saved) << name;
     }

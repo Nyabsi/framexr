@@ -24,30 +24,29 @@
 #include <memory>
 #include <vector>
 
+#include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Error.hpp"
 #include "Image.hpp"
 #include "OpenXrState.hpp"
 #include "OpenXrSwapchain.hpp"
 
-class AppState;
-
 class OpenXrSkybox final {
   public:
-    static auto Create(const OpenXrState& xr, AppState& app) -> std::unique_ptr<OpenXrSkybox>;
+    static auto Create(const OpenXrState& xr) -> std::unique_ptr<OpenXrSkybox>;
 
-    auto Render(const OpenXrState& xr, AppState& app, CommandBatch& batch) -> Result<>;
-    auto Present(const OpenXrState& xr, const AppState& app) -> Result<std::vector<OpenXrLayer>>;
+    auto Render(const OpenXrState& xr, CommandBatch& batch) -> Result<>;
+    auto Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>>;
 
   private:
     explicit OpenXrSkybox(std::shared_ptr<Image> texture);
 
-    static auto Load(AppState& app) -> Result<std::unique_ptr<OpenXrSkybox>>;
+    static auto Load() -> Result<std::unique_ptr<OpenXrSkybox>>;
 
-    auto PrepareSky(const OpenXrState& xr, AppState& app, CommandBatch& batch) -> Result<>;
-    auto PrepareGrid(const OpenXrState& xr, AppState& app, CommandBatch& batch) -> Result<>;
+    auto PrepareSky(const OpenXrState& xr, CommandBatch& batch) -> Result<>;
+    auto PrepareGrid(const OpenXrState& xr, CommandBatch& batch) -> Result<>;
 
-    std::shared_ptr<Image> texture_;
-    std::unique_ptr<OpenXrSwapchain> sky_;
-    std::unique_ptr<OpenXrSwapchain> grid_;
+    std::shared_ptr<Image> m_texture;
+    std::unique_ptr<OpenXrSwapchain> m_sky;
+    std::unique_ptr<OpenXrSwapchain> m_grid;
 };

@@ -29,11 +29,20 @@
 
 #include "Error.hpp"
 
-struct DdsImage {
-    VkFormat format = VK_FORMAT_UNDEFINED;
-    uint32_t width = 0;
-    uint32_t height = 0;
-    std::span<const std::byte> data;
-
+class DdsImage final {
+  public:
     static auto Parse(std::span<const std::byte> file) -> Result<DdsImage>;
+
+    [[nodiscard]] auto Format() const -> VkFormat { return m_format; }
+    [[nodiscard]] auto Width() const -> uint32_t { return m_width; }
+    [[nodiscard]] auto Height() const -> uint32_t { return m_height; }
+    [[nodiscard]] auto Data() const -> std::span<const std::byte> { return m_data; }
+
+  private:
+    DdsImage() = default;
+
+    VkFormat m_format = VK_FORMAT_UNDEFINED;
+    uint32_t m_width = 0;
+    uint32_t m_height = 0;
+    std::span<const std::byte> m_data;
 };

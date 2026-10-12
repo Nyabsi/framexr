@@ -18,14 +18,14 @@
 
 #include "Process.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include <algorithm>
 #include <format>
 #include <string_view>
 #include <system_error>
 #include <utility>
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 namespace {
 
@@ -102,10 +102,6 @@ auto Environment(const ProcessOptions& options) -> std::wstring {
 
 } // namespace
 
-auto ExitStatus::Describe() const -> std::string {
-    return std::format("exit status: {}", code);
-}
-
 auto Process::Spawn(const std::vector<std::string>& command, const ProcessOptions& options) -> Result<Process> {
     if (command.empty()) {
         return Unexpected("empty command");
@@ -162,48 +158,48 @@ auto Process::Spawn(const std::vector<std::string>& command, const ProcessOption
     return Process(information.hProcess, read_pipe);
 }
 
-Process::Process(void* process, void* stdout_pipe) : process_(process), stdout_pipe_(stdout_pipe) {
+Process::Process(void* process, void* stdout_pipe) : m_process(process), m_stdout_pipe(stdout_pipe) {
 }
 
 Process::~Process() {
-    if (stdout_pipe_ != nullptr) {
-        CloseHandle(stdout_pipe_);
+    if (m_stdout_pipe != nullptr) {
+        CloseHandle(m_stdout_pipe);
     }
-    if (process_ != nullptr) {
-        CloseHandle(process_);
+    if (m_process != nullptr) {
+        CloseHandle(m_process);
     }
 }
 
 Process::Process(Process&& other) noexcept
-    : process_(std::exchange(other.process_, nullptr)),
-      stdout_pipe_(std::exchange(other.stdout_pipe_, nullptr)),
-      exit_status_(other.exit_status_) {
+    : m_process(std::exchange(other.m_process, nullptr)),
+      m_stdout_pipe(std::exchange(other.m_stdout_pipe, nullptr)),
+      m_exit_status(other.m_exit_status) {
 }
 
 auto Process::operator=(Process&& other) noexcept -> Process& {
     if (this != &other) {
-        if (stdout_pipe_ != nullptr) {
-            CloseHandle(stdout_pipe_);
+        if (m_stdout_pipe != nullptr) {
+            CloseHandle(m_stdout_pipe);
         }
-        if (process_ != nullptr) {
-            CloseHandle(process_);
+        if (m_process != nullptr) {
+            CloseHandle(m_process);
         }
-        process_ = std::exchange(other.process_, nullptr);
-        stdout_pipe_ = std::exchange(other.stdout_pipe_, nullptr);
-        exit_status_ = other.exit_status_;
+        m_process = std::exchange(other.m_process, nullptr);
+        m_stdout_pipe = std::exchange(other.m_stdout_pipe, nullptr);
+        m_exit_status = other.m_exit_status;
     }
     return *this;
 }
 
 auto Process::Pid() const -> uint32_t {
-    return process_ != nullptr ? GetProcessId(process_) : 0;
+    return m_process != nullptr ? GetProcessId(m_process) : 0;
 }
 
 auto Process::TryWait() -> Result<std::optional<ExitStatus>> {
-    if (exit_status_) {
-        return exit_status_;
+    if (m_exit_status) {
+        return m_exit_status;
     }
-    const DWORD waited = WaitForSingleObject(process_, 0);
+    const DWORD waited = WaitForSingleObject(m_process, 0);
     if (waited == WAIT_TIMEOUT) {
         return std::nullopt;
     }
@@ -211,30 +207,30 @@ auto Process::TryWait() -> Result<std::optional<ExitStatus>> {
         return Unexpected(LastError());
     }
     DWORD code = 0;
-    if (GetExitCodeProcess(process_, &code) == 0) {
+    if (GetExitCodeProcess(m_process, &code) == 0) {
         return Unexpected(LastError());
     }
-    exit_status_ = ExitStatus{.code = static_cast<int>(code)};
-    return exit_status_;
+    m_exit_status = ExitStatus(static_cast<int>(code));
+    return m_exit_status;
 }
 
 auto Process::Signal(int) const -> void {
-    if (process_ != nullptr) {
-        TerminateProcess(process_, 1);
+    if (m_process != nullptr) {
+        TerminateProcess(m_process, 1);
     }
 }
 
 auto Process::ReadStdout() -> std::optional<std::string> {
-    if (stdout_pipe_ == nullptr) {
+    if (m_stdout_pipe == nullptr) {
         return std::nullopt;
     }
     std::string output;
     char buffer[4096];
     DWORD count = 0;
-    while (ReadFile(stdout_pipe_, buffer, sizeof(buffer), &count, nullptr) != 0 && count > 0) {
+    while (ReadFile(m_stdout_pipe, buffer, sizeof(buffer), &count, nullptr) != 0 && count > 0) {
         output.append(buffer, count);
     }
-    CloseHandle(stdout_pipe_);
-    stdout_pipe_ = nullptr;
+    CloseHandle(m_stdout_pipe);
+    m_stdout_pipe = nullptr;
     return output;
 }

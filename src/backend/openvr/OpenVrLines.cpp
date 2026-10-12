@@ -26,38 +26,13 @@
 #include <format>
 #include <numbers>
 
+#include "Device.hpp"
 #include "Logger.hpp"
-#include "State.hpp"
+#include "OpenVrStaticRenderer.hpp"
+#include "SplitOverlayBackend.hpp"
 
-OpenVrStaticRenderer::OpenVrStaticRenderer(std::shared_ptr<Image> image) : image_(std::move(image)) {
-}
-
-auto OpenVrStaticRenderer::Init(AppState&) -> Result<> {
-    return {};
-}
-
-auto OpenVrStaticRenderer::Pause(AppState&) -> Result<> {
-    return {};
-}
-
-auto OpenVrStaticRenderer::Resume(AppState&) -> Result<> {
-    return {};
-}
-
-auto OpenVrStaticRenderer::ShouldRender(AppState&) -> Result<RenderReadiness> {
-    return RenderReadiness::Unable;
-}
-
-auto OpenVrStaticRenderer::Render(AppState&, const std::shared_ptr<Image>&, CommandBatch&, float) -> Result<bool> {
-    return false;
-}
-
-auto OpenVrStaticRenderer::Meta() -> std::optional<FrameMeta> {
-    return FrameMeta{.extent = image_->Extent()};
-}
-
-auto OpenVrLines::Create(Device& device) -> Result<OpenVrLines> {
-    ASSIGN_OR_RETURN(auto command_buffer, device.CreateCommandBuffer(device.GraphicsQueue()));
+auto OpenVrLines::Create() -> Result<OpenVrLines> {
+    ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->GraphicsQueue()));
     const std::array<std::byte, 16> white{
         std::byte{255},
         std::byte{255},
@@ -83,8 +58,8 @@ auto OpenVrLines::Create(Device& device) -> Result<OpenVrLines> {
 }
 
 OpenVrLines::OpenVrLines(std::shared_ptr<Image> image)
-    : image_(std::move(image)),
-      colors_{
+    : m_image(std::move(image)),
+      m_colors{
           Eigen::Vector4f(1.0f, 1.0f, 1.0f, 1.0f),
           Eigen::Vector4f(0.0f, 0.375f, 0.5f, 1.0f),
           Eigen::Vector4f(0.69f, 0.188f, 0.0f, 1.0f),
@@ -94,24 +69,24 @@ OpenVrLines::OpenVrLines(std::shared_ptr<Image> image)
 }
 
 auto OpenVrLines::Allocate() -> size_t {
-    const size_t id = lines_.empty() ? 1 : lines_.back().id + 1;
+    const size_t id = m_lines.empty() ? 1 : m_lines.back().id + 1;
 
     OverlayState state;
-    state.name = std::format("framexr-line{}", id);
-    state.show_hide = true;
-    state.z_order = kZOrderLines;
-    state.dirty = true;
+    state.SetName(std::format("framexr-line{}", id));
+    state.SetShowHide(true);
+    state.SetZOrder(kZOrderLines);
+    state.SetDirty(true);
 
-    lines_.push_back({
+    m_lines.push_back({
         .id = id,
         .overlay = std::make_unique<Overlay>(
             std::move(state),
-            std::make_unique<SplitOverlayBackend>(std::make_unique<OpenVrStaticRenderer>(image_), nullptr)
+            std::make_unique<SplitOverlayBackend>(std::make_unique<OpenVrStaticRenderer>(m_image), nullptr)
         ),
         .data = {
             .width = 0.002f,
             .override_width = true,
-            .image = image_,
+            .image = m_image,
             .image_dirty = true,
         },
     });
@@ -144,11 +119,11 @@ auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t
     }
     transform = transform * Eigen::AngleAxisf(std::numbers::pi_v<float> * angles[closest], Eigen::Vector3f::UnitY());
 
-    for (auto& line : lines_) {
+    for (auto& line : m_lines) {
         if (line.id == id) {
-            line.overlay->state.want_visible = true;
-            line.overlay->state.transform = transform;
-            line.data.color = colors_.at(color);
+            line.overlay->State().SetWantVisible(true);
+            line.overlay->State().SetTransform(transform);
+            line.data.color = m_colors.at(color);
             return;
         }
     }
@@ -156,22 +131,22 @@ auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t
 }
 
 auto OpenVrLines::Hide(size_t id) -> void {
-    for (auto& line : lines_) {
+    for (auto& line : m_lines) {
         if (line.id == id) {
-            line.overlay->state.want_visible = false;
+            line.overlay->State().SetWantVisible(false);
         }
     }
 }
 
-auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> Result<> {
-    for (auto& line : lines_) {
-        RETURN_IF_ERROR(OpenVrOverlay::AfterInput(app, *line.overlay, line.data));
-        if (!line.overlay->state.want_visible) {
+auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe) -> Result<> {
+    for (auto& line : m_lines) {
+        RETURN_IF_ERROR(OpenVrOverlay::AfterInput(*line.overlay, line.data));
+        if (!line.overlay->State().WantVisible()) {
             continue;
         }
-        if (line.overlay->state.dirty) {
-            OpenVrOverlay::UploadTexture(*line.overlay, line.data, *app.device);
-            line.overlay->state.dirty = false;
+        if (line.overlay->State().Dirty()) {
+            OpenVrOverlay::UploadTexture(*line.overlay, line.data);
+            line.overlay->State().SetDirty(false);
         }
         OpenVrOverlay::UploadTransform(universe, *line.overlay, line.data);
         OpenVrOverlay::UploadColor(*line.overlay, line.data);
@@ -180,7 +155,7 @@ auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe, AppState& app) ->
 }
 
 auto OpenVrLines::MarkDirty() -> void {
-    for (auto& line : lines_) {
-        line.overlay->state.dirty = true;
+    for (auto& line : m_lines) {
+        line.overlay->State().SetDirty(true);
     }
 }

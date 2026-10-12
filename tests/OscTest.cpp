@@ -48,16 +48,16 @@ class OscWire : public testing::Test {
     auto SetUp() -> void override {
         auto receiver = UdpSocket::Bind(UdpAddress::Loopback, 0);
         ASSERT_TRUE(receiver.has_value());
-        receiver_ = std::move(*receiver);
-        ASSERT_TRUE(receiver_->SetReceiveTimeout(std::chrono::seconds(2)).has_value());
-        auto sender = OscSender::Create(receiver_->LocalPort());
+        m_receiver = std::move(*receiver);
+        ASSERT_TRUE(m_receiver->SetReceiveTimeout(std::chrono::seconds(2)).has_value());
+        auto sender = OscSender::Create(m_receiver->LocalPort());
         ASSERT_TRUE(sender.has_value());
-        sender_ = std::move(*sender);
+        m_sender = std::move(*sender);
     }
 
     [[nodiscard]] auto Receive() const -> std::vector<unsigned char> {
         std::array<std::byte, 512> buffer{};
-        const auto received = receiver_->Receive(buffer);
+        const auto received = m_receiver->Receive(buffer);
         std::vector<unsigned char> bytes;
         for (const auto byte : std::span(buffer).first(received.value_or(0))) {
             bytes.push_back(std::to_integer<unsigned char>(byte));
@@ -65,23 +65,23 @@ class OscWire : public testing::Test {
         return bytes;
     }
 
-    std::optional<UdpSocket> receiver_;
-    std::unique_ptr<OscSender> sender_;
+    std::optional<UdpSocket> m_receiver;
+    std::unique_ptr<OscSender> m_sender;
 };
 
 } // namespace
 
 TEST_F(OscWire, BoolArgumentHasNoPayload) {
-    ASSERT_TRUE(sender_->SendMessage("/avatar/parameters/isOverlayOpen", {true}).has_value());
+    ASSERT_TRUE(m_sender->SendMessage("/avatar/parameters/isOverlayOpen", {true}).has_value());
     EXPECT_EQ(Receive(), ExpectedPacket("/avatar/parameters/isOverlayOpen", ",T", {}));
 }
 
 TEST_F(OscWire, IntArgumentIsBigEndian) {
-    ASSERT_TRUE(sender_->SendMessage("/avatar/parameters/openOverlayCount", {int32_t{5}}).has_value());
+    ASSERT_TRUE(m_sender->SendMessage("/avatar/parameters/openOverlayCount", {int32_t{5}}).has_value());
     EXPECT_EQ(Receive(), ExpectedPacket("/avatar/parameters/openOverlayCount", ",i", {0, 0, 0, 5}));
 }
 
 TEST_F(OscWire, MixedArgumentsArePaddedPerSpec) {
-    ASSERT_TRUE(sender_->SendMessage("/a", {0.5f, std::string("xyz"), false}).has_value());
+    ASSERT_TRUE(m_sender->SendMessage("/a", {0.5f, std::string("xyz"), false}).has_value());
     EXPECT_EQ(Receive(), ExpectedPacket("/a", ",fsF", {0x3f, 0, 0, 0, 'x', 'y', 'z', 0}));
 }

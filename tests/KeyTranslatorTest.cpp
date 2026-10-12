@@ -21,8 +21,8 @@
 
 #include <gtest/gtest.h>
 
-#include "KeyTranslator.hpp"
 #include "Keymap.hpp"
+#include "KeyTranslator.hpp"
 
 namespace {
 
@@ -37,10 +37,10 @@ auto Load(const char* layout) -> std::shared_ptr<const Keymap> {
 } // namespace
 
 TEST(KeyboardRegion, ParsesLayoutAndVariant) {
-    const auto plain = KeyboardRegion::Parse("fi");
+    const auto plain = KeyTranslator::ParseRegion("fi");
     EXPECT_EQ(plain.layout, "fi");
     EXPECT_TRUE(plain.variant.empty());
-    const auto variant = KeyboardRegion::Parse("fi(classic)");
+    const auto variant = KeyTranslator::ParseRegion("fi(classic)");
     EXPECT_EQ(variant.layout, "fi");
     EXPECT_EQ(variant.variant, "classic");
 }

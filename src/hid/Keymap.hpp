@@ -32,7 +32,6 @@
 
 struct xkb_context;
 struct xkb_keymap;
-struct xkb_state;
 struct wl_seat;
 struct wl_keyboard;
 
@@ -41,22 +40,9 @@ struct TranslatedKey {
     uint8_t modifiers = 0;
 };
 
-struct XkbContextDeleter {
-    auto operator()(xkb_context* context) const -> void;
-};
-
-struct XkbKeymapDeleter {
-    auto operator()(xkb_keymap* keymap) const -> void;
-};
-
-struct XkbStateDeleter {
-    auto operator()(xkb_state* state) const -> void;
-};
-
-struct KeyboardLayoutDeleter {
-    bool owned = false;
-
-    auto operator()(void* layout) const -> void;
+struct Translation {
+    std::wstring text;
+    bool dead = false;
 };
 
 struct WaylandKeymapQuery {
@@ -81,13 +67,16 @@ class Keymap final {
 
   private:
 #ifdef _WIN32
-    explicit Keymap(std::unique_ptr<void, KeyboardLayoutDeleter> layout);
+    explicit Keymap(std::unique_ptr<void, void (*)(void*)> layout);
 
-    std::unique_ptr<void, KeyboardLayoutDeleter> layout_;
+    static auto UnloadLayout(void* layout) -> void;
+    static auto KeepLayout(void* layout) -> void;
+
+    std::unique_ptr<void, void (*)(void*)> m_layout;
 #else
-    Keymap(std::unique_ptr<xkb_context, XkbContextDeleter> context, std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap);
+    Keymap(std::unique_ptr<xkb_context, void (*)(xkb_context*)> context, std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)> keymap);
 
-    std::unique_ptr<xkb_context, XkbContextDeleter> context_;
-    std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap_;
+    std::unique_ptr<xkb_context, void (*)(xkb_context*)> m_context;
+    std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)> m_keymap;
 #endif
 };

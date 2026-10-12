@@ -39,5 +39,8 @@ if get_option('openvr').allowed()
     'OpenVrMath.cpp',
     'OpenVrOverlay.cpp',
     'OpenVrPlayspace.cpp',
+    'OpenVrRuntime.cpp',
+    'OpenVrSession.cpp',
+    'OpenVrStaticRenderer.cpp',
   )
 endif

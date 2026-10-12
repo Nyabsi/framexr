@@ -21,17 +21,17 @@
 #include <utility>
 
 FakeCapture::FakeCapture(uint32_t width, uint32_t height, std::vector<std::byte> bgra)
-    : width_(width),
-      height_(height),
-      bgra_(std::move(bgra)) {
+    : m_width(width),
+      m_height(height),
+      m_bgra(std::move(bgra)) {
 }
 
 auto FakeCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
-    processor_ = std::move(processor);
+    m_processor = std::move(processor);
 }
 
 auto FakeCapture::IsStarted() const -> bool {
-    return static_cast<bool>(processor_);
+    return static_cast<bool>(m_processor);
 }
 
 auto FakeCapture::SupportsDmabuf() const -> bool {
@@ -39,7 +39,7 @@ auto FakeCapture::SupportsDmabuf() const -> bool {
 }
 
 auto FakeCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    return std::move(pending_);
+    return std::move(m_pending);
 }
 
 auto FakeCapture::Pause() -> void {
@@ -49,14 +49,14 @@ auto FakeCapture::Resume() -> void {
 }
 
 auto FakeCapture::RequestNewFrame() -> void {
-    if (!processor_ || pending_) {
+    if (!m_processor || m_pending) {
         return;
     }
-    pending_ = processor_(
+    m_pending = m_processor(
         MemPtrFrame{
-            .format = {.width = width_, .height = height_, .fourcc = kDrmFormatXrgb8888, .transform = FrameTransform::Normal},
-            .data = bgra_.data(),
-            .size = bgra_.size(),
+            .format = {.width = m_width, .height = m_height, .fourcc = kDrmFormatXrgb8888, .transform = FrameTransform::Normal},
+            .data = m_bgra.data(),
+            .size = m_bgra.size(),
         }
     );
 }

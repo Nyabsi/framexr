@@ -23,28 +23,29 @@
 
 #include <algorithm>
 
+#include "Config.hpp"
+#include "Input.hpp"
 #include "Logger.hpp"
 #include "Monado.hpp"
-#include "State.hpp"
 
-auto OpenXrBlocker::Update(const AppState& app, OverlayId watch_id, Monado& monado) -> void {
-    if (!app.config.block_game_input) {
+auto OpenXrBlocker::Update(OverlayId watch_id, Monado& monado) -> void {
+    if (!g_config->block_game_input) {
         return;
     }
 
-    const bool any_hovered = std::ranges::any_of(app.input.pointers, [&](const Pointer& pointer) -> bool {
-        const auto& hovered = pointer.interaction.hovered_id;
-        return hovered && (*hovered != watch_id || !app.config.block_game_input_ignore_watch);
+    const bool any_hovered = std::ranges::any_of(g_input->Pointers(), [&](const Pointer& pointer) -> bool {
+        const auto& hovered = pointer.Interaction().hovered_id;
+        return hovered && (*hovered != watch_id || !g_config->block_game_input_ignore_watch);
     });
 
-    if (any_hovered && !hovered_last_frame_) {
+    if (any_hovered && !m_hovered_last_frame) {
         LOG_INFO("Blocking input");
         SetClientsIoActive(monado, false);
-    } else if (!any_hovered && hovered_last_frame_) {
+    } else if (!any_hovered && m_hovered_last_frame) {
         LOG_INFO("Unblocking input");
         SetClientsIoActive(monado, true);
     }
-    hovered_last_frame_ = any_hovered;
+    m_hovered_last_frame = any_hovered;
 }
 
 auto OpenXrBlocker::SetClientsIoActive(Monado& monado, bool active) -> void {

@@ -24,10 +24,9 @@
 #include <map>
 #include <utility>
 
+#include "EditorColors.hpp"
 #include "Keyboard.hpp"
-#include "Logger.hpp"
-#include "PanelBuilder.hpp"
-#include "State.hpp"
+#include "OutlineControl.hpp"
 #include "Theme.hpp"
 
 namespace {
@@ -135,8 +134,8 @@ auto WithAlpha(Eigen::Vector4f color, float alpha) -> Eigen::Vector4f {
 }
 
 auto IndexOf(const KeyboardLayout& layout, float x, int row) -> std::optional<size_t> {
-    for (size_t i = 0; i < layout.keys.size(); ++i) {
-        if (layout.keys[i].row == row && std::abs(layout.keys[i].x - x) < kEpsilon) {
+    for (size_t i = 0; i < layout.Keys().size(); ++i) {
+        if (layout.Keys()[i].row == row && std::abs(layout.Keys()[i].x - x) < kEpsilon) {
             return i;
         }
     }
@@ -145,7 +144,7 @@ auto IndexOf(const KeyboardLayout& layout, float x, int row) -> std::optional<si
 
 } // namespace
 
-KeyboardDesigner::KeyboardDesigner(KeyboardLayout layout) : history(std::move(layout)) {
+KeyboardDesigner::KeyboardDesigner(KeyboardLayout layout) : m_revisions(std::move(layout)) {
 }
 
 auto KeyboardDesigner::Template(KeyTemplate key_template) -> const KeyboardLayout& {
@@ -184,7 +183,7 @@ auto KeyboardDesigner::CellRect(float x, int row, float width) const -> CanvasRe
 }
 
 auto KeyboardDesigner::KeyPreviewCenter(size_t index) const -> Eigen::Vector2f {
-    const auto rect = Keyboard::KeyRect(Document().keys.at(index), {.scale = kScale});
+    const auto rect = Keyboard::KeyRect(Document().Keys().at(index), {.scale = kScale});
     return {rect.x + rect.w / 2.0f, rect.y + rect.h / 2.0f};
 }
 
@@ -217,11 +216,11 @@ auto KeyboardDesigner::HitTest(const Eigen::Vector2f& preview) const -> KeyHit {
     const auto& layout = Document();
     const Eigen::Vector2f grid = ToGrid(preview);
     const int row = static_cast<int>(std::floor(grid.y()));
-    if (row < 0 || row >= layout.rows || grid.x() < 0.0f || grid.x() >= layout.columns) {
+    if (row < 0 || row >= layout.Rows() || grid.x() < 0.0f || grid.x() >= layout.Columns()) {
         return {};
     }
     if (const auto key = layout.KeyAt(grid.x(), row)) {
-        return {.kind = KeyHitKind::Key, .index = *key, .x = layout.keys[*key].x, .row = row};
+        return {.kind = KeyHitKind::Key, .index = *key, .x = layout.Keys()[*key].x, .row = row};
     }
     const float cell = std::floor(grid.x());
     if (layout.Fits(cell, row, 1.0f)) {
@@ -239,83 +238,83 @@ auto KeyboardDesigner::DropCell(const Eigen::Vector2f& preview) const -> std::pa
 }
 
 auto KeyboardDesigner::Hover(const Eigen::Vector2f& preview) -> void {
-    if (drag_) {
+    if (m_drag) {
         Move(preview);
     }
-    hovered = HitTest(preview);
-    if (carrying) {
-        carrying->second = preview;
+    m_hovered = HitTest(preview);
+    if (m_carrying) {
+        m_carrying->second = preview;
     }
 }
 
 auto KeyboardDesigner::Press(const Eigen::Vector2f& preview) -> void {
     const auto hit = HitTest(preview);
-    if (armed_ && hit.kind != *armed_) {
-        armed_.reset();
+    if (m_armed && hit.kind != *m_armed) {
+        m_armed.reset();
     }
-    Drag drag{.hit = hit, .start = preview, .engaged = hold.count() == 0, .pressed_at = std::chrono::steady_clock::now()};
+    Drag drag{.hit = hit, .start = preview, .engaged = m_hold.count() == 0, .pressed_at = std::chrono::steady_clock::now()};
     if (hit.kind == KeyHitKind::Key) {
-        drag.reselected = selected == hit.index;
-        selected = hit.index;
-        const auto& key = Document().keys[hit.index];
+        drag.reselected = m_selected == hit.index;
+        m_selected = hit.index;
+        const auto& key = Document().Keys()[hit.index];
         drag.grab = ToGrid(preview) - Eigen::Vector2f(key.x, static_cast<float>(key.row));
         drag.x = key.x;
         drag.row = key.row;
     } else if (hit.kind == KeyHitKind::None) {
-        selected.reset();
+        m_selected.reset();
     }
-    drag_ = drag;
+    m_drag = drag;
 }
 
 auto KeyboardDesigner::Move(const Eigen::Vector2f& preview) -> void {
-    if (!drag_ || drag_->hit.kind != KeyHitKind::Key) {
+    if (!m_drag || m_drag->hit.kind != KeyHitKind::Key) {
         return;
     }
-    if (!drag_->engaged) {
-        if (std::chrono::steady_clock::now() - drag_->pressed_at < hold) {
+    if (!m_drag->engaged) {
+        if (std::chrono::steady_clock::now() - m_drag->pressed_at < m_hold) {
             return;
         }
-        drag_->engaged = true;
-        drag_->start = preview;
+        m_drag->engaged = true;
+        m_drag->start = preview;
         return;
     }
-    if ((preview - drag_->start).norm() > kMoveThreshold) {
-        drag_->moved = true;
+    if ((preview - m_drag->start).norm() > kMoveThreshold) {
+        m_drag->moved = true;
     }
-    if (!drag_->moved) {
+    if (!m_drag->moved) {
         return;
     }
     const auto& layout = Document();
-    const auto& key = layout.keys.at(drag_->hit.index);
-    const Eigen::Vector2f grid = ToGrid(preview) - drag_->grab;
-    drag_->x = KeyboardLayout::Snap(grid.x());
-    drag_->row = static_cast<int>(std::lround(grid.y()));
-    drag_->fits = layout.Fits(drag_->x, drag_->row, key.width, drag_->hit.index);
+    const auto& key = layout.Keys().at(m_drag->hit.index);
+    const Eigen::Vector2f grid = ToGrid(preview) - m_drag->grab;
+    m_drag->x = KeyboardLayout::Snap(grid.x());
+    m_drag->row = static_cast<int>(std::lround(grid.y()));
+    m_drag->fits = layout.Fits(m_drag->x, m_drag->row, key.width, m_drag->hit.index);
 }
 
 auto KeyboardDesigner::Release(const Eigen::Vector2f& preview) -> bool {
-    if (!drag_) {
+    if (!m_drag) {
         return false;
     }
-    const auto drag = *drag_;
-    drag_.reset();
+    const auto drag = *m_drag;
+    m_drag.reset();
     switch (drag.hit.kind) {
     case KeyHitKind::Key: {
         if (!drag.moved && drag.reselected) {
-            selected.reset();
+            m_selected.reset();
             return false;
         }
-        const auto& key = Document().keys.at(drag.hit.index);
+        const auto& key = Document().Keys().at(drag.hit.index);
         if (!drag.engaged || !drag.moved || !drag.fits || (std::abs(key.x - drag.x) < kEpsilon && key.row == drag.row)) {
             return false;
         }
-        history.Edit([&drag](KeyboardLayout& layout) -> void {
-            auto& moved = layout.keys.at(drag.hit.index);
+        m_revisions.Edit([&drag](KeyboardLayout& layout) -> void {
+            auto& moved = layout.Keys().at(drag.hit.index);
             moved.x = drag.x;
             moved.row = drag.row;
             layout.SortKeys();
         });
-        selected = IndexOf(Document(), drag.x, drag.row);
+        m_selected = IndexOf(Document(), drag.x, drag.row);
         return true;
     }
     case KeyHitKind::None: return false;
@@ -341,83 +340,87 @@ auto KeyboardDesigner::Release(const Eigen::Vector2f& preview) -> bool {
 }
 
 auto KeyboardDesigner::AddKey(float x, int row) -> void {
-    history.Edit([x, row](KeyboardLayout& layout) -> void {
-        layout.keys.push_back({.x = x, .row = row, .width = 1.0f, .action = BlankKey{}});
+    m_revisions.Edit([x, row](KeyboardLayout& layout) -> void {
+        layout.Keys().push_back({.x = x, .row = row, .width = 1.0f, .action = BlankKey{}});
         layout.SortKeys();
     });
-    selected = IndexOf(Document(), x, row);
+    m_selected = IndexOf(Document(), x, row);
 }
 
 auto KeyboardDesigner::AddColumn() -> void {
-    armed_.reset();
-    history.Edit([](KeyboardLayout& layout) -> void { layout.columns += 1.0f; });
+    m_armed.reset();
+    m_revisions.Edit([](KeyboardLayout& layout) -> void { layout.SetColumns(layout.Columns() + 1.0f); });
 }
 
 auto KeyboardDesigner::RemoveColumn() -> bool {
     const auto& layout = Document();
-    const float columns = std::max(layout.columns - 1.0f, 1.0f);
-    if (columns == layout.columns) {
+    const float columns = std::max(layout.Columns() - 1.0f, 1.0f);
+    if (columns == layout.Columns()) {
         return false;
     }
-    const bool loses_keys = std::ranges::any_of(layout.keys, [columns](const KeyDefinition& key) -> bool {
-        return key.Right() > columns + kEpsilon;
+    const bool loses_keys = std::ranges::any_of(layout.Keys(), [columns](const KeyDefinition& key) -> bool {
+        return KeyboardLayout::RightEdge(key) > columns + kEpsilon;
     });
-    if (loses_keys && armed_ != KeyHitKind::RemoveColumn) {
-        armed_ = KeyHitKind::RemoveColumn;
+    if (loses_keys && m_armed != KeyHitKind::RemoveColumn) {
+        m_armed = KeyHitKind::RemoveColumn;
         return false;
     }
-    armed_.reset();
-    selected.reset();
-    history.Edit([columns](KeyboardLayout& edited) -> void {
-        std::erase_if(edited.keys, [columns](const KeyDefinition& key) -> bool { return key.Right() > columns + kEpsilon; });
-        edited.columns = columns;
+    m_armed.reset();
+    m_selected.reset();
+    m_revisions.Edit([columns](KeyboardLayout& edited) -> void {
+        std::erase_if(edited.Keys(), [columns](const KeyDefinition& key) -> bool {
+            return KeyboardLayout::RightEdge(key) > columns + kEpsilon;
+        });
+        edited.SetColumns(columns);
     });
     return true;
 }
 
 auto KeyboardDesigner::AddRow() -> void {
-    armed_.reset();
-    history.Edit([](KeyboardLayout& layout) -> void { layout.rows += 1; });
+    m_armed.reset();
+    m_revisions.Edit([](KeyboardLayout& layout) -> void { layout.SetRows(layout.Rows() + 1); });
 }
 
 auto KeyboardDesigner::RemoveRow() -> bool {
     const auto& layout = Document();
-    if (layout.rows <= 1) {
+    if (layout.Rows() <= 1) {
         return false;
     }
-    const int rows = layout.rows - 1;
-    const bool loses_keys = std::ranges::any_of(layout.keys, [rows](const KeyDefinition& key) -> bool { return key.row >= rows; });
-    if (loses_keys && armed_ != KeyHitKind::RemoveRow) {
-        armed_ = KeyHitKind::RemoveRow;
+    const int rows = layout.Rows() - 1;
+    const bool loses_keys = std::ranges::any_of(layout.Keys(), [rows](const KeyDefinition& key) -> bool {
+        return key.row >= rows;
+    });
+    if (loses_keys && m_armed != KeyHitKind::RemoveRow) {
+        m_armed = KeyHitKind::RemoveRow;
         return false;
     }
-    armed_.reset();
-    selected.reset();
-    history.Edit([rows](KeyboardLayout& edited) -> void {
-        std::erase_if(edited.keys, [rows](const KeyDefinition& key) -> bool { return key.row >= rows; });
-        edited.rows = rows;
+    m_armed.reset();
+    m_selected.reset();
+    m_revisions.Edit([rows](KeyboardLayout& edited) -> void {
+        std::erase_if(edited.Keys(), [rows](const KeyDefinition& key) -> bool { return key.row >= rows; });
+        edited.SetRows(rows);
     });
     return true;
 }
 
 auto KeyboardDesigner::Resize(size_t index, float delta) -> bool {
-    const auto& key = Document().keys.at(index);
+    const auto& key = Document().Keys().at(index);
     const float width = KeyboardLayout::Snap(key.width + delta);
     if (width < kKeyStep - kEpsilon || !Document().Fits(key.x, key.row, width, index)) {
         return false;
     }
-    history.Edit([index, width](KeyboardLayout& layout) -> void { layout.keys.at(index).width = width; });
+    m_revisions.Edit([index, width](KeyboardLayout& layout) -> void { layout.Keys().at(index).width = width; });
     return true;
 }
 
 auto KeyboardDesigner::Duplicate(size_t index) -> bool {
     const auto& layout = Document();
-    const auto& key = layout.keys.at(index);
+    const auto& key = layout.Keys().at(index);
     std::optional<std::pair<float, int>> spot;
-    for (int offset = 0; offset < layout.rows && !spot; ++offset) {
-        const int row = (key.row + offset) % layout.rows;
-        const int first = offset == 0 ? static_cast<int>(std::lround(key.Right() / kKeyStep)) : 0;
-        const int last = static_cast<int>(std::lround((layout.columns - key.width) / kKeyStep));
+    for (int offset = 0; offset < layout.Rows() && !spot; ++offset) {
+        const int row = (key.row + offset) % layout.Rows();
+        const int first = offset == 0 ? static_cast<int>(std::lround(KeyboardLayout::RightEdge(key) / kKeyStep)) : 0;
+        const int last = static_cast<int>(std::lround((layout.Columns() - key.width) / kKeyStep));
         for (int step = first; step <= last; ++step) {
             const float x = static_cast<float>(step) * kKeyStep;
             if (layout.Fits(x, row, key.width)) {
@@ -432,47 +435,48 @@ auto KeyboardDesigner::Duplicate(size_t index) -> bool {
     auto copy = key;
     copy.x = spot->first;
     copy.row = spot->second;
-    history.Edit([&copy](KeyboardLayout& edited) -> void {
-        edited.keys.push_back(copy);
+    m_revisions.Edit([&copy](KeyboardLayout& edited) -> void {
+        edited.Keys().push_back(copy);
         edited.SortKeys();
     });
-    selected = IndexOf(Document(), copy.x, copy.row);
+    m_selected = IndexOf(Document(), copy.x, copy.row);
     return true;
 }
 
 auto KeyboardDesigner::Remove(size_t index) -> void {
-    history.Edit([index](KeyboardLayout& layout) -> void {
-        layout.keys.erase(layout.keys.begin() + static_cast<std::ptrdiff_t>(index));
+    m_revisions.Edit([index](KeyboardLayout& layout) -> void {
+        layout.Keys().erase(layout.Keys().begin() + static_cast<std::ptrdiff_t>(index));
     });
-    selected.reset();
+    m_selected.reset();
 }
 
 auto KeyboardDesigner::Place(KeyTemplate key_template, float x, int row) -> bool {
     const auto& shape = Template(key_template);
     auto layout = Document();
-    layout.columns = std::max(layout.columns, std::ceil(x + shape.columns));
-    layout.rows = std::max(layout.rows, row + shape.rows);
-    for (const auto& key : shape.keys) {
+    layout.SetColumns(std::max(layout.Columns(), std::ceil(x + shape.Columns())));
+    layout.SetRows(std::max(layout.Rows(), row + shape.Rows()));
+    for (const auto& key : shape.Keys()) {
         auto placed = key;
         placed.x += x;
         placed.row += row;
         if (!layout.Fits(placed.x, placed.row, placed.width)) {
             return false;
         }
-        layout.keys.push_back(std::move(placed));
+        layout.Keys().push_back(std::move(placed));
     }
     layout.SortKeys();
-    history.Edit([&layout](KeyboardLayout& edited) -> void { edited = std::move(layout); });
-    selected = shape.keys.size() == 1 ? IndexOf(Document(), x + shape.keys.front().x, row + shape.keys.front().row) : std::nullopt;
+    m_revisions.Edit([&layout](KeyboardLayout& edited) -> void { edited = std::move(layout); });
+    m_selected = shape.Keys().size() == 1 ? IndexOf(Document(), x + shape.Keys().front().x, row + shape.Keys().front().row)
+                                          : std::nullopt;
     return true;
 }
 
-auto KeyboardDesigner::Draw(Canvas& canvas, AppState& app, const std::shared_ptr<const Keymap>& keymap) const -> void {
+auto KeyboardDesigner::Draw(Canvas& canvas, const std::shared_ptr<const Keymap>& keymap) const -> void {
     const auto& layout = Document();
     const auto size = PreviewSize();
-    canvas.bg_color = EditorColors::Hex("#11111bc0");
-    canvas.Panel(0.0f, 0.0f, size.x(), size.y(), Theme::Radius(Theme::Active().rounding, Shape::Panel) * kScale);
-    Keyboard::Fill(canvas, layout, app, keymap, std::make_shared<KeyboardState>(), {.scale = kScale, .interactive = false});
+    canvas.SetBgColor(EditorColors::Hex("#11111bc0"));
+    canvas.Panel(0.0f, 0.0f, size.x(), size.y(), Theme::Radius(g_themes->Active().rounding, Shape::Panel) * kScale);
+    Keyboard::Fill(canvas, layout, keymap, std::make_shared<KeyboardState>(), {.scale = kScale, .interactive = false});
 
     const auto outline =
         [&canvas](const CanvasRect& rect, const std::optional<Eigen::Vector4f>& fill, const Eigen::Vector4f& color, float width)
@@ -488,21 +492,21 @@ auto KeyboardDesigner::Draw(Canvas& canvas, AppState& app, const std::shared_ptr
     };
     const auto button =
         [&canvas](const CanvasRect& rect, std::string_view text, const Eigen::Vector4f& bg, const Eigen::Vector4f& fg) -> void {
-        canvas.bg_color = bg;
+        canvas.SetBgColor(bg);
         canvas.Panel(rect.x, rect.y, rect.w, rect.h, 6.0f);
-        canvas.fg_color = fg;
-        canvas.font_size = 16;
+        canvas.SetFgColor(fg);
+        canvas.SetFontSize(16);
         canvas.LabelCentered(rect.x, rect.y, rect.w, rect.h, 0.0f, std::string(text));
     };
 
     const auto faint = WithAlpha(EditorColors::Surface(), 0.35f);
     for (const auto& [x, row] : layout.FreeCells()) {
-        const bool lit = hovered && hovered->kind == KeyHitKind::Cell && hovered->x == x && hovered->row == row;
+        const bool lit = m_hovered && m_hovered->kind == KeyHitKind::Cell && m_hovered->x == x && m_hovered->row == row;
         button(CellRect(x, row, 1.0f), "+", lit ? EditorColors::Surface() : faint, EditorColors::Dim());
     }
     const auto control = [&](KeyHitKind kind, std::string_view text) -> void {
-        const bool armed = armed_ == kind;
-        const bool lit = hovered && hovered->kind == kind;
+        const bool armed = m_armed == kind;
+        const bool lit = m_hovered && m_hovered->kind == kind;
         button(
             ControlRect(kind),
             armed ? "Sure?" : text,
@@ -515,17 +519,18 @@ auto KeyboardDesigner::Draw(Canvas& canvas, AppState& app, const std::shared_ptr
     control(KeyHitKind::AddRow, "+ row");
     control(KeyHitKind::RemoveRow, "- row");
 
-    if (hovered && hovered->kind == KeyHitKind::Key && hovered->index != selected && hovered->index < layout.keys.size()) {
+    if (m_hovered && m_hovered->kind == KeyHitKind::Key && m_hovered->index != m_selected
+        && m_hovered->index < layout.Keys().size()) {
         outline(
-            Keyboard::KeyRect(layout.keys[hovered->index], {.scale = kScale}),
+            Keyboard::KeyRect(layout.Keys()[m_hovered->index], {.scale = kScale}),
             std::nullopt,
             Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.4f),
             1.5f
         );
     }
-    if (selected && *selected < layout.keys.size()) {
-        const auto rect = Keyboard::KeyRect(layout.keys[*selected], {.scale = kScale});
-        if (drag_ && drag_->engaged && drag_->hit.kind == KeyHitKind::Key) {
+    if (m_selected && *m_selected < layout.Keys().size()) {
+        const auto rect = Keyboard::KeyRect(layout.Keys()[*m_selected], {.scale = kScale});
+        if (m_drag && m_drag->engaged && m_drag->hit.kind == KeyHitKind::Key) {
             outline(
                 {rect.x - 3.0f, rect.y - 3.0f, rect.w + 6.0f, rect.h + 6.0f},
                 WithAlpha(EditorColors::Accent(), 0.22f),
@@ -536,19 +541,19 @@ auto KeyboardDesigner::Draw(Canvas& canvas, AppState& app, const std::shared_ptr
             outline(rect, std::nullopt, EditorColors::Accent(), 2.5f);
         }
     }
-    if (drag_ && drag_->moved && drag_->hit.kind == KeyHitKind::Key) {
-        const auto& key = layout.keys.at(drag_->hit.index);
-        const auto color = drag_->fits ? EditorColors::Hex("@green") : EditorColors::Danger();
-        outline(CellRect(drag_->x, drag_->row, key.width), WithAlpha(color, 0.25f), color, 2.0f);
+    if (m_drag && m_drag->moved && m_drag->hit.kind == KeyHitKind::Key) {
+        const auto& key = layout.Keys().at(m_drag->hit.index);
+        const auto color = m_drag->fits ? EditorColors::Hex("@green") : EditorColors::Danger();
+        outline(CellRect(m_drag->x, m_drag->row, key.width), WithAlpha(color, 0.25f), color, 2.0f);
     }
-    if (carrying) {
-        const auto& [key_template, point] = *carrying;
+    if (m_carrying) {
+        const auto& [key_template, point] = *m_carrying;
         const auto [x, row] = DropCell(point);
         const auto& shape = Template(key_template);
         auto grown = layout;
-        grown.columns = std::max(grown.columns, std::ceil(x + shape.columns));
-        grown.rows = std::max(grown.rows, row + shape.rows);
-        for (const auto& key : shape.keys) {
+        grown.SetColumns(std::max(grown.Columns(), std::ceil(x + shape.Columns())));
+        grown.SetRows(std::max(grown.Rows(), row + shape.Rows()));
+        for (const auto& key : shape.Keys()) {
             const bool fits = grown.Fits(key.x + x, key.row + row, key.width);
             const auto color = fits ? EditorColors::Hex("@green") : EditorColors::Danger();
             outline(CellRect(key.x + x, key.row + row, key.width), WithAlpha(color, 0.25f), color, 2.0f);

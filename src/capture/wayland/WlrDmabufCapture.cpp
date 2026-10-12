@@ -21,39 +21,37 @@
 
 #include "WlrDmabufCapture.hpp"
 
-#include <unistd.h>
-
 #include <chrono>
 #include <utility>
 
-#include <wayland-client.h>
+#include <unistd.h>
 
 #include "Error.hpp"
 #include "Logger.hpp"
 #include "wlr-export-dmabuf-unstable-v1-client-protocol.h"
 
 WlrDmabufCapture::WlrDmabufCapture(std::unique_ptr<WaylandClient> client, uint32_t output_id)
-    : output_id_(output_id),
-      client_(std::move(client)) {
+    : m_output_id(output_id),
+      m_client(std::move(client)) {
 }
 
 WlrDmabufCapture::~WlrDmabufCapture() {
-    if (worker_.valid()) {
-        worker_.wait();
+    if (m_worker.valid()) {
+        m_worker.wait();
     }
-    if (channel_) {
-        for (const auto& frame : channel_->TakeAll()) {
+    if (m_channel) {
+        for (const auto& frame : m_channel->TakeAll()) {
             CloseFrame(frame);
         }
     }
-    for (const int fd : fds_) {
+    for (const int fd : m_fds) {
         close(fd);
     }
 }
 
 auto WlrDmabufCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
-    channel_ = std::make_shared<FrameChannel<DmabufFrame>>(2);
-    processor_ = std::move(processor);
+    m_channel = std::make_shared<FrameChannel<DmabufFrame>>(2);
+    m_processor = std::move(processor);
 }
 
 auto WlrDmabufCapture::CloseFrame(const DmabufFrame& frame) -> void {
@@ -65,10 +63,10 @@ auto WlrDmabufCapture::CloseFrame(const DmabufFrame& frame) -> void {
 }
 
 auto WlrDmabufCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!channel_) {
+    if (!m_channel) {
         return nullptr;
     }
-    auto frames = channel_->TakeAll();
+    auto frames = m_channel->TakeAll();
     if (frames.empty()) {
         return nullptr;
     }
@@ -78,16 +76,16 @@ auto WlrDmabufCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
         CloseFrame(frame);
     }
 
-    while (fds_.size() > 6 * latest.planes.size()) {
-        close(fds_.back());
-        fds_.pop_back();
+    while (m_fds.size() > 6 * latest.planes.size()) {
+        close(m_fds.back());
+        m_fds.pop_back();
     }
     for (const auto& plane : latest.planes) {
         if (plane.fd >= 0) {
-            fds_.push_front(plane.fd);
+            m_fds.push_front(plane.fd);
         }
     }
-    return processor_(Frame(std::move(latest)));
+    return m_processor(Frame(std::move(latest)));
 }
 
 auto WlrDmabufCapture::Resume() -> void {
@@ -95,19 +93,19 @@ auto WlrDmabufCapture::Resume() -> void {
 }
 
 auto WlrDmabufCapture::RequestNewFrame() -> void {
-    if (worker_.valid()) {
-        if (worker_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+    if (m_worker.valid()) {
+        if (m_worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
             return;
         }
-        client_ = worker_.get();
+        m_client = m_worker.get();
     }
-    if (!client_) {
+    if (!m_client) {
         return;
     }
-    if (!channel_) {
+    if (!m_channel) {
         FatalError("must call Start once before RequestNewFrame");
     }
-    worker_ = std::async(std::launch::async, &WlrDmabufCapture::CaptureFrame, std::move(client_), output_id_, channel_);
+    m_worker = std::async(std::launch::async, &WlrDmabufCapture::CaptureFrame, std::move(m_client), m_output_id, m_channel);
 }
 
 auto WlrDmabufCapture::CaptureFrame(

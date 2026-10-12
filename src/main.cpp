@@ -28,17 +28,17 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <thread>
-#include <variant>
 
 #include "Backend.hpp"
 #include "CommandLine.hpp"
 #include "Config.hpp"
 #include "Logger.hpp"
 #include "Platform.hpp"
-#include "version.h"
 #include "framexr_config.h"
+#include "version.h"
 
 #if FRAMEXR_FEATURE_OPENVR
 #include "openvr/OpenVrBackend.hpp"
@@ -67,7 +67,7 @@ auto OnTerminate() -> void {
 auto EnsureSingleInstance(bool replace) -> bool {
     const auto path = Platform::RuntimeDirectory() / "framexr.pid";
 
-    if (const auto contents = Config::ReadFile(path)) {
+    if (const auto contents = ConfigStore::ReadFile(path)) {
         char* end = nullptr;
         const auto pid = std::strtoul(contents->c_str(), &end, 10);
         if (end != contents->c_str() && pid > 0 && Platform::ProcessAlive(static_cast<uint32_t>(pid))) {
@@ -89,10 +89,10 @@ auto EnsureSingleInstance(bool replace) -> bool {
     return true;
 }
 
-auto InitLogging(const CommandLine& command_line) -> void {
+auto InitLogging() -> void {
     std::filesystem::path path = Platform::DefaultLogFile();
-    if (command_line.log_to) {
-        path = *command_line.log_to;
+    if (g_command_line->LogTo()) {
+        path = *g_command_line->LogTo();
     } else if (const char* env = std::getenv("FRAMEXR_LOGFILE")) {
         path = env;
     }
@@ -100,7 +100,7 @@ auto InitLogging(const CommandLine& command_line) -> void {
     if (auto file = Platform::OpenLogFile(path)) {
         std::printf("Logging to %s\n", path.string().c_str());
         std::fflush(stdout);
-        Logger::Instance().SetOutputFile(*file);
+        g_logger->SetOutputFile(*file);
     } else {
         std::fputs(std::format("Failed to open log file (path: {}): {}\n", file.error().Message(), path.string()).c_str(), stdout);
         std::fflush(stdout);
@@ -162,15 +162,15 @@ auto HandleResult(const BackendResult& result) -> bool {
     return true;
 }
 
-auto AutoRun(const CommandLine& command_line) -> void {
+auto AutoRun() -> void {
 #if FRAMEXR_FEATURE_OPENXR
-    if (!command_line.openvr && HandleResult(OpenXrBackend::Run(running, command_line.show))) {
+    if (!g_command_line->OpenVr() && HandleResult(OpenXrBackend::Run(running, g_command_line->Show()))) {
         return;
     }
 #endif
 
 #if FRAMEXR_FEATURE_OPENVR
-    if (!command_line.openxr && HandleResult(OpenVrBackend::Run(running, command_line.show))) {
+    if (!g_command_line->OpenXr() && HandleResult(OpenVrBackend::Run(running, g_command_line->Show()))) {
         return;
     }
 #endif
@@ -179,33 +179,35 @@ auto AutoRun(const CommandLine& command_line) -> void {
 }
 
 auto Run(std::span<char*> arguments) -> int {
-    auto parsed = CommandLine::Parse(arguments);
-    if (const auto* exit_code = std::get_if<int>(&parsed)) {
+    auto logger = std::make_unique<Logger>();
+    g_logger = logger.get();
+    auto command_line = std::make_unique<CommandLine>();
+    g_command_line = command_line.get();
+    if (const auto exit_code = g_command_line->Parse(arguments)) {
         return *exit_code;
     }
-    const auto& command_line = std::get<CommandLine>(parsed);
     Platform::Init();
 
-    if (!command_line.multi && !EnsureSingleInstance(command_line.replace)) {
+    if (!g_command_line->Multi() && !EnsureSingleInstance(g_command_line->Replace())) {
         std::puts("Looks like FrameXR is already running.");
         std::puts("Use --replace and I will terminate it for you.");
         return 0;
     }
 
-    InitLogging(command_line);
+    InitLogging();
 
     LOG_INFO("Welcome to {} version {}!", FRAMEXR_PKG_NAME, BuildVersion());
     LOG_INFO("It is {}.", LocalTime());
 
 #if FRAMEXR_FEATURE_OPENVR
-    if (command_line.uninstall) {
+    if (g_command_line->Uninstall()) {
         OpenVrBackend::Uninstall();
         return 0;
     }
 #endif
 
     Platform::OnTerminate(OnTerminate);
-    AutoRun(command_line);
+    AutoRun();
     return 0;
 }
 

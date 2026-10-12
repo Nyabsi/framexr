@@ -31,20 +31,18 @@
 #include "Modular.hpp"
 #include "Overlay.hpp"
 
-class AppState;
-
 constexpr std::string_view kWatchName = "watch";
 
 class Watch {
   public:
-    static auto Create(AppState& app) -> Result<std::unique_ptr<Overlay>>;
-    static auto RebuildCanvas(AppState& app, Overlay& watch) -> Result<>;
-    static auto Apply(AppState& app, Overlay& watch, const ModularUiConfig& config) -> Result<>;
+    static auto Create() -> Result<std::unique_ptr<Overlay>>;
+    static auto RebuildCanvas(Overlay& watch) -> Result<>;
+    static auto Apply(Overlay& watch, const ModularUiConfig& config) -> Result<>;
     static constexpr std::string_view kDefaultProfile = "default";
 
     static auto LoadConfig(std::string_view profile) -> ModularUiConfig;
     static auto UserFile(std::string_view profile) -> std::filesystem::path;
     static auto Profiles() -> std::vector<std::string>;
     static auto IsBuiltIn(std::string_view profile) -> bool;
-    static auto Fade(AppState& app, Overlay& watch) -> void;
+    static auto Fade(Overlay& watch) -> void;
 };

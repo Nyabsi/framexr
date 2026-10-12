@@ -28,17 +28,28 @@
 #include "OpenXrState.hpp"
 #include "OpenXrSwapchain.hpp"
 
-class AppState;
 class Overlay;
 
-struct OpenXrOverlay {
-    bool last_visible = false;
-    std::unique_ptr<OpenXrSwapchain> swapchain;
-    bool init = false;
-    bool cur_visible = false;
-    float last_alpha = 0.0f;
+class OpenXrOverlay {
+  public:
+    [[nodiscard]] auto Swapchain() const -> const std::unique_ptr<OpenXrSwapchain>& { return m_swapchain; }
+    [[nodiscard]] auto Swapchain() -> std::unique_ptr<OpenXrSwapchain>& { return m_swapchain; }
+    [[nodiscard]] auto Init() const -> bool { return m_init; }
+    [[nodiscard]] auto CurVisible() const -> bool { return m_cur_visible; }
+    [[nodiscard]] auto LastAlpha() const -> float { return m_last_alpha; }
 
-    auto EnsureSwapchain(Overlay& overlay, AppState& app, const OpenXrState& xr) -> Result<bool>;
+    auto SetInit(bool init) -> void { m_init = init; }
+    auto SetCurVisible(bool cur_visible) -> void { m_cur_visible = cur_visible; }
+    auto SetLastAlpha(float last_alpha) -> void { m_last_alpha = last_alpha; }
+
+    auto EnsureSwapchain(Overlay& overlay, const OpenXrState& xr) -> Result<bool>;
     auto Present(Overlay& overlay, const OpenXrState& xr) -> Result<std::optional<OpenXrLayer>>;
-    auto AfterInput(Overlay& overlay, AppState& app) -> Result<>;
+    auto AfterInput(Overlay& overlay) -> Result<>;
+
+  private:
+    bool m_last_visible = false;
+    std::unique_ptr<OpenXrSwapchain> m_swapchain;
+    bool m_init = false;
+    bool m_cur_visible = false;
+    float m_last_alpha = 0.0f;
 };

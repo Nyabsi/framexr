@@ -149,13 +149,13 @@ auto CursorModeName(PortalCursorMode mode) -> std::string_view {
 
 } // namespace
 
-ScreenCastPortal::ScreenCastPortal(DBusConnection* connection) : connection_(connection) {
-    std::string unique_name = dbus_bus_get_unique_name(connection_);
+ScreenCastPortal::ScreenCastPortal(DBusConnection* connection) : m_connection(connection) {
+    std::string unique_name = dbus_bus_get_unique_name(m_connection);
     if (unique_name.starts_with(':')) {
         unique_name.erase(0, 1);
     }
     std::ranges::replace(unique_name, '.', '_');
-    sender_ = unique_name;
+    m_sender = unique_name;
 }
 
 auto ScreenCastPortal::SelectScreen(ScreenCastOptions options) -> std::future<Result<ScreenSelection>> {
@@ -223,7 +223,7 @@ auto ScreenCastPortal::Run(const ScreenCastOptions& options) -> Result<ScreenSel
         }
     ));
     if (!session_handle) {
-        session_handle = std::format("/org/freedesktop/portal/desktop/session/{}/{}", sender_, session_token);
+        session_handle = std::format("/org/freedesktop/portal/desktop/session/{}/{}", m_sender, session_token);
     }
 
     RETURN_IF_ERROR(Request(
@@ -272,7 +272,7 @@ auto ScreenCastPortal::AvailableCursorModes() -> Result<uint32_t> {
     DBusError error;
     dbus_error_init(&error);
     auto reply = MakeMessagePtr(
-        dbus_connection_send_with_reply_and_block(connection_, message.get(), DBUS_TIMEOUT_USE_DEFAULT, &error)
+        dbus_connection_send_with_reply_and_block(m_connection, message.get(), DBUS_TIMEOUT_USE_DEFAULT, &error)
     );
     if (!reply) {
         return Unexpected(std::format("Failed to query AvailableCursorModes: {}", TakeError(error)));
@@ -300,12 +300,12 @@ auto ScreenCastPortal::Request(
     const PortalResultVisitor& visit_results
 ) -> Result<> {
     const auto token = NewToken();
-    auto request_path = std::format("/org/freedesktop/portal/desktop/request/{}/{}", sender_, token);
+    auto request_path = std::format("/org/freedesktop/portal/desktop/request/{}/{}", m_sender, token);
     const auto match_rule = std::format("type='signal',interface='{}',member='Response',path='{}'", kRequestInterface, request_path);
 
     DBusError error;
     dbus_error_init(&error);
-    dbus_bus_add_match(connection_, match_rule.c_str(), &error);
+    dbus_bus_add_match(m_connection, match_rule.c_str(), &error);
     if (dbus_error_is_set(&error)) {
         return Unexpected(std::format("Failed to add D-Bus match: {}", TakeError(error)));
     }
@@ -328,10 +328,10 @@ auto ScreenCastPortal::Request(
     dbus_message_iter_close_container(&args, &dictionary);
 
     auto reply = MakeMessagePtr(
-        dbus_connection_send_with_reply_and_block(connection_, message.get(), DBUS_TIMEOUT_USE_DEFAULT, &error)
+        dbus_connection_send_with_reply_and_block(m_connection, message.get(), DBUS_TIMEOUT_USE_DEFAULT, &error)
     );
     if (!reply) {
-        dbus_bus_remove_match(connection_, match_rule.c_str(), nullptr);
+        dbus_bus_remove_match(m_connection, match_rule.c_str(), nullptr);
         return Unexpected(std::format("Portal {} failed: {}", method, TakeError(error)));
     }
 
@@ -341,21 +341,21 @@ auto ScreenCastPortal::Request(
         if (auto handle = ReadString(reply_iter); handle && *handle != request_path) {
             request_path = *handle;
             extra_match = std::format("type='signal',interface='{}',member='Response',path='{}'", kRequestInterface, request_path);
-            dbus_bus_add_match(connection_, extra_match.c_str(), nullptr);
+            dbus_bus_add_match(m_connection, extra_match.c_str(), nullptr);
         }
     }
 
     auto result = WaitForResponse(request_path, visit_results);
-    dbus_bus_remove_match(connection_, match_rule.c_str(), nullptr);
+    dbus_bus_remove_match(m_connection, match_rule.c_str(), nullptr);
     if (!extra_match.empty()) {
-        dbus_bus_remove_match(connection_, extra_match.c_str(), nullptr);
+        dbus_bus_remove_match(m_connection, extra_match.c_str(), nullptr);
     }
     return result;
 }
 
 auto ScreenCastPortal::WaitForResponse(const std::string& request_path, const PortalResultVisitor& visit_results) -> Result<> {
     while (true) {
-        while (auto message = MakeMessagePtr(dbus_connection_pop_message(connection_))) {
+        while (auto message = MakeMessagePtr(dbus_connection_pop_message(m_connection))) {
             if (!dbus_message_is_signal(message.get(), kRequestInterface, "Response")) {
                 continue;
             }
@@ -390,7 +390,7 @@ auto ScreenCastPortal::WaitForResponse(const std::string& request_path, const Po
             }
             return {};
         }
-        if (!dbus_connection_read_write(connection_, 1000)) {
+        if (!dbus_connection_read_write(m_connection, 1000)) {
             return Unexpected("D-Bus connection closed while waiting for portal response");
         }
     }

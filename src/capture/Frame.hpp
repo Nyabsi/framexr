@@ -28,6 +28,8 @@
 #include <variant>
 #include <vector>
 
+#include <Eigen/Geometry>
+
 constexpr uint32_t kDrmFormatArgb8888 = 0x34325241;
 constexpr uint32_t kDrmFormatAbgr8888 = 0x34324241;
 constexpr uint32_t kDrmFormatXrgb8888 = 0x34325258;
@@ -71,8 +73,6 @@ struct DmabufFrame {
     FrameFormat format;
     std::vector<FramePlane> planes;
     std::optional<MouseMeta> mouse;
-
-    [[nodiscard]] auto IsValid() const -> bool;
 };
 
 struct MemFdFrame {
@@ -96,3 +96,12 @@ struct DrmFormat {
 };
 
 [[nodiscard]] auto FourccToString(uint32_t fourcc) -> std::string;
+
+class FrameTransforms final {
+  public:
+    static auto IsRotated90(FrameTransform transform) -> bool;
+    static auto IsRotated180(FrameTransform transform) -> bool;
+    static auto IsRotated270(FrameTransform transform) -> bool;
+    static auto Affine(const Eigen::Vector2f& x_axis, const Eigen::Vector2f& y_axis, const Eigen::Vector2f& translation)
+        -> Eigen::Affine2f;
+};

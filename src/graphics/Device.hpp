@@ -34,13 +34,13 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
-#include "Error.hpp"
-#include "Frame.hpp"
 #include "Buffer.hpp"
 #include "CommandBuffer.hpp"
+#include "Error.hpp"
+#include "Frame.hpp"
 #include "Image.hpp"
-#include "Queue.hpp"
 #include "Pipeline.hpp"
+#include "Queue.hpp"
 
 struct DeviceCreateInfo {
     std::vector<std::string> instance_extensions;
@@ -61,26 +61,26 @@ struct Submission {
     std::vector<std::shared_ptr<void>> retained;
 };
 
-class Device final : public std::enable_shared_from_this<Device> {
+class Device final {
   public:
-    static auto Create(const DeviceCreateInfo& create_info) -> Result<std::shared_ptr<Device>>;
+    static auto Create(const DeviceCreateInfo& create_info) -> Result<std::unique_ptr<Device>>;
     static auto FourccToFormat(uint32_t fourcc) -> Result<VkFormat>;
 
     ~Device();
 
-    [[nodiscard]] auto Instance() const -> VkInstance { return instance_; }
-    [[nodiscard]] auto PhysicalDevice() const -> VkPhysicalDevice { return physical_device_; }
-    [[nodiscard]] auto Handle() const -> VkDevice { return device_; }
-    [[nodiscard]] auto Allocator() const -> VmaAllocator { return allocator_; }
-    [[nodiscard]] auto GraphicsQueue() -> Queue& { return *graphics_queue_; }
-    [[nodiscard]] auto TransferQueue() -> Queue& { return *transfer_queue_; }
-    [[nodiscard]] auto CaptureQueue() -> Queue* { return capture_queue_.get(); }
-    [[nodiscard]] auto NativeFormat() const -> VkFormat { return native_format_; }
-    [[nodiscard]] auto TextureFilter() const -> VkFilter { return texture_filter_; }
-    [[nodiscard]] auto SupportsDmabuf() const -> bool { return supports_dmabuf_; }
-    [[nodiscard]] auto DrmFormats() const -> std::span<const DrmFormat> { return drm_formats_; }
-    [[nodiscard]] auto QuadVertices() const -> const std::shared_ptr<Buffer>& { return quad_vertices_; }
-    [[nodiscard]] auto QuadIndices() const -> const std::shared_ptr<Buffer>& { return quad_indices_; }
+    [[nodiscard]] auto Instance() const -> VkInstance { return m_instance; }
+    [[nodiscard]] auto PhysicalDevice() const -> VkPhysicalDevice { return m_physical_device; }
+    [[nodiscard]] auto Handle() const -> VkDevice { return m_device; }
+    [[nodiscard]] auto Allocator() const -> VmaAllocator { return m_allocator; }
+    [[nodiscard]] auto GraphicsQueue() -> Queue& { return *m_graphics_queue; }
+    [[nodiscard]] auto TransferQueue() -> Queue& { return *m_transfer_queue; }
+    [[nodiscard]] auto CaptureQueue() -> Queue* { return m_capture_queue.get(); }
+    [[nodiscard]] auto NativeFormat() const -> VkFormat { return m_native_format; }
+    [[nodiscard]] auto TextureFilter() const -> VkFilter { return m_texture_filter; }
+    [[nodiscard]] auto SupportsDmabuf() const -> bool { return m_supports_dmabuf; }
+    [[nodiscard]] auto DrmFormats() const -> std::span<const DrmFormat> { return m_drm_formats; }
+    [[nodiscard]] auto QuadVertices() const -> const std::shared_ptr<Buffer>& { return m_quad_vertices; }
+    [[nodiscard]] auto QuadIndices() const -> const std::shared_ptr<Buffer>& { return m_quad_indices; }
 
     auto CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer>;
     auto CreatePipeline(const ShaderProgram& program, VkFormat format, Blend blend) -> Result<std::shared_ptr<Pipeline>>;
@@ -119,34 +119,36 @@ class Device final : public std::enable_shared_from_this<Device> {
     static auto QueueFamilyLayout(VkPhysicalDevice physical_device) -> std::optional<std::vector<QueueFamilyRequest>>;
     static auto SupportedDeviceExtensions(VkPhysicalDevice physical_device) -> std::vector<std::string>;
 
-    VkInstance instance_ = VK_NULL_HANDLE;
-    VkFormat native_format_ = VK_FORMAT_R8G8B8A8_SRGB;
-    VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
-    VkDevice device_ = VK_NULL_HANDLE;
-    VmaAllocator allocator_ = VK_NULL_HANDLE;
-    bool owns_instance_ = true;
-    bool supports_dmabuf_ = false;
-    bool supports_drm_modifiers_ = false;
-    VkFilter texture_filter_ = VK_FILTER_LINEAR;
-    std::vector<std::string> device_extensions_;
-    std::vector<QueueFamilyRequest> queue_families_;
+    VkInstance m_instance = VK_NULL_HANDLE;
+    VkFormat m_native_format = VK_FORMAT_R8G8B8A8_SRGB;
+    VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
+    VkDevice m_device = VK_NULL_HANDLE;
+    VmaAllocator m_allocator = VK_NULL_HANDLE;
+    bool m_owns_instance = true;
+    bool m_supports_dmabuf = false;
+    bool m_supports_drm_modifiers = false;
+    VkFilter m_texture_filter = VK_FILTER_LINEAR;
+    std::vector<std::string> m_device_extensions;
+    std::vector<QueueFamilyRequest> m_queue_families;
 
-    std::unique_ptr<Queue> graphics_queue_;
-    std::unique_ptr<Queue> transfer_queue_owned_;
-    std::unique_ptr<Queue> capture_queue_;
-    Queue* transfer_queue_ = nullptr;
+    std::unique_ptr<Queue> m_graphics_queue;
+    std::unique_ptr<Queue> m_transfer_queue_owned;
+    std::unique_ptr<Queue> m_capture_queue;
+    Queue* m_transfer_queue = nullptr;
 
-    std::vector<DrmFormat> drm_formats_;
-    std::shared_ptr<Buffer> quad_vertices_;
-    std::shared_ptr<Buffer> quad_indices_;
+    std::vector<DrmFormat> m_drm_formats;
+    std::shared_ptr<Buffer> m_quad_vertices;
+    std::shared_ptr<Buffer> m_quad_indices;
 
-    std::mutex sampler_mutex_;
-    std::map<VkFilter, VkSampler> samplers_;
+    std::mutex m_sampler_mutex;
+    std::map<VkFilter, VkSampler> m_samplers;
 
-    std::mutex descriptor_mutex_;
-    std::vector<VkDescriptorPool> descriptor_pools_;
+    std::mutex m_descriptor_mutex;
+    std::vector<VkDescriptorPool> m_descriptor_pools;
 
-    std::mutex submission_mutex_;
-    std::multimap<uint32_t, VkCommandPool> free_command_pools_;
-    std::vector<Submission> in_flight_;
+    std::mutex m_submission_mutex;
+    std::multimap<uint32_t, VkCommandPool> m_free_command_pools;
+    std::vector<Submission> m_in_flight;
 };
+
+extern Device* g_device;

@@ -24,10 +24,7 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
-class Device;
-
 struct ImageResources {
-    std::shared_ptr<Device> device;
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -48,21 +45,21 @@ class Image final {
     Image(const ImageResources& resources, const ImageInfo& info);
     ~Image();
 
-    [[nodiscard]] auto Handle() const -> VkImage { return resources_.image; }
-    [[nodiscard]] auto View() const -> VkImageView { return resources_.view; }
-    [[nodiscard]] auto Format() const -> VkFormat { return info_.format; }
-    [[nodiscard]] auto Extent() const -> VkExtent2D { return info_.extent; }
-    [[nodiscard]] auto Usage() const -> VkImageUsageFlags { return info_.usage; }
-    [[nodiscard]] auto FinalLayout() const -> VkImageLayout { return info_.final_layout; }
-    [[nodiscard]] auto Layout() const -> VkImageLayout { return layout_.load(); }
+    [[nodiscard]] auto Handle() const -> VkImage { return m_resources.image; }
+    [[nodiscard]] auto View() const -> VkImageView { return m_resources.view; }
+    [[nodiscard]] auto Format() const -> VkFormat { return m_info.format; }
+    [[nodiscard]] auto Extent() const -> VkExtent2D { return m_info.extent; }
+    [[nodiscard]] auto Usage() const -> VkImageUsageFlags { return m_info.usage; }
+    [[nodiscard]] auto FinalLayout() const -> VkImageLayout { return m_info.final_layout; }
+    [[nodiscard]] auto Layout() const -> VkImageLayout { return m_layout.load(); }
 
-    auto SetLayout(VkImageLayout layout) -> void { layout_.store(layout); }
+    auto SetLayout(VkImageLayout layout) -> void { m_layout.store(layout); }
 
     Image(const Image&) = delete;
     auto operator=(const Image&) -> Image& = delete;
 
   private:
-    ImageResources resources_;
-    ImageInfo info_;
-    std::atomic<VkImageLayout> layout_;
+    ImageResources m_resources;
+    ImageInfo m_info;
+    std::atomic<VkImageLayout> m_layout;
 };

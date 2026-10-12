@@ -35,9 +35,8 @@
 
 #include "Input.hpp"
 
-class AppState;
 class OverlayBackend;
-struct OverlayState;
+class OverlayState;
 
 using OverlaySelector = std::variant<OverlayId, std::string>;
 
@@ -63,12 +62,12 @@ using SystemTask = std::variant<ColorGainTask, ResetPlayspaceTask, FixFloorTask,
 
 struct ModifyOverlayTask {
     OverlaySelector selector;
-    std::function<void(AppState&, OverlayState&)> modify;
+    std::function<void(OverlayState&)> modify;
 };
 
 struct CreateOverlayTask {
     OverlaySelector selector;
-    std::function<std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>>(AppState&)> create;
+    std::function<std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>>()> create;
 };
 
 struct DropOverlayTask {
@@ -81,8 +80,6 @@ struct ScheduledTask {
     std::chrono::steady_clock::time_point not_before;
     uint64_t sequence = 0;
     std::shared_ptr<Task> task;
-
-    auto operator<(const ScheduledTask& other) const -> bool;
 };
 
 class TaskQueue {
@@ -92,6 +89,10 @@ class TaskQueue {
     auto TakeDue(std::deque<Task>& destination) -> void;
 
   private:
-    std::priority_queue<ScheduledTask> tasks_;
-    uint64_t next_sequence_ = 0;
+    static auto Later(const ScheduledTask& a, const ScheduledTask& b) -> bool;
+
+    std::priority_queue<ScheduledTask, std::vector<ScheduledTask>, decltype(&Later)> m_tasks{&Later};
+    uint64_t m_next_sequence = 0;
 };
+
+extern TaskQueue* g_tasks;

@@ -9,14 +9,6 @@ gtest_lib = static_library(
   dependencies: threads_dep,
 )
 
-gtest_main_lib = static_library(
-  'gtest_main',
-  googletest_root / 'src/gtest_main.cc',
-  include_directories: include_directories('../external/googletest/googletest/include'),
-  cpp_args: ['-w'],
-  override_options: ['werror=false', 'warning_level=0'],
-)
-
 gtest_dep = declare_dependency(
   link_with: gtest_lib,
   include_directories: include_directories('../external/googletest/googletest/include', is_system: true),
@@ -39,7 +31,9 @@ unit_tests = executable(
   'ResourceTest.cpp',
   'ToastIngestTest.cpp',
   'YamlTest.cpp',
-  link_with: gtest_main_lib,
+  'support/UnitEnvironment.cpp',
+  'support/UnitMain.cpp',
+  include_directories: test_support_inc,
   dependencies: [framexr_dep, gtest_dep],
   cpp_args: ['--embed-dir=' + meson.project_source_root() / 'res'],
 )
@@ -60,6 +54,7 @@ integration_tests = executable(
   'support/Png.cpp',
   'support/RecordingBackend.cpp',
   'support/RecordingHid.cpp',
+  'support/ScopedRecordingHid.cpp',
   'support/TestApp.cpp',
   include_directories: test_support_inc,
   dependencies: [framexr_dep, gtest_dep],

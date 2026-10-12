@@ -34,10 +34,13 @@
 #include <Eigen/Core>
 #include <vulkan/vulkan.h>
 
+#include "CommandBatch.hpp"
 #include "Control.hpp"
 #include "Device.hpp"
 #include "Error.hpp"
+#include "InteractionHandler.hpp"
 #include "Overlay.hpp"
+#include "OverlayRenderer.hpp"
 #include "Pipeline.hpp"
 
 enum class KeyCapType : uint8_t {
@@ -69,31 +72,43 @@ struct PressFlash {
 
 class Canvas : public OverlayBackend {
   public:
-    static auto Create(std::shared_ptr<Device> device, uint32_t width, uint32_t height, VkFormat format)
-        -> Result<std::unique_ptr<Canvas>>;
+    static auto Create(uint32_t width, uint32_t height, VkFormat format) -> Result<std::unique_ptr<Canvas>>;
     static auto ParseColor(std::string_view color) -> Result<Eigen::Vector4f>;
     static auto FallbackColor() -> Eigen::Vector4f;
 
-    Eigen::Vector4f fg_color = Eigen::Vector4f::Ones();
-    Eigen::Vector4f bg_color = Eigen::Vector4f::Zero();
-    int font_size = 16;
+    [[nodiscard]] auto FgColor() const -> const Eigen::Vector4f& { return m_fg_color; }
+    [[nodiscard]] auto FgColor() -> Eigen::Vector4f& { return m_fg_color; }
+    [[nodiscard]] auto BgColor() const -> const Eigen::Vector4f& { return m_bg_color; }
+    [[nodiscard]] auto BgColor() -> Eigen::Vector4f& { return m_bg_color; }
+    [[nodiscard]] auto FontSize() const -> int { return m_font_size; }
 
-    [[nodiscard]] auto Width() const -> uint32_t { return width_; }
-    [[nodiscard]] auto Height() const -> uint32_t { return height_; }
-    [[nodiscard]] auto ControlCount() const -> size_t { return controls_.size(); }
-    [[nodiscard]] auto ControlAt(size_t index) -> Control& { return *controls_[index]; }
+    auto SetFgColor(Eigen::Vector4f fg_color) -> void { m_fg_color = std::move(fg_color); }
+    auto SetBgColor(Eigen::Vector4f bg_color) -> void { m_bg_color = std::move(bg_color); }
+    auto SetFontSize(int font_size) -> void { m_font_size = font_size; }
+
+    [[nodiscard]] auto Width() const -> uint32_t { return m_width; }
+    [[nodiscard]] auto Height() const -> uint32_t { return m_height; }
+    [[nodiscard]] auto ControlCount() const -> size_t { return m_controls.size(); }
+    [[nodiscard]] auto ControlAt(size_t index) -> Control& { return *m_controls[index]; }
 
     auto Clear() -> void;
-    auto MarkHighlightDirty() -> void { highlight_dirty_ = true; }
+    auto MarkHighlightDirty() -> void { m_highlight_dirty = true; }
 
     auto Panel(float x, float y, float w, float h, float radius) -> Control&;
-    auto Label(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
+    auto Label(float x, float y, float w, float h, float radius, std::string_view text, std::unique_ptr<Control> control = nullptr)
         -> Control&;
-    auto LabelCentered(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
-        -> Control&;
+    auto LabelCentered(
+        float x,
+        float y,
+        float w,
+        float h,
+        float radius,
+        std::string_view text,
+        std::unique_ptr<Control> control = nullptr
+    ) -> Control&;
     auto Sprite(float x, float y, float w, float h) -> Control&;
     auto SpriteInteractive(float x, float y, float w, float h) -> Control&;
-    auto Button(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control = nullptr)
+    auto Button(float x, float y, float w, float h, float radius, std::string_view text, std::unique_ptr<Control> control = nullptr)
         -> Control&;
     auto Decoration(float x, float y, float w, float h, float radius, std::unique_ptr<Control> control) -> Control&;
     auto KeyButton(
@@ -110,21 +125,20 @@ class Canvas : public OverlayBackend {
     auto SetRenderer(std::unique_ptr<OverlayRenderer> renderer) -> void override;
     auto SetInteraction(std::unique_ptr<InteractionHandler> interaction) -> void override;
 
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
+    auto Init() -> Result<> override;
+    auto Pause() -> Result<> override;
+    auto Resume() -> Result<> override;
+    auto ShouldRender() -> Result<RenderReadiness> override;
+    auto Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
 
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
+    auto OnHover(const PointerHit& hit) -> std::optional<Haptics> override;
+    auto OnLeft(size_t pointer) -> void override;
+    auto OnPointer(const PointerHit& hit, bool pressed) -> void override;
+    auto OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void override;
 
   protected:
     Canvas(
-        std::shared_ptr<Device> device,
         uint32_t width,
         uint32_t height,
         VkFormat format,
@@ -148,23 +162,26 @@ class Canvas : public OverlayBackend {
     [[nodiscard]] auto PressStrength(size_t index, std::chrono::steady_clock::time_point now) const -> float;
     auto RenderSprite(CommandBuffer& command_buffer, Pipeline& pipeline, const Control& control, const Eigen::Vector4f& color)
         -> Result<>;
-    auto RenderText(AppState& app, CommandBuffer& command_buffer, const Control& control, bool centered) -> Result<>;
+    auto RenderText(CommandBuffer& command_buffer, const Control& control, bool centered) -> Result<>;
 
-    std::shared_ptr<Device> device_;
-    uint32_t width_;
-    uint32_t height_;
-    VkFormat format_;
-    CanvasPipelines pipelines_;
-    std::shared_ptr<Image> foreground_;
-    std::shared_ptr<Image> background_;
-    std::vector<std::unique_ptr<Control>> controls_;
-    std::array<std::optional<size_t>, 2> hovered_;
-    std::array<std::optional<size_t>, 2> pressed_;
-    std::vector<PressFlash> released_;
-    std::vector<std::optional<uint16_t>> interact_map_;
-    size_t interact_stride_;
-    size_t interact_rows_;
-    bool background_dirty_ = false;
-    bool foreground_dirty_ = false;
-    bool highlight_dirty_ = false;
+    uint32_t m_width;
+    uint32_t m_height;
+    VkFormat m_format;
+    CanvasPipelines m_pipelines;
+    std::shared_ptr<Image> m_foreground;
+    std::shared_ptr<Image> m_background;
+    std::vector<std::unique_ptr<Control>> m_controls;
+    std::array<std::optional<size_t>, 2> m_hovered;
+    std::array<std::optional<size_t>, 2> m_pressed;
+    std::vector<PressFlash> m_released;
+    std::vector<std::optional<uint16_t>> m_interact_map;
+    size_t m_interact_stride;
+    size_t m_interact_rows;
+    bool m_background_dirty = false;
+    bool m_foreground_dirty = false;
+    bool m_highlight_dirty = false;
+
+    Eigen::Vector4f m_fg_color = Eigen::Vector4f::Ones();
+    Eigen::Vector4f m_bg_color = Eigen::Vector4f::Zero();
+    int m_font_size = 16;
 };

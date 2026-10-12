@@ -21,9 +21,6 @@
 
 #include "Keymap.hpp"
 
-#include <sys/mman.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <array>
 #include <format>
@@ -31,6 +28,8 @@
 #include <string_view>
 #include <utility>
 
+#include <sys/mman.h>
+#include <unistd.h>
 #include <xkbcommon/xkbcommon.h>
 
 #include "Logger.hpp"
@@ -164,21 +163,12 @@ auto DeadKeyLabel(xkb_keysym_t symbol) -> std::string {
 
 } // namespace
 
-auto XkbContextDeleter::operator()(xkb_context* context) const -> void {
-    xkb_context_unref(context);
-}
-
-auto XkbKeymapDeleter::operator()(xkb_keymap* keymap) const -> void {
-    xkb_keymap_unref(keymap);
-}
-
-auto XkbStateDeleter::operator()(xkb_state* state) const -> void {
-    xkb_state_unref(state);
-}
-
-Keymap::Keymap(std::unique_ptr<xkb_context, XkbContextDeleter> context, std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap)
-    : context_(std::move(context)),
-      keymap_(std::move(keymap)) {
+Keymap::Keymap(
+    std::unique_ptr<xkb_context, void (*)(xkb_context*)> context,
+    std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)> keymap
+)
+    : m_context(std::move(context)),
+      m_keymap(std::move(keymap)) {
 }
 
 auto Keymap::FromWayland() -> Result<Keymap> {
@@ -188,7 +178,10 @@ auto Keymap::FromWayland() -> Result<Keymap> {
         return Unexpected("Could not connect to Wayland display");
     }
 
-    std::unique_ptr<xkb_context, XkbContextDeleter> context(xkb_context_new(XKB_CONTEXT_NO_DEFAULT_INCLUDES));
+    std::unique_ptr<xkb_context, void (*)(xkb_context*)> context(
+        xkb_context_new(XKB_CONTEXT_NO_DEFAULT_INCLUDES),
+        &xkb_context_unref
+    );
     WaylandKeymapQuery query{.context = context.get()};
 
     auto* registry = wl_display_get_registry(display);
@@ -212,7 +205,7 @@ auto Keymap::FromWayland() -> Result<Keymap> {
     if (query.keymap == nullptr) {
         return Unexpected("Could not load keymap");
     }
-    return Keymap(std::move(context), std::unique_ptr<xkb_keymap, XkbKeymapDeleter>(query.keymap));
+    return Keymap(std::move(context), std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)>(query.keymap, &xkb_keymap_unref));
 #else
     return Unexpected("Wayland support not enabled.");
 #endif
@@ -220,7 +213,7 @@ auto Keymap::FromWayland() -> Result<Keymap> {
 
 auto Keymap::FromX11() -> Result<Keymap> {
 #if FRAMEXR_FEATURE_X11
-    std::unique_ptr<xkb_context, XkbContextDeleter> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS));
+    std::unique_ptr<xkb_context, void (*)(xkb_context*)> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS), &xkb_context_unref);
     auto* connection = xcb_connect(nullptr, nullptr);
     if (xcb_connection_has_error(connection) != 0) {
         xcb_disconnect(connection);
@@ -246,7 +239,7 @@ auto Keymap::FromX11() -> Result<Keymap> {
     if (keymap == nullptr) {
         return Unexpected("Could not load keymap");
     }
-    return Keymap(std::move(context), std::unique_ptr<xkb_keymap, XkbKeymapDeleter>(keymap));
+    return Keymap(std::move(context), std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)>(keymap, &xkb_keymap_unref));
 #else
     return Unexpected("X11 support not enabled.");
 #endif
@@ -257,7 +250,7 @@ auto Keymap::FromWindows() -> Result<Keymap> {
 }
 
 auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
-    std::unique_ptr<xkb_context, XkbContextDeleter> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS));
+    std::unique_ptr<xkb_context, void (*)(xkb_context*)> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS), &xkb_context_unref);
     if (!context) {
         return Unexpected("Could not create xkb context");
     }
@@ -270,8 +263,9 @@ auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Res
         .variant = variant_name.empty() ? nullptr : variant_name.c_str(),
         .options = nullptr,
     };
-    std::unique_ptr<xkb_keymap, XkbKeymapDeleter> keymap(
-        xkb_keymap_new_from_names(context.get(), &names, XKB_KEYMAP_COMPILE_NO_FLAGS)
+    std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)> keymap(
+        xkb_keymap_new_from_names(context.get(), &names, XKB_KEYMAP_COMPILE_NO_FLAGS),
+        &xkb_keymap_unref
     );
     if (!keymap) {
         return Unexpected(std::format("Unknown keyboard region '{}'", layout));
@@ -280,7 +274,7 @@ auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Res
 }
 
 auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
-    std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
+    std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
         if ((modifiers & modifier) != 0) {
             if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
@@ -292,7 +286,7 @@ auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
 }
 
 auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
-    std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
+    std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
         if ((modifiers & modifier) != 0) {
             if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
@@ -328,7 +322,7 @@ auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
 }
 
 auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
-    std::unique_ptr<xkb_state, XkbStateDeleter> state(xkb_state_new(keymap_.get()));
+    std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     if (modifier > 0) {
         if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
             xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
@@ -346,8 +340,8 @@ auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string 
 }
 
 auto Keymap::HasAltGr() const -> bool {
-    std::unique_ptr<xkb_state, XkbStateDeleter> base(xkb_state_new(keymap_.get()));
-    std::unique_ptr<xkb_state, XkbStateDeleter> altgr(xkb_state_new(keymap_.get()));
+    std::unique_ptr<xkb_state, void (*)(xkb_state*)> base(xkb_state_new(m_keymap.get()), &xkb_state_unref);
+    std::unique_ptr<xkb_state, void (*)(xkb_state*)> altgr(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     xkb_state_update_key(altgr.get(), static_cast<xkb_keycode_t>(VirtualKey::Meta), XKB_KEY_DOWN);
 
     constexpr std::array kDigits{

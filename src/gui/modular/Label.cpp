@@ -23,18 +23,25 @@
 
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <format>
 
+#include "BatteryLabel.hpp"
 #include "Canvas.hpp"
+#include "ClockLabel.hpp"
+#include "Config.hpp"
+#include "DragMultiplierLabel.hpp"
+#include "ExecLabel.hpp"
+#include "Input.hpp"
+#include "IpdLabel.hpp"
 #include "Json.hpp"
 #include "Logger.hpp"
-#include "State.hpp"
+#include "TimerLabel.hpp"
 
 namespace {
 
 constexpr std::array<std::string_view, 7>
     kWeekdayNames{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
 constexpr std::array<std::string_view, 12> kMonthNames{
     "January",
     "February",
@@ -49,7 +56,6 @@ constexpr std::array<std::string_view, 12> kMonthNames{
     "November",
     "December"
 };
-constexpr std::array<std::string_view, 5> kDeviceTags{"", "H", "L", "R", "T"};
 
 auto AppendNumber(std::string& out, int64_t value, int width, NumberPadding padding) -> void {
     const auto digits = std::to_string(value < 0 ? -value : value);
@@ -192,7 +198,7 @@ auto to_json(nlohmann::ordered_json& json, const LabelContent& value) -> void {
     );
 }
 
-auto Labels::Create(const LabelContent& content, const AppState& app, const Eigen::Vector4f& fg_color) -> LabelSetup {
+auto Labels::Create(const LabelContent& content, const Eigen::Vector4f& fg_color) -> LabelSetup {
     const auto parse_color = [](const std::string& color) -> Eigen::Vector4f {
         if (auto parsed = Canvas::ParseColor(color)) {
             return *parsed;
@@ -214,8 +220,8 @@ auto Labels::Create(const LabelContent& content, const AppState& app, const Eige
                 std::optional<std::string> zone_name;
                 if (label.timezone) {
                     if (const auto* index = std::get_if<size_t>(&*label.timezone)) {
-                        if (*index < app.config.timezones.size()) {
-                            zone_name = app.config.timezones[*index];
+                        if (*index < g_config->timezones.size()) {
+                            zone_name = g_config->timezones[*index];
                         } else {
                             LOG_ERROR("Timezone index out of range '{}'", *index);
                             color = Canvas::FallbackColor();
@@ -236,11 +242,11 @@ auto Labels::Create(const LabelContent& content, const AppState& app, const Eige
             } else if constexpr (std::is_same_v<Content, TimezoneLabelContent>) {
                 std::string zone;
                 if (const auto* index = std::get_if<size_t>(&label.timezone)) {
-                    if (*index >= app.config.timezones.size()) {
+                    if (*index >= g_config->timezones.size()) {
                         LOG_ERROR("Timezone index out of range '{}'", *index);
                         return {.text = "Error", .color = Canvas::FallbackColor()};
                     }
-                    zone = app.config.timezones[*index];
+                    zone = g_config->timezones[*index];
                 } else {
                     zone = std::get<std::string>(label.timezone);
                 }
@@ -269,7 +275,7 @@ auto Labels::Create(const LabelContent& content, const AppState& app, const Eige
     );
 }
 
-auto Labels::City(const std::optional<std::variant<size_t, std::string>>& zone, const AppState& app) -> std::string {
+auto Labels::City(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string {
     std::string name;
     if (!zone) {
         try {
@@ -278,7 +284,7 @@ auto Labels::City(const std::optional<std::variant<size_t, std::string>>& zone, 
             name = "Local";
         }
     } else if (const auto* index = std::get_if<size_t>(&*zone)) {
-        name = *index < app.config.timezones.size() ? app.config.timezones[*index] : std::string("Local");
+        name = *index < g_config->timezones.size() ? g_config->timezones[*index] : std::string("Local");
     } else {
         name = std::get<std::string>(*zone);
     }
@@ -402,115 +408,4 @@ auto Labels::FormatTime(std::string_view format, const std::chrono::time_zone* z
         }
     }
     return out;
-}
-
-BatteryLabel::BatteryLabel(size_t device, float low_threshold, Eigen::Vector4f normal, Eigen::Vector4f low, Eigen::Vector4f charging)
-    : device_(device),
-      low_threshold_(low_threshold),
-      normal_color_(std::move(normal)),
-      low_color_(std::move(low)),
-      charging_color_(std::move(charging)) {
-}
-
-auto BatteryLabel::Update(AppState& app) -> void {
-    if (device_ >= app.input.devices.size()) {
-        SetText("");
-        return;
-    }
-    const auto& device = app.input.devices[device_];
-    if (!device.soc) {
-        SetText("");
-        SetFgColor(Eigen::Vector4f::Zero());
-        return;
-    }
-    const auto percent = static_cast<uint32_t>(std::min(*device.soc * 100.0f, 99.0f));
-    SetText(std::format("{}{}", kDeviceTags[static_cast<size_t>(device.role)], percent));
-    if (device.charging) {
-        SetFgColor(charging_color_);
-    } else if (*device.soc < low_threshold_) {
-        SetFgColor(low_color_);
-    } else {
-        SetFgColor(normal_color_);
-    }
-}
-
-ClockLabel::ClockLabel(std::string format, const std::chrono::time_zone* zone) : format_(std::move(format)), zone_(zone) {
-}
-
-auto ClockLabel::Update(AppState&) -> void {
-    SetText(Labels::FormatTime(format_, zone_, std::chrono::system_clock::now()));
-}
-
-TimerLabel::TimerLabel(std::string format) : format_(std::move(format)), start_(std::chrono::steady_clock::now()) {
-}
-
-auto TimerLabel::Update(AppState&) -> void {
-    auto formatted = format_;
-    std::ranges::transform(formatted, formatted.begin(), [](unsigned char c) -> char {
-        return static_cast<char>(std::tolower(c));
-    });
-    const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_).count();
-    const auto replace_all = [&](std::string_view token, const std::string& replacement) -> void {
-        for (auto position = formatted.find(token); position != std::string::npos;
-             position = formatted.find(token, position + replacement.size())) {
-            formatted.replace(position, token.size(), replacement);
-        }
-    };
-    replace_all("%s", std::format("{:02}", elapsed % 60));
-    replace_all("%m", std::format("{:02}", (elapsed / 60) % 60));
-    replace_all("%h", std::format("{:02}", (elapsed / 60) / 60));
-    SetText(formatted);
-}
-
-ExecLabel::ExecLabel(std::vector<std::string> command, float interval)
-    : command_(std::move(command)),
-      interval_(interval),
-      last_exec_(std::chrono::steady_clock::now()) {
-}
-
-auto ExecLabel::Update(AppState& app) -> void {
-    if (child_) {
-        const auto status = child_->TryWait();
-        if (!status) {
-            child_.reset();
-            Toast::ShowError(app, std::format("Error checking child process: {}", status.error().Message()));
-            return;
-        }
-        if (!status->has_value()) {
-            return;
-        }
-        auto child = std::move(*child_);
-        child_.reset();
-        if ((*status)->Success()) {
-            if (const auto output = child.ReadStdout()) {
-                SetText(*output);
-            } else {
-                Toast::ShowError(app, "LabelData::Exec: Failed to read stdout for child process");
-            }
-            return;
-        }
-        Toast::ShowError(app, std::format("LabelData::Exec: Child process exited with code: {}", (*status)->Describe()));
-    }
-
-    const auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration<float>(now - last_exec_).count() <= interval_) {
-        return;
-    }
-    last_exec_ = now;
-    if (auto process = Process::Spawn(command_, {.capture_stdout = true})) {
-        child_.emplace(std::move(*process));
-    } else {
-        Toast::ShowError(app, std::format("Failed to spawn process {}: {}", command_, process.error().Message()));
-    }
-}
-
-auto IpdLabel::Update(AppState& app) -> void {
-    if (std::abs(app.input.ipd - last_ipd_) > 0.05f) {
-        last_ipd_ = app.input.ipd;
-        SetText(std::format("{:.1f}", app.input.ipd));
-    }
-}
-
-auto DragMultiplierLabel::Update(AppState& app) -> void {
-    SetText(std::format("{:.1f}", app.config.space_drag_multiplier));
 }

@@ -29,11 +29,10 @@
 
 #include <vulkan/vulkan.h>
 
-#include "Error.hpp"
 #include "Buffer.hpp"
+#include "DescriptorSet.hpp"
+#include "Error.hpp"
 #include "Image.hpp"
-
-class Device;
 
 struct Vertex {
     std::array<float, 2> position;
@@ -58,28 +57,6 @@ struct ShaderProgram {
     std::vector<DescriptorKind> descriptor_sets;
 };
 
-class DescriptorSet final {
-  public:
-    DescriptorSet(std::shared_ptr<Device> device, VkDescriptorPool pool, VkDescriptorSet set);
-    ~DescriptorSet();
-
-    [[nodiscard]] auto Handle() const -> VkDescriptorSet { return set_; }
-    [[nodiscard]] auto Texture() const -> const std::shared_ptr<Image>& { return texture_; }
-
-    auto BindTexture(std::shared_ptr<Image> texture) -> void { texture_ = std::move(texture); }
-    auto BindBuffer(std::shared_ptr<Buffer> buffer) -> void { buffer_ = std::move(buffer); }
-
-    DescriptorSet(const DescriptorSet&) = delete;
-    auto operator=(const DescriptorSet&) -> DescriptorSet& = delete;
-
-  private:
-    std::shared_ptr<Device> device_;
-    VkDescriptorPool pool_;
-    VkDescriptorSet set_;
-    std::shared_ptr<Image> texture_;
-    std::shared_ptr<Buffer> buffer_;
-};
-
 class Pipeline;
 
 struct Pass {
@@ -91,18 +68,12 @@ struct Pass {
 
 class Pipeline final : public std::enable_shared_from_this<Pipeline> {
   public:
-    Pipeline(
-        std::shared_ptr<Device> device,
-        VkPipeline pipeline,
-        VkPipelineLayout layout,
-        std::vector<VkDescriptorSetLayout> set_layouts,
-        VkFormat format
-    );
+    Pipeline(VkPipeline pipeline, VkPipelineLayout layout, std::vector<VkDescriptorSetLayout> set_layouts, VkFormat format);
     ~Pipeline();
 
-    [[nodiscard]] auto Handle() const -> VkPipeline { return pipeline_; }
-    [[nodiscard]] auto Layout() const -> VkPipelineLayout { return layout_; }
-    [[nodiscard]] auto Format() const -> VkFormat { return format_; }
+    [[nodiscard]] auto Handle() const -> VkPipeline { return m_pipeline; }
+    [[nodiscard]] auto Layout() const -> VkPipelineLayout { return m_layout; }
+    [[nodiscard]] auto Format() const -> VkFormat { return m_format; }
 
     auto CreateTextureSet(uint32_t set, std::shared_ptr<Image> texture, VkFilter filter) -> Result<std::shared_ptr<DescriptorSet>>;
     auto CreateUniformSet(uint32_t set, std::span<const float> data) -> Result<std::shared_ptr<DescriptorSet>>;
@@ -120,9 +91,8 @@ class Pipeline final : public std::enable_shared_from_this<Pipeline> {
   private:
     auto AllocateSet(uint32_t set) -> Result<std::shared_ptr<DescriptorSet>>;
 
-    std::shared_ptr<Device> device_;
-    VkPipeline pipeline_;
-    VkPipelineLayout layout_;
-    std::vector<VkDescriptorSetLayout> set_layouts_;
-    VkFormat format_;
+    VkPipeline m_pipeline;
+    VkPipelineLayout m_layout;
+    std::vector<VkDescriptorSetLayout> m_set_layouts;
+    VkFormat m_format;
 };

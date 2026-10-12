@@ -23,12 +23,16 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
-class AppState;
+class OverlayBackend;
+class OverlayState;
 
 enum class ToastTopic : uint8_t {
     System,
@@ -55,9 +59,14 @@ struct Toast {
     float opacity = 1.0f;
     float timeout = 3.0f;
     bool sound = false;
+};
 
-    auto Submit(AppState& app) const -> void;
-    auto SubmitAt(AppState& app, std::chrono::steady_clock::time_point instant) const -> void;
+class ToastOverlay final {
+  public:
+    static auto Show(const Toast& toast) -> void;
+    static auto ShowAt(const Toast& toast, std::chrono::steady_clock::time_point instant) -> void;
+    static auto ShowError(std::string_view message) -> void;
 
-    static auto ShowError(AppState& app, std::string_view message) -> void;
+  private:
+    static auto Create(const Toast& toast) -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>>;
 };

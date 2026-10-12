@@ -23,32 +23,14 @@
 #include <cctype>
 #include <cmath>
 #include <format>
-#include <iterator>
-#include <system_error>
 #include <utility>
 
-#include "Config.hpp"
 #include "Json.hpp"
-#include "Logger.hpp"
 #include "Yaml.hpp"
 
 namespace {
 
 constexpr float kEpsilon = 0.001f;
-
-constexpr char kKeychronV1Yaml[] = {
-#embed "keyboards/keychron-v1-ansi.yaml"
-    ,
-    '\0'
-};
-
-constexpr char kFullSizeYaml[] = {
-#embed "keyboards/full-size.yaml"
-    ,
-    '\0'
-};
-
-constexpr auto kBuiltInProfiles = std::to_array<std::string_view>({kKeychronV1Yaml, kFullSizeYaml});
 
 constexpr auto kAltModifierNames = std::to_array<std::pair<AltModifier, std::string_view>>({
     {AltModifier::None, "None"},
@@ -58,12 +40,6 @@ constexpr auto kAltModifierNames = std::to_array<std::pair<AltModifier, std::str
     {AltModifier::Super, "Super"},
     {AltModifier::Meta, "Meta"},
 });
-
-struct UsLabel {
-    VirtualKey key;
-    std::string_view lower;
-    std::string_view upper;
-};
 
 constexpr auto kUsLabels = std::to_array<UsLabel>({
     {VirtualKey::N1, "1", "!"},     {VirtualKey::N2, "2", "@"},       {VirtualKey::N3, "3", "#"},     {VirtualKey::N4, "4", "$"},
@@ -167,7 +143,7 @@ auto KeyJson(const KeyDefinition& key) -> nlohmann::ordered_json {
     if (key.shifted_label) {
         json["shifted_label"] = *key.shifted_label;
     }
-    if (!key.style.Empty()) {
+    if (key.style.bg_color || key.style.fg_color || key.style.corner_radius) {
         nlohmann::ordered_json style;
         if (key.style.bg_color) {
             style["bg_color"] = *key.style.bg_color;
@@ -181,11 +157,6 @@ auto KeyJson(const KeyDefinition& key) -> nlohmann::ordered_json {
         json["style"] = std::move(style);
     }
     return json;
-}
-
-auto ProfileStore() -> std::optional<std::vector<KeyboardLayout>>& {
-    static std::optional<std::vector<KeyboardLayout>> profiles;
-    return profiles;
 }
 
 } // namespace
@@ -202,44 +173,43 @@ auto from_json(const nlohmann::json& json, AltModifier& value) -> void {
 }
 
 auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void {
-    value = KeyboardLayout{
-        .name = json.at("name").get<std::string>(),
-        .columns = json.at("columns").get<float>(),
-        .rows = json.at("rows").get<int>(),
-    };
+    value = KeyboardLayout();
+    value.SetName(json.at("name").get<std::string>());
+    value.SetColumns(json.at("columns").get<float>());
+    value.SetRows(json.at("rows").get<int>());
     if (const auto alt = json.find("alt_modifier"); alt != json.end() && !alt->is_null()) {
-        value.alt_modifier = alt->get<AltModifier>();
+        value.SetAltKey(alt->get<AltModifier>());
     }
     if (const auto it = json.find("auto_labels"); it != json.end() && !it->is_null()) {
-        value.auto_labels = it->get<bool>();
+        value.SetAutoLabels(it->get<bool>());
     }
     if (const auto it = json.find("region"); it != json.end() && !it->is_null()) {
-        value.region = it->get<std::string>();
+        value.SetRegion(it->get<std::string>());
     }
     for (const auto& key : json.at("keys")) {
-        value.keys.push_back(ParseKey(key));
+        value.Keys().push_back(ParseKey(key));
     }
     value.SortKeys();
 }
 
 auto to_json(nlohmann::ordered_json& json, const KeyboardLayout& value) -> void {
     json = nlohmann::ordered_json::object();
-    json["name"] = value.name;
-    json["columns"] = Json::ShortestFloat(value.columns);
-    json["rows"] = value.rows;
+    json["name"] = value.Name();
+    json["columns"] = Json::ShortestFloat(value.Columns());
+    json["rows"] = value.Rows();
     for (const auto& [modifier, name] : kAltModifierNames) {
-        if (modifier == value.alt_modifier) {
+        if (modifier == value.AltKey()) {
             json["alt_modifier"] = name;
         }
     }
-    if (value.auto_labels) {
-        json["auto_labels"] = *value.auto_labels;
+    if (value.AutoLabels()) {
+        json["auto_labels"] = *value.AutoLabels();
     }
-    if (value.region) {
-        json["region"] = *value.region;
+    if (value.Region()) {
+        json["region"] = *value.Region();
     }
     auto keys = nlohmann::ordered_json::array();
-    for (const auto& key : value.keys) {
+    for (const auto& key : value.Keys()) {
         keys.push_back(KeyJson(key));
     }
     json["keys"] = std::move(keys);
@@ -281,20 +251,21 @@ auto KeyboardLayout::Snap(float units) -> float {
 }
 
 auto KeyboardLayout::Validate() const -> Result<> {
-    if (columns <= 0.0f || rows <= 0) {
-        return Unexpected(std::format("Keyboard {} needs at least one row and column", name));
+    if (m_columns <= 0.0f || m_rows <= 0) {
+        return Unexpected(std::format("Keyboard {} needs at least one row and column", m_name));
     }
-    for (size_t i = 0; i < keys.size(); ++i) {
-        const auto& key = keys[i];
+    for (size_t i = 0; i < m_keys.size(); ++i) {
+        const auto& key = m_keys[i];
         if (key.width < kKeyStep - kEpsilon || !IsStep(key.width) || !IsStep(key.x)) {
             return Unexpected(std::format("Key {} in row {} must sit on and span quarter units", i, key.row));
         }
-        if (key.row < 0 || key.row >= rows || key.x < -kEpsilon || key.Right() > columns + kEpsilon) {
-            return Unexpected(std::format("Key at {} in row {} is outside the {}x{} grid", key.x, key.row, columns, rows));
+        if (key.row < 0 || key.row >= m_rows || key.x < -kEpsilon || KeyboardLayout::RightEdge(key) > m_columns + kEpsilon) {
+            return Unexpected(std::format("Key at {} in row {} is outside the {}x{} grid", key.x, key.row, m_columns, m_rows));
         }
-        for (size_t j = i + 1; j < keys.size(); ++j) {
-            const auto& other = keys[j];
-            if (other.row == key.row && other.x < key.Right() - kEpsilon && key.x < other.Right() - kEpsilon) {
+        for (size_t j = i + 1; j < m_keys.size(); ++j) {
+            const auto& other = m_keys[j];
+            if (other.row == key.row && other.x < KeyboardLayout::RightEdge(key) - kEpsilon
+                && key.x < KeyboardLayout::RightEdge(other) - kEpsilon) {
                 return Unexpected(std::format("Keys at {} and {} overlap in row {}", key.x, other.x, key.row));
             }
         }
@@ -303,8 +274,8 @@ auto KeyboardLayout::Validate() const -> Result<> {
 }
 
 auto KeyboardLayout::KeyAt(float x, int row) const -> std::optional<size_t> {
-    for (size_t i = 0; i < keys.size(); ++i) {
-        if (keys[i].row == row && x >= keys[i].x - kEpsilon && x < keys[i].Right() - kEpsilon) {
+    for (size_t i = 0; i < m_keys.size(); ++i) {
+        if (m_keys[i].row == row && x >= m_keys[i].x - kEpsilon && x < KeyboardLayout::RightEdge(m_keys[i]) - kEpsilon) {
             return i;
         }
     }
@@ -312,12 +283,12 @@ auto KeyboardLayout::KeyAt(float x, int row) const -> std::optional<size_t> {
 }
 
 auto KeyboardLayout::Fits(float x, int row, float width, std::optional<size_t> ignore) const -> bool {
-    if (row < 0 || row >= rows || x < -kEpsilon || x + width > columns + kEpsilon || width < kKeyStep - kEpsilon) {
+    if (row < 0 || row >= m_rows || x < -kEpsilon || x + width > m_columns + kEpsilon || width < kKeyStep - kEpsilon) {
         return false;
     }
-    for (size_t i = 0; i < keys.size(); ++i) {
-        const auto& key = keys[i];
-        if (i != ignore && key.row == row && key.x < x + width - kEpsilon && x < key.Right() - kEpsilon) {
+    for (size_t i = 0; i < m_keys.size(); ++i) {
+        const auto& key = m_keys[i];
+        if (i != ignore && key.row == row && key.x < x + width - kEpsilon && x < KeyboardLayout::RightEdge(key) - kEpsilon) {
             return false;
         }
     }
@@ -326,8 +297,8 @@ auto KeyboardLayout::Fits(float x, int row, float width, std::optional<size_t> i
 
 auto KeyboardLayout::FreeCells() const -> std::vector<std::pair<float, int>> {
     std::vector<std::pair<float, int>> cells;
-    const auto whole_columns = static_cast<int>(std::floor(columns + kEpsilon));
-    for (int row = 0; row < rows; ++row) {
+    const auto whole_columns = static_cast<int>(std::floor(m_columns + kEpsilon));
+    for (int row = 0; row < m_rows; ++row) {
         for (int column = 0; column < whole_columns; ++column) {
             if (const auto x = static_cast<float>(column); Fits(x, row, 1.0f)) {
                 cells.emplace_back(x, row);
@@ -360,7 +331,7 @@ auto KeyboardLayout::Labels(const KeyDefinition& key) const -> std::vector<std::
 }
 
 auto KeyboardLayout::AltModifierMask() const -> uint8_t {
-    switch (alt_modifier) {
+    switch (m_alt_key) {
     case AltModifier::Shift: return kModShift;
     case AltModifier::Ctrl: return kModCtrl;
     case AltModifier::Alt: return kModAlt;
@@ -372,96 +343,7 @@ auto KeyboardLayout::AltModifierMask() const -> uint8_t {
 }
 
 auto KeyboardLayout::SortKeys() -> void {
-    std::ranges::stable_sort(keys, [](const KeyDefinition& a, const KeyDefinition& b) -> bool {
+    std::ranges::stable_sort(m_keys, [](const KeyDefinition& a, const KeyDefinition& b) -> bool {
         return a.row != b.row ? a.row < b.row : a.x < b.x;
     });
-}
-
-auto KeyboardProfiles::Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
-    -> std::vector<KeyboardLayout> {
-    std::vector<KeyboardLayout> profiles;
-    const auto add = [&profiles](KeyboardLayout layout) -> void {
-        const auto existing = std::ranges::find(profiles, layout.name, &KeyboardLayout::name);
-        if (existing != profiles.end()) {
-            *existing = std::move(layout);
-        } else {
-            profiles.push_back(std::move(layout));
-        }
-    };
-
-    for (const auto text : built_in) {
-        auto layout = KeyboardLayout::Parse(text);
-        if (!layout) {
-            FatalError(std::format("Invalid built-in keyboard profile: {}", layout.error().Message()));
-        }
-        add(std::move(*layout));
-    }
-
-    std::error_code error;
-    std::vector<std::filesystem::path> files;
-    for (const auto& entry : std::filesystem::directory_iterator(user_directory, error)) {
-        const auto extension = entry.path().extension();
-        if (entry.is_regular_file(error) && (extension == ".yaml" || extension == ".yml")) {
-            files.push_back(entry.path());
-        }
-    }
-    std::ranges::sort(files);
-    for (const auto& file : files) {
-        const auto text = Config::ReadFile(file);
-        if (!text) {
-            LOG_ERROR("Could not read keyboard profile {}", file.string());
-            continue;
-        }
-        auto layout = KeyboardLayout::Parse(*text);
-        if (!layout) {
-            LOG_ERROR("Skipping keyboard profile {}: {}", file.string(), layout.error().Message());
-            continue;
-        }
-        LOG_INFO("Loaded keyboard profile {} from {}", layout->name, file.string());
-        layout->source = file;
-        add(std::move(*layout));
-    }
-    return profiles;
-}
-
-auto KeyboardProfiles::UserDirectory() -> std::filesystem::path {
-    return Config::Root() / "keyboards";
-}
-
-auto KeyboardProfiles::All() -> const std::vector<KeyboardLayout>& {
-    auto& profiles = ProfileStore();
-    if (!profiles) {
-        profiles = Load(kBuiltInProfiles, UserDirectory());
-    }
-    return *profiles;
-}
-
-auto KeyboardProfiles::Reload() -> void {
-    ProfileStore().reset();
-}
-
-auto KeyboardProfiles::IsBuiltIn(std::string_view name) -> bool {
-    return std::ranges::any_of(kBuiltInProfiles, [name](std::string_view text) -> bool {
-        const auto layout = KeyboardLayout::Parse(text);
-        return layout && layout->name == name;
-    });
-}
-
-auto KeyboardProfiles::Find(std::string_view name) -> const KeyboardLayout& {
-    const auto& profiles = All();
-    const auto found = std::ranges::find(profiles, name, &KeyboardLayout::name);
-    if (found == profiles.end()) {
-        LOG_WARN("Unknown keyboard profile {}, using {}", name, profiles.front().name);
-        return profiles.front();
-    }
-    return *found;
-}
-
-auto KeyboardProfiles::After(std::string_view name) -> const KeyboardLayout& {
-    const auto& profiles = All();
-    const auto found = std::ranges::find(profiles, name, &KeyboardLayout::name);
-    if (found == profiles.end() || std::next(found) == profiles.end()) {
-        return profiles.front();
-    }
-    return *std::next(found);
 }

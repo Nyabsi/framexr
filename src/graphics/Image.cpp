@@ -21,24 +21,24 @@
 #include "Device.hpp"
 
 Image::Image(const ImageResources& resources, const ImageInfo& info)
-    : resources_(resources),
-      info_(info),
-      layout_(info.initial_layout) {
+    : m_resources(resources),
+      m_info(info),
+      m_layout(info.initial_layout) {
 }
 
 Image::~Image() {
-    const auto device = resources_.device->Handle();
-    if (resources_.view != VK_NULL_HANDLE) {
-        vkDestroyImageView(device, resources_.view, nullptr);
+    const auto device = g_device->Handle();
+    if (m_resources.view != VK_NULL_HANDLE) {
+        vkDestroyImageView(device, m_resources.view, nullptr);
     }
-    if (resources_.allocation != VK_NULL_HANDLE) {
-        vmaDestroyImage(resources_.device->Allocator(), resources_.image, resources_.allocation);
+    if (m_resources.allocation != VK_NULL_HANDLE) {
+        vmaDestroyImage(g_device->Allocator(), m_resources.image, m_resources.allocation);
         return;
     }
-    if (resources_.owns_image) {
-        vkDestroyImage(device, resources_.image, nullptr);
+    if (m_resources.owns_image) {
+        vkDestroyImage(device, m_resources.image, nullptr);
     }
-    if (resources_.imported_memory != VK_NULL_HANDLE) {
-        vkFreeMemory(device, resources_.imported_memory, nullptr);
+    if (m_resources.imported_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, m_resources.imported_memory, nullptr);
     }
 }

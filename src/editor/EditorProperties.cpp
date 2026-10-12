@@ -18,24 +18,25 @@
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
-#include <numbers>
+#include <cctype>
 #include <chrono>
-#include <stdexcept>
-#include <cctype>
-#include <cctype>
 #include <cmath>
+#include <cstddef>
 #include <format>
-#include <ranges>
+#include <numbers>
 #include <span>
+#include <stdexcept>
 #include <utility>
 
+#include "CallbackControl.hpp"
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
 #include "Device.hpp"
 #include "Editor.hpp"
+#include "EditorColors.hpp"
 #include "Keyboard.hpp"
-#include "State.hpp"
+#include "KeyboardProfiles.hpp"
+#include "OutlineControl.hpp"
 #include "Theme.hpp"
 #include "Watch.hpp"
 
@@ -43,11 +44,6 @@ namespace {
 
 constexpr size_t kRecentColors = 8;
 constexpr size_t kSummaryLength = 26;
-
-struct KeyCategory {
-    std::string_view name;
-    std::span<const VirtualKey> keys;
-};
 
 constexpr auto kLetters = std::to_array<VirtualKey>({
     VirtualKey::A, VirtualKey::B, VirtualKey::C, VirtualKey::D, VirtualKey::E, VirtualKey::F, VirtualKey::G,
@@ -199,10 +195,10 @@ auto Searchable(std::string_view text) -> std::string {
     return folded;
 }
 
-auto ZoneName(const std::variant<size_t, std::string>& zone, const AppState& app) -> std::string {
+auto ZoneName(const std::variant<size_t, std::string>& zone) -> std::string {
     std::string name;
     if (const auto* index = std::get_if<size_t>(&zone)) {
-        name = *index < app.config.timezones.size() ? app.config.timezones[*index] : std::string("Local");
+        name = *index < g_config->timezones.size() ? g_config->timezones[*index] : std::string("Local");
     } else {
         name = std::get<std::string>(zone);
     }
@@ -210,8 +206,8 @@ auto ZoneName(const std::variant<size_t, std::string>& zone, const AppState& app
     return name;
 }
 
-auto ZoneName(const std::optional<std::variant<size_t, std::string>>& zone, const AppState& app) -> std::string {
-    return zone ? ZoneName(*zone, app) : std::string("Local");
+auto ZoneName(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string {
+    return zone ? ZoneName(*zone) : std::string("Local");
 }
 
 auto LocalZone() -> std::string {
@@ -409,8 +405,8 @@ auto HexHsv(const std::string& hex) -> std::array<float, 3> {
     return {hue, high > 0.0f ? delta / high : 0.0f, high};
 }
 
-auto UploadPixels(AppState& app, uint32_t width, uint32_t height, const std::vector<std::byte>& pixels) -> std::shared_ptr<Image> {
-    auto command_buffer = app.device->CreateCommandBuffer(app.device->TransferQueue());
+auto UploadPixels(uint32_t width, uint32_t height, const std::vector<std::byte>& pixels) -> std::shared_ptr<Image> {
+    auto command_buffer = g_device->CreateCommandBuffer(g_device->TransferQueue());
     if (!command_buffer) {
         return nullptr;
     }
@@ -532,17 +528,14 @@ auto Editor::Describe(const ButtonAction& action) -> std::string {
 
 auto Editor::TextRow(
     PanelBuilder& builder,
-    AppState&,
     std::string_view label,
     const std::string& id,
     const std::string& value,
-    const std::function<void(Editor&, AppState&, const std::string&)>& commit
+    const std::function<void(Editor&, const std::string&)>& commit
 ) -> void {
-    const bool focused = focus_ && focus_->id == id;
-    const std::string shown = focused ? focus_->buffer : value;
-    builder.Field(label, shown, focused, [this, id, value, commit](AppState& state) -> void {
-        BeginText(state, id, value, commit);
-    });
+    const bool focused = m_focus && m_focus->id == id;
+    const std::string shown = focused ? m_focus->buffer : value;
+    builder.Field(label, shown, focused, [this, id, value, commit]() -> void { BeginText(id, value, commit); });
 }
 
 auto Editor::ColorRow(
@@ -554,38 +547,38 @@ auto Editor::ColorRow(
     const std::function<void(Editor&)>& reset
 ) -> void {
     const auto current = get(*this);
-    builder.Swatch(label, current, [this, title, get, set, reset, current](AppState&) -> void {
+    builder.Swatch(label, current, [this, title, get, set, reset, current]() -> void {
         const auto [hue, saturation, value] = HexHsv(current);
         OpenColor({.title = title, .get = get, .set = set, .reset = reset, .hue = hue, .saturation = saturation, .value = value});
     });
 }
 
-auto Editor::BuildToolbar(PanelBuilder& builder, AppState&) -> void {
-    if (closing_prompt_) {
+auto Editor::BuildToolbar(PanelBuilder& builder) -> void {
+    if (m_closing_prompt) {
         builder.Row({
             {.text = "Unsaved changes", .weight = 1.6f, .text_color = EditorColors::Dim()},
             {.text = "Save all & close",
-             .click = [this](AppState& app) -> void {
-                 const auto previous = target;
+             .click = [this]() -> void {
+                 const auto previous = m_target;
                  for (const auto edit : {EditTarget::Watch, EditTarget::Keyboard, EditTarget::Theme}) {
-                     target = edit;
-                     const bool changed = edit == EditTarget::Watch    ? watch.history.Dirty()
-                                        : edit == EditTarget::Keyboard ? keyboard.history.Dirty()
-                                                                       : theme.Dirty();
+                     m_target = edit;
+                     const bool changed = edit == EditTarget::Watch    ? m_watch_design.Revisions().Dirty()
+                                        : edit == EditTarget::Keyboard ? m_keyboard_design.Revisions().Dirty()
+                                                                       : m_theme_history.Dirty();
                      if (changed) {
-                         Save(app);
+                         Save();
                      }
                  }
-                 target = previous;
-                 Close(app);
+                 m_target = previous;
+                 Close();
              }},
-            {.text = "Keep draft", .click = [this](AppState& app) -> void { Suspend(app); }},
+            {.text = "Keep draft", .click = [this]() -> void { Suspend(); }},
             {.text = "Discard",
-             .click = [this](AppState& app) -> void { Discard(app); },
+             .click = [this]() -> void { Discard(); },
              .color = EditorColors::Danger(),
              .text_color = EditorColors::OnAccent()},
-            {.text = "Keep editing", .click = [this](AppState&) -> void {
-                 closing_prompt_ = false;
+            {.text = "Keep editing", .click = [this]() -> void {
+                 m_closing_prompt = false;
                  Touch();
              }},
         });
@@ -594,69 +587,65 @@ auto Editor::BuildToolbar(PanelBuilder& builder, AppState&) -> void {
     const auto dim = [](bool enabled) -> std::optional<Eigen::Vector4f> {
         return enabled ? std::nullopt : std::optional(EditorColors::Dark());
     };
-    bool can_undo = theme.CanUndo();
-    bool can_redo = theme.CanRedo();
-    bool dirty = theme.Dirty();
-    if (target == EditTarget::Watch) {
-        can_undo = watch.history.CanUndo();
-        can_redo = watch.history.CanRedo();
-        dirty = watch.history.Dirty();
-    } else if (target == EditTarget::Keyboard) {
-        can_undo = keyboard.history.CanUndo();
-        can_redo = keyboard.history.CanRedo();
-        dirty = keyboard.history.Dirty();
+    bool can_undo = m_theme_history.CanUndo();
+    bool can_redo = m_theme_history.CanRedo();
+    bool dirty = m_theme_history.Dirty();
+    if (m_target == EditTarget::Watch) {
+        can_undo = m_watch_design.Revisions().CanUndo();
+        can_redo = m_watch_design.Revisions().CanRedo();
+        dirty = m_watch_design.Revisions().Dirty();
+    } else if (m_target == EditTarget::Keyboard) {
+        can_undo = m_keyboard_design.Revisions().CanUndo();
+        can_redo = m_keyboard_design.Revisions().CanRedo();
+        dirty = m_keyboard_design.Revisions().Dirty();
     }
     std::vector<Cell> cells{
-        {.text = "Watch",
-         .click = [this](AppState&) -> void { SwitchTarget(EditTarget::Watch); },
-         .selected = target == EditTarget::Watch},
+        {.text = "Watch", .click = [this]() -> void { SwitchTarget(EditTarget::Watch); }, .selected = m_target == EditTarget::Watch},
         {.text = "Keyboard",
-         .click = [this](AppState&) -> void { SwitchTarget(EditTarget::Keyboard); },
+         .click = [this]() -> void { SwitchTarget(EditTarget::Keyboard); },
          .weight = 1.2f,
-         .selected = target == EditTarget::Keyboard},
-        {.text = "Theme",
-         .click = [this](AppState&) -> void { SwitchTarget(EditTarget::Theme); },
-         .selected = target == EditTarget::Theme},
+         .selected = m_target == EditTarget::Keyboard},
+        {.text = "Theme", .click = [this]() -> void { SwitchTarget(EditTarget::Theme); }, .selected = m_target == EditTarget::Theme},
 
-        {.text = "Undo", .click = [this](AppState& app) -> void { Undo(app); }, .color = dim(can_undo)},
-        {.text = "Redo", .click = [this](AppState& app) -> void { Redo(app); }, .color = dim(can_redo)},
+        {.text = "Undo", .click = [this]() -> void { Undo(); }, .color = dim(can_undo)},
+        {.text = "Redo", .click = [this]() -> void { Redo(); }, .color = dim(can_redo)},
     };
-    if (target == EditTarget::Watch) {
+    if (m_target == EditTarget::Watch) {
         cells.push_back(
             {.text = "Snap",
-             .click = [this](AppState&) -> void {
-                 watch.snap = !watch.snap;
+             .click = [this]() -> void {
+                 m_watch_design.SetSnap(!m_watch_design.Snap());
                  Touch();
              },
-             .selected = watch.snap}
+             .selected = m_watch_design.Snap()}
         );
-        cells.push_back({.text = "Layers", .click = [this](AppState&) -> void { SetExploded(!exploded_); }, .selected = exploded_});
+        cells.push_back({.text = "Layers", .click = [this]() -> void { SetExploded(!m_exploded); }, .selected = m_exploded});
     }
     cells.push_back(
         {.text = "On hand",
-         .click = [this](AppState&) -> void {
-             palette_on_hand_ = !palette_on_hand_;
+         .click = [this]() -> void {
+             m_palette_on_hand = !m_palette_on_hand;
              Touch();
          },
          .weight = 1.2f,
-         .selected = palette_on_hand_}
+         .selected = m_palette_on_hand}
     );
-    cells.push_back({.text = dirty ? "Save*" : "Save", .click = [this](AppState& app) -> void { Save(app); }, .selected = dirty});
+    cells.push_back({.text = dirty ? "Save*" : "Save", .click = [this]() -> void { Save(); }, .selected = dirty});
     cells.push_back({
-        .text = revert_armed_ ? "Sure?" : "Revert",
-        .click = [this](AppState& app) -> void { Revert(app); },
-        .color = revert_armed_ ? std::optional(EditorColors::Danger()) : std::nullopt,
-        .text_color = revert_armed_ ? std::optional(EditorColors::OnAccent()) : std::nullopt,
+        .text = m_revert_armed ? "Sure?" : "Revert",
+        .click = [this]() -> void { Revert(); },
+        .color = m_revert_armed ? std::optional(EditorColors::Danger()) : std::nullopt,
+        .text_color = m_revert_armed ? std::optional(EditorColors::OnAccent()) : std::nullopt,
     });
-    cells.push_back({.text = "Done", .click = [this](AppState& app) -> void { Done(app); }});
+    cells.push_back({.text = "Done", .click = [this]() -> void { Done(); }});
     for (auto& cell : cells) {
         cell.weight = 0.0f;
     }
     builder.Row(std::move(cells));
 }
 
-auto Editor::BuildPalette(PanelBuilder& builder, AppState&) -> void {
-    if (target == EditTarget::Theme) {
+auto Editor::BuildPalette(PanelBuilder& builder) -> void {
+    if (m_target == EditTarget::Theme) {
         builder.Title("Theme");
         builder.Caption("Pick a colour on the right");
         builder.Caption("to change it everywhere");
@@ -664,55 +653,56 @@ auto Editor::BuildPalette(PanelBuilder& builder, AppState&) -> void {
     }
     builder.Title("Add");
     builder.Caption("Drag onto the preview");
-    if (target == EditTarget::Watch) {
+    if (m_target == EditTarget::Watch) {
         for (const auto part : FormDesigner::kParts) {
-            builder.Button({.text = std::string(FormDesigner::PartName(part)), .press = [this, part](AppState& app) -> void {
-                                StartCarry(app, part);
+            builder.Button({.text = std::string(FormDesigner::PartName(part)), .press = [this, part]() -> void {
+                                StartCarry(part);
                             }});
         }
         return;
     }
     for (const auto key_template : KeyboardDesigner::kTemplates) {
-        builder.Button(
-            {.text = std::string(KeyboardDesigner::TemplateName(key_template)),
-             .press = [this, key_template](AppState& app) -> void { StartCarry(app, key_template); }}
-        );
+        builder.Button({.text = std::string(KeyboardDesigner::TemplateName(key_template)), .press = [this, key_template]() -> void {
+                            StartCarry(key_template);
+                        }});
     }
 }
 
-auto Editor::BuildProperties(PanelBuilder& builder, AppState& app) -> void {
-    if (capture_) {
-        builder.Title(capture_->shortcut ? "Record shortcut" : "Press a key");
-        builder.Caption(capture_->shortcut ? "Tap modifiers, then the key" : "Press it on the keyboard");
-        if (capture_->shortcut) {
-            builder.Caption(ShortcutText(capture_->held));
+auto Editor::BuildProperties(PanelBuilder& builder) -> void {
+    if (m_capture) {
+        builder.Title(m_capture->shortcut ? "Record shortcut" : "Press a key");
+        builder.Caption(m_capture->shortcut ? "Tap modifiers, then the key" : "Press it on the keyboard");
+        if (m_capture->shortcut) {
+            builder.Caption(ShortcutText(m_capture->held));
         }
-        builder.Button({.text = "Cancel", .click = [this](AppState& state) -> void { EndText(state); }});
+        builder.Button({.text = "Cancel", .click = [this]() -> void { EndText(); }});
         return;
     }
-    if (target == EditTarget::Theme) {
-        BuildThemeProperties(builder, app);
+    if (m_target == EditTarget::Theme) {
+        BuildThemeProperties(builder);
         return;
     }
-    if (target == EditTarget::Watch) {
-        if (const auto selected = watch.selected; selected && *selected < watch.Document().elements.size()) {
-            BuildWatchProperties(builder, app, *selected);
-        } else if (const auto form = watch.selected_form; form && *form > 0 && *form < watch.Document().FormCount()) {
+    if (m_target == EditTarget::Watch) {
+        if (const auto selected = m_watch_design.Selected(); selected && *selected < m_watch_design.Document().Elements().size()) {
+            BuildWatchProperties(builder, *selected);
+        } else if (
+            const auto form = m_watch_design.SelectedForm(); form && *form > 0 && *form < m_watch_design.Document().FormCount()
+        ) {
             BuildExtraFormProperties(builder, *form);
         } else {
-            BuildFormProperties(builder, app);
+            BuildFormProperties(builder);
         }
         return;
     }
-    if (const auto selected = keyboard.selected; selected && *selected < keyboard.Document().keys.size()) {
-        BuildKeyProperties(builder, app, *selected);
+    if (const auto selected = m_keyboard_design.Selected(); selected && *selected < m_keyboard_design.Document().Keys().size()) {
+        BuildKeyProperties(builder, *selected);
     } else {
-        BuildKeyboardProperties(builder, app);
+        BuildKeyboardProperties(builder);
     }
 }
 
-auto Editor::BuildFormProperties(PanelBuilder& builder, AppState& app) -> void {
-    const auto& config = watch.Document();
+auto Editor::BuildFormProperties(PanelBuilder& builder) -> void {
+    const auto& config = m_watch_design.Document();
     builder.Title("Watch");
     builder.Section("Watch layouts");
     {
@@ -723,8 +713,8 @@ auto Editor::BuildFormProperties(PanelBuilder& builder, AppState& app) -> void {
                 const auto& name = profiles[i];
                 cells.push_back({
                     .text = name,
-                    .click = [this, name](AppState& state) -> void { SelectWatch(state, name); },
-                    .selected = name == watch_profile_,
+                    .click = [this, name]() -> void { SelectWatch(name); },
+                    .selected = name == m_watch_profile,
                 });
             }
             if (cells.size() < 2) {
@@ -732,102 +722,100 @@ auto Editor::BuildFormProperties(PanelBuilder& builder, AppState& app) -> void {
             }
             builder.Row(std::move(cells), 30.0f);
         }
-        std::vector<Cell> actions{{.text = "New layout", .click = [this](AppState& state) -> void { NewWatch(state); }}};
-        if (!Watch::IsBuiltIn(watch_profile_)) {
+        std::vector<Cell> actions{{.text = "New layout", .click = [this]() -> void { NewWatch(); }}};
+        if (!Watch::IsBuiltIn(m_watch_profile)) {
             actions.push_back({
-                .text = delete_armed_ ? "Sure?" : "Delete",
-                .click = [this](AppState& state) -> void { DeleteWatch(state); },
+                .text = m_delete_armed ? "Sure?" : "Delete",
+                .click = [this]() -> void { DeleteWatch(); },
                 .color = EditorColors::Danger(),
                 .text_color = EditorColors::OnAccent(),
             });
         }
         builder.Row(std::move(actions));
-        if (!Watch::IsBuiltIn(watch_profile_)) {
-            TextRow(
-                builder,
-                app,
-                "Name",
-                "watch.name",
-                watch_profile_,
-                [](Editor& editor, AppState& state, const std::string& text) -> void { editor.RenameWatch(state, text); }
-            );
+        if (!Watch::IsBuiltIn(m_watch_profile)) {
+            TextRow(builder, "Name", "watch.name", m_watch_profile, [](Editor& editor, const std::string& text) -> void {
+                editor.RenameWatch(text);
+            });
         }
     }
     builder.Section("Size");
     builder.Stepper(
         "Width",
-        std::format("{:.0f}", config.form.width),
-        [this](AppState&) -> void {
+        std::format("{:.0f}", config.Form().width),
+        [this]() -> void {
             EditWatch([this](ModularUiConfig& edited) -> void {
-                edited.form.width = std::max(edited.form.width - 10.0f, watch.MinimumForm(edited).x());
+                edited.Form().width = std::max(edited.Form().width - 10.0f, m_watch_design.MinimumForm(edited).x());
             });
         },
-        [this](AppState&) -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.form.width += 10.0f; }); },
+        [this]() -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.Form().width += 10.0f; }); },
         {}
     );
     builder.Stepper(
         "Height",
-        std::format("{:.0f}", config.form.height),
-        [this](AppState&) -> void {
+        std::format("{:.0f}", config.Form().height),
+        [this]() -> void {
             EditWatch([this](ModularUiConfig& edited) -> void {
-                edited.form.height = std::max(edited.form.height - 10.0f, watch.MinimumForm(edited).y());
+                edited.Form().height = std::max(edited.Form().height - 10.0f, m_watch_design.MinimumForm(edited).y());
             });
         },
-        [this](AppState&) -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.form.height += 10.0f; }); },
+        [this]() -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.Form().height += 10.0f; }); },
         {}
     );
     builder.Stepper(
         "On the wrist",
-        std::format("{:.0f} mm", config.width * 1000.0f),
-        [this](AppState&) -> void {
-            EditWatch([](ModularUiConfig& edited) -> void { edited.width = std::max(edited.width - 0.005f, 0.03f); });
+        std::format("{:.0f} mm", config.Width() * 1000.0f),
+        [this]() -> void {
+            EditWatch([](ModularUiConfig& edited) -> void { edited.SetWidth(std::max(edited.Width() - 0.005f, 0.03f)); });
         },
-        [this](AppState&) -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.width += 0.005f; }); },
+        [this]() -> void { EditWatch([](ModularUiConfig& edited) -> void { edited.SetWidth(edited.Width() + 0.005f); }); },
         {}
     );
     builder.Gap();
-    if (config.form.toolbar) {
+    if (config.Form().toolbar) {
         builder.Section("Toolbar");
         builder.Stepper(
             "Height",
-            std::format("{:.0f}", config.form.toolbar->height),
-            [this](AppState&) -> void {
+            std::format("{:.0f}", config.Form().toolbar->height),
+            [this]() -> void {
                 EditWatch([this](ModularUiConfig& edited) -> void {
-                    edited.form.toolbar->height = std::max(edited.form.toolbar->height - 2.0f, watch.MinimumToolbarHeight(edited));
+                    edited.Form().toolbar->height = std::max(
+                        edited.Form().toolbar->height - 2.0f,
+                        m_watch_design.MinimumToolbarHeight(edited)
+                    );
                 });
             },
-            [this](AppState&) -> void {
+            [this]() -> void {
                 EditWatch([](ModularUiConfig& edited) -> void {
-                    edited.form.toolbar->height = std::min(edited.form.toolbar->height + 2.0f, 160.0f);
+                    edited.Form().toolbar->height = std::min(edited.Form().toolbar->height + 2.0f, 160.0f);
                 });
             },
             {}
         );
-        const auto position = config.form.toolbar->position;
+        const auto position = config.Form().toolbar->position;
         builder.Row({
             {.text = "Above",
-             .click = [this](AppState&) -> void {
-                 EditWatch([](ModularUiConfig& edited) -> void { edited.form.toolbar->position = ToolbarPosition::Above; });
+             .click = [this]() -> void {
+                 EditWatch([](ModularUiConfig& edited) -> void { edited.Form().toolbar->position = ToolbarPosition::Above; });
              },
              .selected = position == ToolbarPosition::Above},
             {.text = "Below",
-             .click = [this](AppState&) -> void {
-                 EditWatch([](ModularUiConfig& edited) -> void { edited.form.toolbar->position = ToolbarPosition::Below; });
+             .click = [this]() -> void {
+                 EditWatch([](ModularUiConfig& edited) -> void { edited.Form().toolbar->position = ToolbarPosition::Below; });
              },
              .selected = position == ToolbarPosition::Below},
-            {.text = "Remove", .click = [this](AppState&) -> void {
+            {.text = "Remove", .click = [this]() -> void {
                  EditWatch([](ModularUiConfig& edited) -> void {
-                     std::erase_if(edited.elements, [](const ModularElement& element) -> bool {
+                     std::erase_if(edited.Elements(), [](const ModularElement& element) -> bool {
                          return ModularElements::RegionOf(element) == Region::Toolbar;
                      });
-                     edited.form.toolbar.reset();
+                     edited.Form().toolbar.reset();
                  });
-                 watch.selected.reset();
+                 m_watch_design.Selected().reset();
              }},
         });
     } else {
-        builder.Button({.text = "Add a toolbar", .click = [this](AppState&) -> void {
-                            EditWatch([](ModularUiConfig& edited) -> void { edited.form.toolbar = ToolbarLayout{}; });
+        builder.Button({.text = "Add a toolbar", .click = [this]() -> void {
+                            EditWatch([](ModularUiConfig& edited) -> void { edited.Form().toolbar = ToolbarLayout{}; });
                         }});
     }
     builder.Gap();
@@ -836,33 +824,33 @@ auto Editor::BuildFormProperties(PanelBuilder& builder, AppState& app) -> void {
 }
 
 auto Editor::BuildExtraFormProperties(PanelBuilder& builder, size_t form) -> void {
-    const auto& extra = watch.Document().forms.at(form - 1);
+    const auto& extra = m_watch_design.Document().Forms().at(form - 1);
     builder.Title(std::format("Form {}", form + 1));
     builder.Stepper(
         "Width",
         std::format("{:.0f}", extra.width),
-        [this, form](AppState&) -> void {
+        [this, form]() -> void {
             EditWatch([this, form](ModularUiConfig& edited) -> void {
-                auto& changed = edited.forms.at(form - 1);
-                changed.width = std::max(changed.width - 10.0f, watch.MinimumForm(edited, form).x());
+                auto& changed = edited.Forms().at(form - 1);
+                changed.width = std::max(changed.width - 10.0f, m_watch_design.MinimumForm(edited, form).x());
             });
         },
-        [this, form](AppState&) -> void {
-            EditWatch([form](ModularUiConfig& edited) -> void { edited.forms.at(form - 1).width += 10.0f; });
+        [this, form]() -> void {
+            EditWatch([form](ModularUiConfig& edited) -> void { edited.Forms().at(form - 1).width += 10.0f; });
         },
         {}
     );
     builder.Stepper(
         "Height",
         std::format("{:.0f}", extra.height),
-        [this, form](AppState&) -> void {
+        [this, form]() -> void {
             EditWatch([this, form](ModularUiConfig& edited) -> void {
-                auto& changed = edited.forms.at(form - 1);
-                changed.height = std::max(changed.height - 10.0f, watch.MinimumForm(edited, form).y());
+                auto& changed = edited.Forms().at(form - 1);
+                changed.height = std::max(changed.height - 10.0f, m_watch_design.MinimumForm(edited, form).y());
             });
         },
-        [this, form](AppState&) -> void {
-            EditWatch([form](ModularUiConfig& edited) -> void { edited.forms.at(form - 1).height += 10.0f; });
+        [this, form]() -> void {
+            EditWatch([form](ModularUiConfig& edited) -> void { edited.Forms().at(form - 1).height += 10.0f; });
         },
         {}
     );
@@ -871,22 +859,22 @@ auto Editor::BuildExtraFormProperties(PanelBuilder& builder, size_t form) -> voi
         "Colour",
         "Form colour",
         [form](const Editor& editor) -> std::string {
-            return editor.watch.Document().forms.at(form - 1).bg_color.value_or("#00000000");
+            return editor.WatchDesign().Document().Forms().at(form - 1).bg_color.value_or("#00000000");
         },
         [form](Editor& editor, const std::string& color) -> void {
-            editor.EditWatch([form, &color](ModularUiConfig& edited) -> void { edited.forms.at(form - 1).bg_color = color; });
+            editor.EditWatch([form, &color](ModularUiConfig& edited) -> void { edited.Forms().at(form - 1).bg_color = color; });
         },
         [form](Editor& editor) -> void {
-            editor.EditWatch([form](ModularUiConfig& edited) -> void { edited.forms.at(form - 1).bg_color.reset(); });
+            editor.EditWatch([form](ModularUiConfig& edited) -> void { edited.Forms().at(form - 1).bg_color.reset(); });
         }
     );
     builder.Caption("Drag it by an empty spot to move it");
     builder.Button({
         .text = "Delete form",
-        .click = [this, form](AppState&) -> void {
-            watch.RemoveForm(form);
-            dialog_ = DialogKind::None;
-            watch_apply_ = true;
+        .click = [this, form]() -> void {
+            m_watch_design.RemoveForm(form);
+            m_dialog = DialogKind::None;
+            m_watch_apply = true;
             Touch();
         },
         .color = EditorColors::Danger(),
@@ -894,13 +882,13 @@ auto Editor::BuildExtraFormProperties(PanelBuilder& builder, size_t form) -> voi
     });
 }
 
-auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t index) -> void {
-    const auto& element = watch.Document().elements.at(index);
+auto Editor::BuildWatchProperties(PanelBuilder& builder, size_t index) -> void {
+    const auto& element = m_watch_design.Document().Elements().at(index);
     const auto edit = [this, index](std::function<void(ModularElement&)> change) -> Click {
-        return [this, index, change = std::move(change)](AppState&) -> void {
+        return [this, index, change = std::move(change)]() -> void {
             EditWatch([this, index, &change](ModularUiConfig& config) -> void {
-                change(config.elements.at(index));
-                watch.Fit(config, index);
+                change(config.Elements().at(index));
+                m_watch_design.Fit(config, index);
             });
         };
     };
@@ -910,24 +898,17 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
     }
 
     if (const auto* button = std::get_if<ButtonElement>(&element)) {
-        TextRow(
-            builder,
-            app,
-            "Text",
-            "button.text",
-            button->text,
-            [index](Editor& editor, AppState&, const std::string& text) -> void {
-                editor.EditWatch([&editor, index, &text](ModularUiConfig& config) -> void {
-                    std::get<ButtonElement>(config.elements.at(index)).text = text;
-                    editor.watch.Fit(config, index);
-                });
-            }
-        );
+        TextRow(builder, "Text", "button.text", button->text, [index](Editor& editor, const std::string& text) -> void {
+            editor.EditWatch([&editor, index, &text](ModularUiConfig& config) -> void {
+                std::get<ButtonElement>(config.Elements().at(index)).text = text;
+                editor.WatchDesign().Fit(config, index);
+            });
+        });
     } else if (const auto* label = std::get_if<LabelElement>(&element)) {
         const auto* fixed = std::get_if<StaticLabelContent>(&label->content);
         const auto* clock = std::get_if<ClockLabelContent>(&label->content);
         const auto* zone_name = std::get_if<TimezoneLabelContent>(&label->content);
-        const auto shown = watch.label_text ? watch.label_text(label->content) : std::string("Text");
+        const auto shown = m_watch_design.label_text ? m_watch_design.label_text(label->content) : std::string("Text");
         builder.Caption("Shows");
         builder.Row({
             {.text = "Text",
@@ -973,42 +954,28 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
         if (zone_name != nullptr) {
             builder.Row({
                 {.text = "Timezone", .weight = 1.0f, .text_color = EditorColors::Dim()},
-                {.text = ZoneName(zone_name->timezone, app),
-                 .click = [this, index](AppState&) -> void { OpenTimezones(index); },
+                {.text = ZoneName(zone_name->timezone),
+                 .click = [this, index]() -> void { OpenTimezones(index); },
                  .weight = 2.0f,
-                 .selected = dialog_ == DialogKind::Timezone},
+                 .selected = m_dialog == DialogKind::Timezone},
             });
         }
         if (fixed != nullptr) {
-            TextRow(
-                builder,
-                app,
-                "Text",
-                "label.text",
-                fixed->text,
-                [index](Editor& editor, AppState&, const std::string& text) -> void {
-                    editor.EditWatch([&editor, index, &text](ModularUiConfig& config) -> void {
-                        std::get<LabelElement>(config.elements.at(index)).content = StaticLabelContent{.text = text};
-                        editor.watch.Fit(config, index);
-                    });
-                }
-            );
+            TextRow(builder, "Text", "label.text", fixed->text, [index](Editor& editor, const std::string& text) -> void {
+                editor.EditWatch([&editor, index, &text](ModularUiConfig& config) -> void {
+                    std::get<LabelElement>(config.Elements().at(index)).content = StaticLabelContent{.text = text};
+                    editor.WatchDesign().Fit(config, index);
+                });
+            });
         } else if (clock != nullptr) {
-            TextRow(
-                builder,
-                app,
-                "Format",
-                "label.format",
-                clock->format,
-                [index](Editor& editor, AppState&, const std::string& text) -> void {
-                    editor.EditWatch([index, &text](ModularUiConfig& config) -> void {
-                        auto& content = std::get<LabelElement>(config.elements.at(index)).content;
-                        if (auto* clock_content = std::get_if<ClockLabelContent>(&content)) {
-                            clock_content->format = text;
-                        }
-                    });
-                }
-            );
+            TextRow(builder, "Format", "label.format", clock->format, [index](Editor& editor, const std::string& text) -> void {
+                editor.EditWatch([index, &text](ModularUiConfig& config) -> void {
+                    auto& content = std::get<LabelElement>(config.Elements().at(index)).content;
+                    if (auto* clock_content = std::get_if<ClockLabelContent>(&content)) {
+                        clock_content->format = text;
+                    }
+                });
+            });
             std::vector<Cell> presets;
             for (const auto& [name, format] : {std::pair{"24h", "%H:%M"}, {"12h", "%I:%M %p"}, {"Date", "%x"}, {"Day", "%A"}}) {
                 presets.push_back(
@@ -1025,10 +992,10 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
             builder.Row(std::move(presets));
             builder.Row({
                 {.text = "Timezone", .weight = 1.0f, .text_color = EditorColors::Dim()},
-                {.text = ZoneName(clock->timezone, app),
-                 .click = [this, index](AppState&) -> void { OpenTimezones(index); },
+                {.text = ZoneName(clock->timezone),
+                 .click = [this, index]() -> void { OpenTimezones(index); },
                  .weight = 2.0f,
-                 .selected = dialog_ == DialogKind::Timezone},
+                 .selected = m_dialog == DialogKind::Timezone},
             });
             builder.Button({
                 .text = "City name above",
@@ -1085,11 +1052,11 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
             background ? "Colour" : "Text colour",
             background ? "Colour" : "Text colour",
             [index, background](const Editor& editor) -> std::string {
-                return ElementColor(editor.watch.Document().elements.at(index), background).value_or("#ffffff");
+                return ElementColor(editor.WatchDesign().Document().Elements().at(index), background).value_or("#ffffff");
             },
             [index, background](Editor& editor, const std::string& color) -> void {
                 editor.EditWatch([index, background, &color](ModularUiConfig& config) -> void {
-                    SetElementColor(config.elements.at(index), background, color);
+                    SetElementColor(config.Elements().at(index), background, color);
                 });
             },
             {}
@@ -1098,7 +1065,7 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
     if (const auto radius = ElementRadius(element); radius && !std::holds_alternative<LabelElement>(element)) {
         const float shown = Theme::Resolve(
             *radius,
-            Theme::Active().rounding,
+            g_themes->Active().rounding,
             std::holds_alternative<PanelElement>(element) ? Shape::Panel : Shape::Control
         );
         builder.Stepper(
@@ -1138,8 +1105,8 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
             name.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(name.front())));
             Cell cell{
                 .text = count == 0 ? name : std::format("{} ({})", name, count),
-                .click = [this, trigger](AppState&) -> void { OpenActions(trigger); },
-                .selected = dialog_ == DialogKind::Actions && trigger_ == trigger,
+                .click = [this, trigger]() -> void { OpenActions(trigger); },
+                .selected = m_dialog == DialogKind::Actions && m_trigger == trigger,
             };
             (trigger == ButtonTrigger::LeftClick || trigger == ButtonTrigger::RightClick ? first : second)
                 .push_back(std::move(cell));
@@ -1150,29 +1117,29 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
     builder.Section("Arrange");
     builder.Row({
         {.text = "Forward",
-         .click = [this, index](AppState&) -> void {
-             watch.Restack(index, 1);
-             watch_apply_ = true;
+         .click = [this, index]() -> void {
+             m_watch_design.Restack(index, 1);
+             m_watch_apply = true;
              Touch();
          }},
-        {.text = "Back", .click = [this, index](AppState&) -> void {
-             watch.Restack(index, -1);
-             watch_apply_ = true;
+        {.text = "Back", .click = [this, index]() -> void {
+             m_watch_design.Restack(index, -1);
+             m_watch_apply = true;
              Touch();
          }},
     });
     builder.Row({
         {.text = "Duplicate",
-         .click = [this, index](AppState&) -> void {
-             watch.Duplicate(index);
-             watch_apply_ = true;
+         .click = [this, index]() -> void {
+             m_watch_design.Duplicate(index);
+             m_watch_apply = true;
              Touch();
          }},
         {.text = "Delete",
-         .click = [this, index](AppState&) -> void {
-             watch.Remove(index);
-             dialog_ = DialogKind::None;
-             watch_apply_ = true;
+         .click = [this, index]() -> void {
+             m_watch_design.Remove(index);
+             m_dialog = DialogKind::None;
+             m_watch_apply = true;
              Touch();
          },
          .color = EditorColors::Danger(),
@@ -1180,12 +1147,12 @@ auto Editor::BuildWatchProperties(PanelBuilder& builder, AppState& app, size_t i
     });
 }
 
-auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t index) -> void {
-    const auto& layout = keyboard.Document();
-    const auto& key = layout.keys.at(index);
+auto Editor::BuildKeyProperties(PanelBuilder& builder, size_t index) -> void {
+    const auto& layout = m_keyboard_design.Document();
+    const auto& key = layout.Keys().at(index);
     const auto edit = [this, index](std::function<void(KeyDefinition&)> change) -> Click {
-        return [this, index, change = std::move(change)](AppState&) -> void {
-            EditKeyboard([index, &change](KeyboardLayout& edited) -> void { change(edited.keys.at(index)); });
+        return [this, index, change = std::move(change)]() -> void {
+            EditKeyboard([index, &change](KeyboardLayout& edited) -> void { change(edited.Keys().at(index)); });
         };
     };
     const auto* typed = std::get_if<TypeKey>(&key.action);
@@ -1196,39 +1163,39 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     builder.Section("Action");
     builder.Row({
         {.text = "Key",
-         .click = [this, index, typed](AppState&) -> void {
+         .click = [this, index, typed]() -> void {
              if (typed == nullptr) {
                  EditKeyboard([index](KeyboardLayout& edited) -> void {
-                     edited.keys.at(index).action = TypeKey{.key = VirtualKey::Space};
+                     edited.Keys().at(index).action = TypeKey{.key = VirtualKey::Space};
                  });
              }
              OpenKeyPicker();
          },
          .selected = typed != nullptr},
         {.text = "Macro",
-         .click = [this, index, action, is_shortcut](AppState& state) -> void {
+         .click = [this, index, action, is_shortcut]() -> void {
              if (action == nullptr || is_shortcut) {
                  EditKeyboard([index](KeyboardLayout& edited) -> void {
-                     auto& changed = edited.keys.at(index);
+                     auto& changed = edited.Keys().at(index);
                      changed.action = ActionKey{};
                      if (!changed.label) {
                          changed.label = std::vector<std::string>{"Macro"};
                      }
                  });
              }
-             BeginText(state, "key.command", "", [index](Editor& editor, AppState&, const std::string& text) -> void {
+             BeginText("key.command", "", [index](Editor& editor, const std::string& text) -> void {
                  editor.EditKeyboard([index, &text](KeyboardLayout& edited) -> void {
-                     auto& changed = std::get<ActionKey>(edited.keys.at(index).action);
+                     auto& changed = std::get<ActionKey>(edited.Keys().at(index).action);
                      changed.press = CommandActions(text);
                  });
              });
          },
          .selected = action != nullptr && !is_shortcut},
         {.text = "Shortcut",
-         .click = [this, index](AppState& state) -> void {
-             BeginCapture(state, true, [index](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
+         .click = [this, index]() -> void {
+             BeginCapture(true, [index](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
                  editor.EditKeyboard([index, &keys](KeyboardLayout& edited) -> void {
-                     auto& changed = edited.keys.at(index);
+                     auto& changed = edited.Keys().at(index);
                      changed.action = ActionKey{.press = {ShortcutButtonAction{.keys = keys}}};
                      if (!changed.label) {
                          changed.label = std::vector<std::string>{ShortcutText(keys)};
@@ -1250,12 +1217,12 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     if (typed != nullptr) {
         builder.Row({
             {.text = std::string(VirtualKeys::Name(typed->key)),
-             .click = [this](AppState&) -> void { OpenKeyPicker(); },
-             .selected = dialog_ == DialogKind::KeyPicker},
-            {.text = "Press a key", .click = [this, index](AppState& state) -> void {
-                 BeginCapture(state, false, [index](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
+             .click = [this]() -> void { OpenKeyPicker(); },
+             .selected = m_dialog == DialogKind::KeyPicker},
+            {.text = "Press a key", .click = [this, index]() -> void {
+                 BeginCapture(false, [index](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
                      editor.EditKeyboard([index, &keys](KeyboardLayout& edited) -> void {
-                         auto& changed = edited.keys.at(index);
+                         auto& changed = edited.Keys().at(index);
                          changed.action = TypeKey{.key = keys.back()};
                          changed.label.reset();
                          changed.shifted_label.reset();
@@ -1268,13 +1235,12 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     } else if (action != nullptr) {
         TextRow(
             builder,
-            app,
             "Command",
             "key.command",
             JoinCommand(CommandOf(action->press).value_or(std::vector<std::string>{})),
-            [index](Editor& editor, AppState&, const std::string& text) -> void {
+            [index](Editor& editor, const std::string& text) -> void {
                 editor.EditKeyboard([index, &text](KeyboardLayout& edited) -> void {
-                    if (auto* changed = std::get_if<ActionKey>(&edited.keys.at(index).action)) {
+                    if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action)) {
                         changed->press = CommandActions(text);
                     }
                 });
@@ -1282,13 +1248,12 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
         );
         TextRow(
             builder,
-            app,
             "On release (optional)",
             "key.release",
             JoinCommand(CommandOf(action->release).value_or(std::vector<std::string>{})),
-            [index](Editor& editor, AppState&, const std::string& text) -> void {
+            [index](Editor& editor, const std::string& text) -> void {
                 editor.EditKeyboard([index, &text](KeyboardLayout& edited) -> void {
-                    if (auto* changed = std::get_if<ActionKey>(&edited.keys.at(index).action)) {
+                    if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action)) {
                         changed->release = CommandActions(text);
                     }
                 });
@@ -1299,25 +1264,23 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     const auto labels = layout.Labels(key);
     TextRow(
         builder,
-        app,
         key.label ? "Label" : "Label (automatic)",
         "key.label",
         labels.empty() ? std::string() : labels.front(),
-        [index](Editor& editor, AppState&, const std::string& text) -> void {
+        [index](Editor& editor, const std::string& text) -> void {
             editor.EditKeyboard([index, &text](KeyboardLayout& edited) -> void {
-                edited.keys.at(index).label = std::vector<std::string>{text};
+                edited.Keys().at(index).label = std::vector<std::string>{text};
             });
         }
     );
     TextRow(
         builder,
-        app,
         "Shifted label",
         "key.shifted",
         key.shifted_label.value_or(""),
-        [index](Editor& editor, AppState&, const std::string& text) -> void {
+        [index](Editor& editor, const std::string& text) -> void {
             editor.EditKeyboard([index, &text](KeyboardLayout& edited) -> void {
-                edited.keys.at(index).shifted_label = text.empty() ? std::nullopt : std::optional(text);
+                edited.Keys().at(index).shifted_label = text.empty() ? std::nullopt : std::optional(text);
             });
         }
     );
@@ -1331,15 +1294,15 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     builder.Stepper(
         "Width",
         std::format("{:g}", key.width),
-        [this, index](AppState& state) -> void {
-            if (!keyboard.Resize(index, -kKeyStep)) {
-                Notify(state, "Keys need at least a quarter unit");
+        [this, index]() -> void {
+            if (!m_keyboard_design.Resize(index, -kKeyStep)) {
+                Notify("Keys need at least a quarter unit");
             }
             Touch();
         },
-        [this, index](AppState& state) -> void {
-            if (!keyboard.Resize(index, kKeyStep)) {
-                Notify(state, "No room to grow, move the next key first");
+        [this, index]() -> void {
+            if (!m_keyboard_design.Resize(index, kKeyStep)) {
+                Notify("No room to grow, move the next key first");
             }
             Touch();
         },
@@ -1350,13 +1313,15 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
         "Key colour",
         "Key colour",
         [index](const Editor& editor) -> std::string {
-            return editor.keyboard.Document().keys.at(index).style.bg_color.value_or("@panel");
+            return editor.KeyboardDesign().Document().Keys().at(index).style.bg_color.value_or("@panel");
         },
         [index](Editor& editor, const std::string& color) -> void {
-            editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void { edited.keys.at(index).style.bg_color = color; });
+            editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void {
+                edited.Keys().at(index).style.bg_color = color;
+            });
         },
         [index](Editor& editor) -> void {
-            editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.keys.at(index).style.bg_color.reset(); });
+            editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.bg_color.reset(); });
         }
     );
     ColorRow(
@@ -1364,16 +1329,18 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
         "Text colour",
         "Text colour",
         [index](const Editor& editor) -> std::string {
-            return editor.keyboard.Document().keys.at(index).style.fg_color.value_or("@text");
+            return editor.KeyboardDesign().Document().Keys().at(index).style.fg_color.value_or("@text");
         },
         [index](Editor& editor, const std::string& color) -> void {
-            editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void { edited.keys.at(index).style.fg_color = color; });
+            editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void {
+                edited.Keys().at(index).style.fg_color = color;
+            });
         },
         [index](Editor& editor) -> void {
-            editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.keys.at(index).style.fg_color.reset(); });
+            editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.fg_color.reset(); });
         }
     );
-    const float corners = Theme::Resolve(key.style.corner_radius, Theme::Active().rounding, Shape::Key);
+    const float corners = Theme::Resolve(key.style.corner_radius, g_themes->Active().rounding, Shape::Key);
     builder.Stepper(
         "Corners",
         key.style.corner_radius ? std::format("{:.0f}", corners) : std::format("{:.0f} theme", corners),
@@ -1384,16 +1351,16 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     builder.Section("Arrange");
     builder.Row({
         {.text = "Duplicate",
-         .click = [this, index](AppState& state) -> void {
-             if (!keyboard.Duplicate(index)) {
-                 Notify(state, "No free spot, add a column or row first");
+         .click = [this, index]() -> void {
+             if (!m_keyboard_design.Duplicate(index)) {
+                 Notify("No free spot, add a column or row first");
              }
              Touch();
          }},
         {.text = "Delete",
-         .click = [this, index](AppState&) -> void {
-             keyboard.Remove(index);
-             dialog_ = DialogKind::None;
+         .click = [this, index]() -> void {
+             m_keyboard_design.Remove(index);
+             m_dialog = DialogKind::None;
              Touch();
          },
          .color = EditorColors::Danger(),
@@ -1401,20 +1368,20 @@ auto Editor::BuildKeyProperties(PanelBuilder& builder, AppState& app, size_t ind
     });
 }
 
-auto Editor::BuildKeyboardProperties(PanelBuilder& builder, AppState& app) -> void {
-    const auto& layout = keyboard.Document();
+auto Editor::BuildKeyboardProperties(PanelBuilder& builder) -> void {
+    const auto& layout = m_keyboard_design.Document();
     builder.Title("Keyboard");
     builder.Section("Keyboards");
     {
-        const auto& profiles = KeyboardProfiles::All();
+        const auto& profiles = g_keyboard_profiles->All();
         for (size_t start = 0; start < profiles.size(); start += 2) {
             std::vector<Cell> cells;
             for (size_t i = start; i < std::min(start + 2, profiles.size()); ++i) {
-                const auto name = profiles[i].name;
+                const auto name = profiles[i].Name();
                 cells.push_back({
                     .text = name,
-                    .click = [this, name](AppState& state) -> void { SelectKeyboard(state, name); },
-                    .selected = name == keyboard_file_name_,
+                    .click = [this, name]() -> void { SelectKeyboard(name); },
+                    .selected = name == m_keyboard_file_name,
                 });
             }
             if (cells.size() < 2) {
@@ -1422,11 +1389,11 @@ auto Editor::BuildKeyboardProperties(PanelBuilder& builder, AppState& app) -> vo
             }
             builder.Row(std::move(cells), 30.0f);
         }
-        std::vector<Cell> actions{{.text = "Save as new", .click = [this](AppState& state) -> void { SaveAsNew(state); }}};
-        if (!KeyboardProfiles::IsBuiltIn(layout.name) && !layout.source.empty()) {
+        std::vector<Cell> actions{{.text = "Save as new", .click = [this]() -> void { SaveAsNew(); }}};
+        if (!KeyboardProfiles::IsBuiltIn(layout.Name()) && !layout.Source().empty()) {
             actions.push_back({
-                .text = delete_armed_ ? "Sure?" : "Delete",
-                .click = [this](AppState& state) -> void { DeleteKeyboard(state); },
+                .text = m_delete_armed ? "Sure?" : "Delete",
+                .click = [this]() -> void { DeleteKeyboard(); },
                 .color = EditorColors::Danger(),
                 .text_color = EditorColors::OnAccent(),
             });
@@ -1434,21 +1401,20 @@ auto Editor::BuildKeyboardProperties(PanelBuilder& builder, AppState& app) -> vo
         builder.Row(std::move(actions));
     }
     builder.Section("Settings");
-    TextRow(builder, app, "Name", "keyboard.name", layout.name, [](Editor& editor, AppState&, const std::string& text) -> void {
+    TextRow(builder, "Name", "keyboard.name", layout.Name(), [](Editor& editor, const std::string& text) -> void {
         if (!text.empty()) {
-            editor.EditKeyboard([&text](KeyboardLayout& edited) -> void { edited.name = text; });
+            editor.EditKeyboard([&text](KeyboardLayout& edited) -> void { edited.SetName(text); });
         }
     });
-    builder.Caption(std::format("{:g} x {} grid, {} keys", layout.columns, layout.rows, layout.keys.size()));
+    builder.Caption(std::format("{:g} x {} grid, {} keys", layout.Columns(), layout.Rows(), layout.Keys().size()));
     TextRow(
         builder,
-        app,
         "Region (like fi or de)",
         "keyboard.region",
-        layout.region.value_or(""),
-        [](Editor& editor, AppState&, const std::string& text) -> void {
+        layout.Region().value_or(""),
+        [](Editor& editor, const std::string& text) -> void {
             editor.EditKeyboard([&text](KeyboardLayout& edited) -> void {
-                edited.region = text.empty() ? std::nullopt : std::optional(text);
+                edited.SetRegion(text.empty() ? std::nullopt : std::optional(text));
             });
         }
     );
@@ -1459,23 +1425,23 @@ auto Editor::BuildKeyboardProperties(PanelBuilder& builder, AppState& app) -> vo
             const auto [modifier, name] = kAltModifiers.at(i);
             cells.push_back({
                 .text = std::string(name),
-                .click = [this, modifier](AppState&) -> void {
-                    EditKeyboard([modifier](KeyboardLayout& edited) -> void { edited.alt_modifier = modifier; });
+                .click = [this, modifier]() -> void {
+                    EditKeyboard([modifier](KeyboardLayout& edited) -> void { edited.SetAltKey(modifier); });
                 },
-                .selected = layout.alt_modifier == modifier,
+                .selected = layout.AltKey() == modifier,
             });
         }
         builder.Row(std::move(cells));
     }
     builder.Button({
         .text = "Labels follow the region",
-        .click = [this](AppState&) -> void {
+        .click = [this]() -> void {
             EditKeyboard([](KeyboardLayout& edited) -> void {
-                const bool automatic = edited.auto_labels.value_or(true);
-                edited.auto_labels = automatic ? std::optional(false) : std::nullopt;
+                const bool automatic = edited.AutoLabels().value_or(true);
+                edited.SetAutoLabels(automatic ? std::optional(false) : std::nullopt);
             });
         },
-        .selected = layout.auto_labels.value_or(true),
+        .selected = layout.AutoLabels().value_or(true),
     });
     builder.Gap();
     builder.Caption("Pick a key, or press + to add one");
@@ -1485,11 +1451,11 @@ auto Editor::HsvColor(float hue, float saturation, float value) -> std::string {
     return HsvHex(hue, saturation, value);
 }
 
-auto Editor::EnsureColorImages(AppState& app, const ColorDialog& dialog) -> void {
+auto Editor::EnsureColorImages(const ColorDialog& dialog) -> void {
     constexpr uint32_t kWheel = 192;
     constexpr uint32_t kBrightness = 256;
     constexpr uint32_t kBrightnessHeight = 8;
-    if (!wheel_image_ || std::abs(wheel_value_ - dialog.value) > 1e-3f) {
+    if (!m_wheel_image || std::abs(m_wheel_value - dialog.value) > 1e-3f) {
         std::vector<std::byte> pixels(size_t{kWheel} * kWheel * 4);
         const float radius = static_cast<float>(kWheel) / 2.0f;
         for (uint32_t y = 0; y < kWheel; ++y) {
@@ -1506,11 +1472,11 @@ auto Editor::EnsureColorImages(AppState& app, const ColorDialog& dialog) -> void
                 pixels[offset + 3] = ToByte(radius + 0.5f - distance);
             }
         }
-        wheel_image_ = UploadPixels(app, kWheel, kWheel, pixels);
-        wheel_value_ = dialog.value;
+        m_wheel_image = UploadPixels(kWheel, kWheel, pixels);
+        m_wheel_value = dialog.value;
     }
     const Eigen::Vector2f key(dialog.hue, dialog.saturation);
-    if (!brightness_image_ || (key - brightness_key_).norm() > 1e-3f) {
+    if (!m_brightness_image || (key - m_brightness_key).norm() > 1e-3f) {
         std::vector<std::byte> pixels(size_t{kBrightness} * kBrightnessHeight * 4);
         for (uint32_t x = 0; x < kBrightness; ++x) {
             const auto rgb = HsvRgb(dialog.hue, dialog.saturation, static_cast<float>(x) / static_cast<float>(kBrightness - 1));
@@ -1522,97 +1488,97 @@ auto Editor::EnsureColorImages(AppState& app, const ColorDialog& dialog) -> void
                 pixels[offset + 3] = std::byte{255};
             }
         }
-        brightness_image_ = UploadPixels(app, kBrightness, kBrightnessHeight, pixels);
-        brightness_key_ = key;
+        m_brightness_image = UploadPixels(kBrightness, kBrightnessHeight, pixels);
+        m_brightness_key = key;
     }
 }
 
 auto Editor::PickColor(const Eigen::Vector2f& point) -> void {
-    if (!color_) {
+    if (!m_color) {
         return;
     }
-    auto& dialog = *color_;
-    if (color_drag_ == ColorDrag::Wheel) {
-        const float radius = wheel_rect_.w / 2.0f;
-        const Eigen::Vector2f offset = point - Eigen::Vector2f(wheel_rect_.x + radius, wheel_rect_.y + radius);
+    auto& dialog = *m_color;
+    if (m_color_drag == ColorDrag::Wheel) {
+        const float radius = m_wheel_rect.w / 2.0f;
+        const Eigen::Vector2f offset = point - Eigen::Vector2f(m_wheel_rect.x + radius, m_wheel_rect.y + radius);
         const float hue = std::atan2(offset.y(), offset.x()) / (2.0f * std::numbers::pi_v<float>);
         dialog.hue = hue < 0.0f ? hue + 1.0f : hue;
         dialog.saturation = std::clamp(offset.norm() / radius, 0.0f, 1.0f);
-    } else if (color_drag_ == ColorDrag::Brightness) {
-        dialog.value = std::clamp((point.x() - brightness_rect_.x) / brightness_rect_.w, 0.0f, 1.0f);
+    } else if (m_color_drag == ColorDrag::Brightness) {
+        dialog.value = std::clamp((point.x() - m_brightness_rect.x) / m_brightness_rect.w, 0.0f, 1.0f);
     } else {
         return;
     }
     dialog.set(*this, HsvHex(dialog.hue, dialog.saturation, dialog.value));
-    amend_ = true;
+    m_amend = true;
     Touch();
 }
 
-auto Editor::DialogPointer(AppState&, const Eigen::Vector2f& point, bool pressed) -> bool {
-    if (dialog_ != DialogKind::Color || !color_) {
+auto Editor::DialogPointer(const Eigen::Vector2f& point, bool pressed) -> bool {
+    if (m_dialog != DialogKind::Color || !m_color) {
         return false;
     }
-    const auto& dialog = *color_;
+    const auto& dialog = *m_color;
     if (!pressed) {
-        const bool dragging = color_drag_ != ColorDrag::None;
-        color_drag_ = ColorDrag::None;
-        amend_ = false;
+        const bool dragging = m_color_drag != ColorDrag::None;
+        m_color_drag = ColorDrag::None;
+        m_amend = false;
         if (dragging) {
             const auto current = dialog.get(*this);
-            std::erase(recent_colors_, current);
-            recent_colors_.push_front(current);
-            if (recent_colors_.size() > kRecentColors) {
-                recent_colors_.pop_back();
+            std::erase(m_recent_colors, current);
+            m_recent_colors.push_front(current);
+            if (m_recent_colors.size() > kRecentColors) {
+                m_recent_colors.pop_back();
             }
             Touch();
         }
         return dragging;
     }
-    const float radius = wheel_rect_.w / 2.0f;
-    const Eigen::Vector2f center(wheel_rect_.x + radius, wheel_rect_.y + radius);
+    const float radius = m_wheel_rect.w / 2.0f;
+    const Eigen::Vector2f center(m_wheel_rect.x + radius, m_wheel_rect.y + radius);
     if ((point - center).norm() <= radius + 2.0f) {
-        color_drag_ = ColorDrag::Wheel;
+        m_color_drag = ColorDrag::Wheel;
     } else if (
-        point.x() >= brightness_rect_.x - 4.0f && point.x() <= brightness_rect_.x + brightness_rect_.w + 4.0f
-        && point.y() >= brightness_rect_.y - 6.0f && point.y() <= brightness_rect_.y + brightness_rect_.h + 6.0f
+        point.x() >= m_brightness_rect.x - 4.0f && point.x() <= m_brightness_rect.x + m_brightness_rect.w + 4.0f
+        && point.y() >= m_brightness_rect.y - 6.0f && point.y() <= m_brightness_rect.y + m_brightness_rect.h + 6.0f
     ) {
-        color_drag_ = ColorDrag::Brightness;
+        m_color_drag = ColorDrag::Brightness;
     } else {
         return false;
     }
-    amend_ = false;
+    m_amend = false;
     PickColor(point);
     return true;
 }
 
-auto Editor::DialogHover(AppState&, const Eigen::Vector2f& point) -> bool {
-    if (color_drag_ == ColorDrag::None) {
+auto Editor::DialogHover(const Eigen::Vector2f& point) -> bool {
+    if (m_color_drag == ColorDrag::None) {
         return false;
     }
     PickColor(point);
     return true;
 }
 
-auto Editor::BuildColorDialog(PanelBuilder& builder, AppState& app) -> void {
-    if (!color_) {
+auto Editor::BuildColorDialog(PanelBuilder& builder) -> void {
+    if (!m_color) {
         return;
     }
-    auto& dialog = *color_;
+    auto& dialog = *m_color;
     const auto current = dialog.get(*this);
-    const auto pick = [this](AppState&, const std::string& color) -> void {
-        if (!color_) {
+    const auto pick = [this](const std::string& color) -> void {
+        if (!m_color) {
             return;
         }
-        auto& picked = *color_;
+        auto& picked = *m_color;
         picked.set(*this, color);
         const auto [hue, saturation, value] = HexHsv(color);
         picked.hue = hue;
         picked.saturation = saturation;
         picked.value = value;
-        std::erase(recent_colors_, color);
-        recent_colors_.push_front(color);
-        if (recent_colors_.size() > kRecentColors) {
-            recent_colors_.pop_back();
+        std::erase(m_recent_colors, color);
+        m_recent_colors.push_front(color);
+        if (m_recent_colors.size() > kRecentColors) {
+            m_recent_colors.pop_back();
         }
         Touch();
     };
@@ -1625,18 +1591,18 @@ auto Editor::BuildColorDialog(PanelBuilder& builder, AppState& app) -> void {
         36.0f
     );
 
-    EnsureColorImages(app, dialog);
+    EnsureColorImages(dialog);
     constexpr float kWheelSize = 180.0f;
     auto& canvas = builder.Target();
-    wheel_rect_ = {(builder.Width() - kWheelSize) / 2.0f, builder.Y(), kWheelSize, kWheelSize};
-    if (wheel_image_) {
-        auto& wheel = canvas.Sprite(wheel_rect_.x, wheel_rect_.y, wheel_rect_.w, wheel_rect_.h);
-        wheel.fg_color = Eigen::Vector4f::Ones();
-        wheel.SetSprite(wheel_image_);
+    m_wheel_rect = {(builder.Width() - kWheelSize) / 2.0f, builder.Y(), kWheelSize, kWheelSize};
+    if (m_wheel_image) {
+        auto& wheel = canvas.Sprite(m_wheel_rect.x, m_wheel_rect.y, m_wheel_rect.w, m_wheel_rect.h);
+        wheel.SetFgColor(Eigen::Vector4f::Ones());
+        wheel.SetSprite(m_wheel_image);
     }
     const float radius = kWheelSize / 2.0f;
     const float angle = dialog.hue * 2.0f * std::numbers::pi_v<float>;
-    const Eigen::Vector2f marker = Eigen::Vector2f(wheel_rect_.x + radius, wheel_rect_.y + radius)
+    const Eigen::Vector2f marker = Eigen::Vector2f(m_wheel_rect.x + radius, m_wheel_rect.y + radius)
                                  + Eigen::Vector2f(std::cos(angle), std::sin(angle)) * dialog.saturation * radius;
     canvas.Decoration(
         marker.x() - 7.0f,
@@ -1648,32 +1614,32 @@ auto Editor::BuildColorDialog(PanelBuilder& builder, AppState& app) -> void {
     );
     builder.Gap(kWheelSize + PanelBuilder::kGap);
 
-    brightness_rect_ = {PanelBuilder::kPadding, builder.Y() + 4.0f, builder.Width() - 2.0f * PanelBuilder::kPadding, 16.0f};
-    if (brightness_image_) {
-        auto& bar = canvas.Sprite(brightness_rect_.x, brightness_rect_.y, brightness_rect_.w, brightness_rect_.h);
-        bar.fg_color = Eigen::Vector4f::Ones();
-        bar.SetSprite(brightness_image_);
+    m_brightness_rect = {PanelBuilder::kPadding, builder.Y() + 4.0f, builder.Width() - 2.0f * PanelBuilder::kPadding, 16.0f};
+    if (m_brightness_image) {
+        auto& bar = canvas.Sprite(m_brightness_rect.x, m_brightness_rect.y, m_brightness_rect.w, m_brightness_rect.h);
+        bar.SetFgColor(Eigen::Vector4f::Ones());
+        bar.SetSprite(m_brightness_image);
     }
-    const float knob = brightness_rect_.x + dialog.value * brightness_rect_.w;
+    const float knob = m_brightness_rect.x + dialog.value * m_brightness_rect.w;
     canvas.Decoration(
         knob - 4.0f,
-        brightness_rect_.y - 4.0f,
+        m_brightness_rect.y - 4.0f,
         8.0f,
-        brightness_rect_.h + 8.0f,
+        m_brightness_rect.h + 8.0f,
         3.0f,
         std::make_unique<OutlineControl>(std::nullopt, HighlightOutline{.color = Eigen::Vector4f::Ones(), .width = 2.0f})
     );
-    builder.Gap(brightness_rect_.h + 8.0f + PanelBuilder::kGap);
+    builder.Gap(m_brightness_rect.h + 8.0f + PanelBuilder::kGap);
 
     builder.Caption(dialog.tokens ? "Theme, follows theme changes" : "Theme");
     std::vector<std::string> palette;
-    for (const auto& color : Theme::Active().colors) {
+    for (const auto& color : g_themes->Active().colors) {
         palette.push_back(dialog.tokens ? Theme::Token(color.name) : color.hex);
     }
     builder.Swatches(palette, current, pick, 8);
-    if (!recent_colors_.empty()) {
+    if (!m_recent_colors.empty()) {
         builder.Caption("Recent");
-        const std::vector<std::string> recent(recent_colors_.begin(), recent_colors_.end());
+        const std::vector<std::string> recent(m_recent_colors.begin(), m_recent_colors.end());
         builder.Swatches(recent, current, pick, 8);
     }
     builder.Caption("Hue");
@@ -1683,11 +1649,11 @@ auto Editor::BuildColorDialog(PanelBuilder& builder, AppState& app) -> void {
         const float hue = static_cast<float>(i) / kHues;
         hues.push_back({
             .text = std::abs(hue - dialog.hue) < 0.5f / kHues ? "*" : "",
-            .click = [this, hue](AppState&) -> void {
-                if (!color_) {
+            .click = [this, hue]() -> void {
+                if (!m_color) {
                     return;
                 }
-                auto& picked = *color_;
+                auto& picked = *m_color;
                 picked.hue = hue;
                 picked.saturation = std::max(picked.saturation, 0.5f);
                 picked.value = std::max(picked.value, 0.5f);
@@ -1708,30 +1674,31 @@ auto Editor::BuildColorDialog(PanelBuilder& builder, AppState& app) -> void {
     builder.Swatches(shades, current, pick, 5);
     std::vector<Cell> footer;
     if (dialog.reset) {
-        footer.push_back({.text = "Theme default", .click = [this](AppState&) -> void {
-                              if (color_) {
-                                  color_->reset(*this);
+        footer.push_back({.text = "Theme default", .click = [this]() -> void {
+                              if (m_color) {
+                                  m_color->reset(*this);
                               }
                               Touch();
                           }});
     }
-    footer.push_back({.text = "Done", .click = [this](AppState&) -> void { CloseDialog(); }});
+    footer.push_back({.text = "Done", .click = [this]() -> void { CloseDialog(); }});
     builder.Row(std::move(footer));
 }
 
-auto Editor::BuildActionsDialog(PanelBuilder& builder, AppState&) -> void {
-    if (target == EditTarget::Keyboard || !watch.selected || *watch.selected >= watch.Document().elements.size()) {
+auto Editor::BuildActionsDialog(PanelBuilder& builder) -> void {
+    const auto selected = m_watch_design.Selected();
+    if (m_target == EditTarget::Keyboard || !selected || *selected >= m_watch_design.Document().Elements().size()) {
         return;
     }
-    const size_t index = *watch.selected;
-    const auto* button = std::get_if<ButtonElement>(&watch.Document().elements.at(index));
+    const size_t index = *selected;
+    const auto* button = std::get_if<ButtonElement>(&m_watch_design.Document().Elements().at(index));
     if (button == nullptr) {
         return;
     }
-    const auto trigger = trigger_;
+    const auto trigger = m_trigger;
     const auto change = [index, trigger](Editor& editor, const std::function<void(std::vector<ButtonAction>&)>& apply) -> void {
         editor.EditWatch([index, trigger, &apply](ModularUiConfig& config) -> void {
-            auto& actions = TriggerActions(std::get<ButtonElement>(config.elements.at(index)).data, trigger);
+            auto& actions = TriggerActions(std::get<ButtonElement>(config.Elements().at(index)).data, trigger);
             if (!actions) {
                 actions.emplace();
             }
@@ -1751,23 +1718,23 @@ auto Editor::BuildActionsDialog(PanelBuilder& builder, AppState&) -> void {
         const auto& action = actions[i];
         Cell summary{.text = Describe(action), .weight = 4.0f};
         const auto id = std::format("action.{}", i);
-        const bool focused = focus_ && focus_->id == id;
+        const bool focused = m_focus && m_focus->id == id;
         if (focused) {
-            summary.text = std::format("{}_", focus_->buffer);
+            summary.text = std::format("{}_", m_focus->buffer);
             summary.color = EditorColors::Surface();
             summary.text_color = EditorColors::Accent();
         }
         if (const auto* exec = std::get_if<ExecButtonAction>(&action)) {
-            summary.click = [this, i, id, change, initial = JoinCommand(exec->command)](AppState& state) -> void {
-                BeginText(state, id, initial, [i, change](Editor& editor, AppState&, const std::string& text) -> void {
+            summary.click = [this, i, id, change, initial = JoinCommand(exec->command)]() -> void {
+                BeginText(id, initial, [i, change](Editor& editor, const std::string& text) -> void {
                     change(editor, [i, &text](std::vector<ButtonAction>& edited) -> void {
                         edited.at(i) = ExecButtonAction{.command = SplitCommand(text)};
                     });
                 });
             };
         } else if (const auto* typed = std::get_if<TypeTextButtonAction>(&action)) {
-            summary.click = [this, i, id, change, initial = typed->text](AppState& state) -> void {
-                BeginText(state, id, initial, [i, change](Editor& editor, AppState&, const std::string& text) -> void {
+            summary.click = [this, i, id, change, initial = typed->text]() -> void {
+                BeginText(id, initial, [i, change](Editor& editor, const std::string& text) -> void {
                     change(editor, [i, &text](std::vector<ButtonAction>& edited) -> void {
                         edited.at(i) = TypeTextButtonAction{.text = text};
                     });
@@ -1777,7 +1744,7 @@ auto Editor::BuildActionsDialog(PanelBuilder& builder, AppState&) -> void {
         builder.Row({
             std::move(summary),
             {.text = "x",
-             .click = [this, i, change](AppState&) -> void {
+             .click = [this, i, change]() -> void {
                  change(*this, [i](std::vector<ButtonAction>& edited) -> void {
                      edited.erase(edited.begin() + static_cast<std::ptrdiff_t>(i));
                  });
@@ -1789,48 +1756,38 @@ auto Editor::BuildActionsDialog(PanelBuilder& builder, AppState&) -> void {
     builder.Gap();
     builder.Caption("Add");
     const auto add = [this, change](ButtonAction action) -> Click {
-        return [this, change, action = std::move(action)](AppState&) -> void {
+        return [this, change, action = std::move(action)]() -> void {
             change(*this, [&action](std::vector<ButtonAction>& edited) -> void { edited.push_back(action); });
         };
     };
     const size_t next = actions.size();
     builder.Row({
         {.text = "Macro",
-         .click = [this, change, next](AppState& state) -> void {
+         .click = [this, change, next]() -> void {
              change(*this, [](std::vector<ButtonAction>& edited) -> void { edited.emplace_back(ExecButtonAction{}); });
-             BeginText(
-                 state,
-                 std::format("action.{}", next),
-                 "",
-                 [next, change](Editor& editor, AppState&, const std::string& text) -> void {
-                     change(editor, [next, &text](std::vector<ButtonAction>& edited) -> void {
-                         if (next < edited.size()) {
-                             edited.at(next) = ExecButtonAction{.command = SplitCommand(text)};
-                         }
-                     });
-                 }
-             );
+             BeginText(std::format("action.{}", next), "", [next, change](Editor& editor, const std::string& text) -> void {
+                 change(editor, [next, &text](std::vector<ButtonAction>& edited) -> void {
+                     if (next < edited.size()) {
+                         edited.at(next) = ExecButtonAction{.command = SplitCommand(text)};
+                     }
+                 });
+             });
          }},
-        {.text = "Type text", .click = [this, change, next](AppState& state) -> void {
+        {.text = "Type text", .click = [this, change, next]() -> void {
              change(*this, [](std::vector<ButtonAction>& edited) -> void { edited.emplace_back(TypeTextButtonAction{}); });
-             BeginText(
-                 state,
-                 std::format("action.{}", next),
-                 "",
-                 [next, change](Editor& editor, AppState&, const std::string& text) -> void {
-                     change(editor, [next, &text](std::vector<ButtonAction>& edited) -> void {
-                         if (next < edited.size()) {
-                             edited.at(next) = TypeTextButtonAction{.text = text};
-                         }
-                     });
-                 }
-             );
+             BeginText(std::format("action.{}", next), "", [next, change](Editor& editor, const std::string& text) -> void {
+                 change(editor, [next, &text](std::vector<ButtonAction>& edited) -> void {
+                     if (next < edited.size()) {
+                         edited.at(next) = TypeTextButtonAction{.text = text};
+                     }
+                 });
+             });
          }},
     });
     builder.Row({
         {.text = "Shortcut",
-         .click = [this, change](AppState& state) -> void {
-             BeginCapture(state, true, [change](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
+         .click = [this, change]() -> void {
+             BeginCapture(true, [change](Editor& editor, const std::vector<VirtualKey>& keys) -> void {
                  change(editor, [&keys](std::vector<ButtonAction>& edited) -> void {
                      edited.emplace_back(ShortcutButtonAction{.keys = keys});
                  });
@@ -1848,47 +1805,46 @@ auto Editor::BuildActionsDialog(PanelBuilder& builder, AppState&) -> void {
         {.text = "Editor", .click = add(SystemButtonAction{.action = SystemAction::Edit})},
     });
     builder.Gap();
-    builder.Button({.text = "Done", .click = [this](AppState&) -> void { CloseDialog(); }});
+    builder.Button({.text = "Done", .click = [this]() -> void { CloseDialog(); }});
 }
 
-auto Editor::BuildTimezonePicker(PanelBuilder& builder, AppState& app) -> void {
-    if (target != EditTarget::Watch || timezone_element_ >= watch.Document().elements.size()) {
+auto Editor::BuildTimezonePicker(PanelBuilder& builder) -> void {
+    if (m_target != EditTarget::Watch || m_timezone_element >= m_watch_design.Document().Elements().size()) {
         return;
     }
-    const auto* label = std::get_if<LabelElement>(&watch.Document().elements.at(timezone_element_));
+    const auto* label = std::get_if<LabelElement>(&m_watch_design.Document().Elements().at(m_timezone_element));
     const auto* clock = label != nullptr ? std::get_if<ClockLabelContent>(&label->content) : nullptr;
     const auto* zone_name = label != nullptr ? std::get_if<TimezoneLabelContent>(&label->content) : nullptr;
     if (clock == nullptr && zone_name == nullptr) {
         return;
     }
-    const size_t index = timezone_element_;
+    const size_t index = m_timezone_element;
     const auto choose = [this, index](std::optional<std::string> zone) -> Click {
-        return [this, index, zone = std::move(zone)](AppState& state) -> void {
+        return [this, index, zone = std::move(zone)]() -> void {
             EditWatch([this, index, &zone](ModularUiConfig& config) -> void {
-                auto& content = std::get<LabelElement>(config.elements.at(index)).content;
+                auto& content = std::get<LabelElement>(config.Elements().at(index)).content;
                 if (auto* clock_content = std::get_if<ClockLabelContent>(&content)) {
                     clock_content->timezone = zone ? std::optional<std::variant<size_t, std::string>>(*zone) : std::nullopt;
                 } else if (auto* name_content = std::get_if<TimezoneLabelContent>(&content)) {
                     name_content->timezone = zone.value_or(LocalZone());
                 }
-                watch.Fit(config, index);
+                m_watch_design.Fit(config, index);
             });
-            EndText(state);
+            EndText();
             CloseDialog();
         };
     };
     builder.Title("Timezone");
-    const bool searching = focus_ && focus_->id == "timezone.search";
-    const std::string query = searching ? focus_->buffer : timezone_query_;
+    const bool searching = m_focus && m_focus->id == "timezone.search";
+    const std::string query = searching ? m_focus->buffer : m_timezone_query;
     TextRow(
         builder,
-        app,
         "Search, like helsinki or america",
         "timezone.search",
-        timezone_query_,
-        [](Editor& editor, AppState&, const std::string& text) -> void { editor.timezone_query_ = text; }
+        m_timezone_query,
+        [](Editor& editor, const std::string& text) -> void { editor.m_timezone_query = text; }
     );
-    const auto current = clock != nullptr ? ZoneName(clock->timezone, app) : ZoneName(zone_name->timezone, app);
+    const auto current = clock != nullptr ? ZoneName(clock->timezone) : ZoneName(zone_name->timezone);
     builder.Button({.text = "Local", .click = choose(std::nullopt), .selected = clock != nullptr && !clock->timezone.has_value()});
     const auto needle = Searchable(query);
     size_t shown = 0;
@@ -1911,24 +1867,24 @@ auto Editor::BuildTimezonePicker(PanelBuilder& builder, AppState& app) -> void {
     } else if (matches == 0) {
         builder.Caption("No timezone matches that");
     }
-    builder.Button({.text = "Done", .click = [this](AppState& state) -> void {
-                        EndText(state);
+    builder.Button({.text = "Done", .click = [this]() -> void {
+                        EndText();
                         CloseDialog();
                     }});
 }
 
-auto Editor::BuildThemeProperties(PanelBuilder& builder, AppState& app) -> void {
-    const auto& current = theme.Current();
+auto Editor::BuildThemeProperties(PanelBuilder& builder) -> void {
+    const auto& current = m_theme_history.Current();
     builder.Title("Theme");
     builder.Section("Themes");
-    const auto& themes = Theme::All();
+    const auto& themes = g_themes->All();
     for (size_t start = 0; start < themes.size(); start += 2) {
         std::vector<Cell> cells;
         for (size_t i = start; i < std::min(start + 2, themes.size()); ++i) {
             const auto name = themes[i].name;
             cells.push_back({
                 .text = name,
-                .click = [this, name](AppState& state) -> void { SelectTheme(state, name); },
+                .click = [this, name]() -> void { SelectTheme(name); },
                 .selected = name == current.name,
             });
         }
@@ -1937,25 +1893,20 @@ auto Editor::BuildThemeProperties(PanelBuilder& builder, AppState& app) -> void 
         }
         builder.Row(std::move(cells), 30.0f);
     }
-    std::vector<Cell> actions{{.text = "New theme", .click = [this](AppState& state) -> void { NewTheme(state); }}};
+    std::vector<Cell> actions{{.text = "New theme", .click = [this]() -> void { NewTheme(); }}};
     if (!Theme::IsBuiltIn(current.name) && !current.source.empty()) {
         actions.push_back({
-            .text = delete_armed_ ? "Sure?" : "Delete",
-            .click = [this](AppState& state) -> void { DeleteTheme(state); },
+            .text = m_delete_armed ? "Sure?" : "Delete",
+            .click = [this]() -> void { DeleteTheme(); },
             .color = EditorColors::Danger(),
             .text_color = EditorColors::OnAccent(),
         });
     }
     builder.Row(std::move(actions));
     if (!Theme::IsBuiltIn(current.name)) {
-        TextRow(
-            builder,
-            app,
-            "Name",
-            "theme.name",
-            current.name,
-            [](Editor& editor, AppState& state, const std::string& text) -> void { editor.RenameTheme(state, text); }
-        );
+        TextRow(builder, "Name", "theme.name", current.name, [](Editor& editor, const std::string& text) -> void {
+            editor.RenameTheme(text);
+        });
     }
 
     builder.Section("Corners");
@@ -1964,7 +1915,7 @@ auto Editor::BuildThemeProperties(PanelBuilder& builder, AppState& app) -> void 
     for (const auto rounding : kRoundings) {
         roundings.push_back({
             .text = std::string(Theme::Name(rounding)),
-            .click = [this, rounding](AppState&) -> void {
+            .click = [this, rounding]() -> void {
                 EditTheme([rounding](ThemeDefinition& edited) -> void { edited.rounding = rounding; });
             },
             .selected = current.rounding == rounding,
@@ -1982,13 +1933,13 @@ auto Editor::BuildThemeProperties(PanelBuilder& builder, AppState& app) -> void 
             const auto name = color.name;
             cells.push_back({
                 .text = name,
-                .click = [this, name](AppState&) -> void {
-                    const auto hex = theme.Current().Lookup(name).value_or("#ffffff");
+                .click = [this, name]() -> void {
+                    const auto hex = Theme::Lookup(m_theme_history.Current(), name).value_or("#ffffff");
                     const auto [hue, saturation, value] = HexHsv(hex);
                     OpenColor({
                         .title = Theme::Token(name),
                         .get = [name](const Editor& editor) -> std::string {
-                            return editor.theme.Current().Lookup(name).value_or("#ffffff");
+                            return Theme::Lookup(editor.ThemeHistory().Current(), name).value_or("#ffffff");
                         },
                         .set = [name](Editor& editor, const std::string& picked) -> void {
                             editor.EditTheme([&name, &picked](ThemeDefinition& edited) -> void {
@@ -2017,38 +1968,39 @@ auto Editor::BuildThemeProperties(PanelBuilder& builder, AppState& app) -> void 
     }
 }
 
-auto Editor::BuildKeyPicker(PanelBuilder& builder, AppState&) -> void {
-    if (target == EditTarget::Watch || !keyboard.selected || *keyboard.selected >= keyboard.Document().keys.size()) {
+auto Editor::BuildKeyPicker(PanelBuilder& builder) -> void {
+    const auto selected = m_keyboard_design.Selected();
+    if (m_target == EditTarget::Watch || !selected || *selected >= m_keyboard_design.Document().Keys().size()) {
         return;
     }
-    const size_t index = *keyboard.selected;
-    const auto* typed = std::get_if<TypeKey>(&keyboard.Document().keys.at(index).action);
+    const size_t index = *selected;
+    const auto* typed = std::get_if<TypeKey>(&m_keyboard_design.Document().Keys().at(index).action);
     builder.Title("Pick a key");
     for (size_t start = 0; start < kKeyCategories.size(); start += 3) {
         std::vector<Cell> cells;
         for (size_t i = start; i < std::min(start + 3, kKeyCategories.size()); ++i) {
             cells.push_back({
                 .text = std::string(kKeyCategories.at(i).name),
-                .click = [this, i](AppState&) -> void {
-                    key_category_ = i;
+                .click = [this, i]() -> void {
+                    m_key_category = i;
                     Touch();
                 },
-                .selected = key_category_ == i,
+                .selected = m_key_category == i,
             });
         }
         builder.Row(std::move(cells), 30.0f);
     }
     builder.Gap();
-    const auto keys = kKeyCategories.at(std::min(key_category_, kKeyCategories.size() - 1)).keys;
+    const auto keys = kKeyCategories.at(std::min(m_key_category, kKeyCategories.size() - 1)).keys;
     for (size_t start = 0; start < keys.size(); start += 4) {
         std::vector<Cell> cells;
         for (size_t i = start; i < std::min(start + 4, keys.size()); ++i) {
             const auto key = keys[i];
             cells.push_back({
                 .text = KeyCaption(key),
-                .click = [this, index, key](AppState&) -> void {
+                .click = [this, index, key]() -> void {
                     EditKeyboard([index, key](KeyboardLayout& edited) -> void {
-                        auto& changed = edited.keys.at(index);
+                        auto& changed = edited.Keys().at(index);
                         changed.action = TypeKey{.key = key};
                         changed.label.reset();
                         changed.shifted_label.reset();
@@ -2063,5 +2015,5 @@ auto Editor::BuildKeyPicker(PanelBuilder& builder, AppState&) -> void {
         builder.Row(std::move(cells), 30.0f);
     }
     builder.Gap();
-    builder.Button({.text = "Done", .click = [this](AppState&) -> void { CloseDialog(); }});
+    builder.Button({.text = "Done", .click = [this]() -> void { CloseDialog(); }});
 }

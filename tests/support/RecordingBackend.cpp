@@ -20,9 +20,13 @@
 
 #include <utility>
 
+#include "CommandBatch.hpp"
+#include "InteractionHandler.hpp"
+#include "OverlayRenderer.hpp"
+
 RecordingBackend::RecordingBackend(VkExtent2D extent, std::shared_ptr<std::vector<RecordedEvent>> events)
-    : extent_(extent),
-      events_(std::move(events)) {
+    : m_extent(extent),
+      m_events(std::move(events)) {
 }
 
 auto RecordingBackend::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
@@ -31,43 +35,43 @@ auto RecordingBackend::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
 auto RecordingBackend::SetInteraction(std::unique_ptr<InteractionHandler>) -> void {
 }
 
-auto RecordingBackend::Init(AppState&) -> Result<> {
+auto RecordingBackend::Init() -> Result<> {
     return {};
 }
 
-auto RecordingBackend::Pause(AppState&) -> Result<> {
+auto RecordingBackend::Pause() -> Result<> {
     return {};
 }
 
-auto RecordingBackend::Resume(AppState&) -> Result<> {
+auto RecordingBackend::Resume() -> Result<> {
     return {};
 }
 
-auto RecordingBackend::ShouldRender(AppState&) -> Result<RenderReadiness> {
+auto RecordingBackend::ShouldRender() -> Result<RenderReadiness> {
     return RenderReadiness::Unable;
 }
 
-auto RecordingBackend::Render(AppState&, const std::shared_ptr<Image>&, CommandBatch&, float) -> Result<bool> {
+auto RecordingBackend::Render(const std::shared_ptr<Image>&, CommandBatch&, float) -> Result<bool> {
     return false;
 }
 
 auto RecordingBackend::Meta() -> std::optional<FrameMeta> {
-    return FrameMeta{.extent = extent_};
+    return FrameMeta{.extent = m_extent};
 }
 
-auto RecordingBackend::OnHover(AppState&, const PointerHit& hit) -> std::optional<Haptics> {
-    events_->push_back(
+auto RecordingBackend::OnHover(const PointerHit& hit) -> std::optional<Haptics> {
+    m_events->push_back(
         {.kind = RecordedKind::Hover, .pointer = hit.pointer, .uv = hit.uv, .mode = hit.mode, .primary = hit.primary}
     );
     return std::nullopt;
 }
 
-auto RecordingBackend::OnLeft(AppState&, size_t pointer) -> void {
-    events_->push_back({.kind = RecordedKind::Left, .pointer = pointer});
+auto RecordingBackend::OnLeft(size_t pointer) -> void {
+    m_events->push_back({.kind = RecordedKind::Left, .pointer = pointer});
 }
 
-auto RecordingBackend::OnPointer(AppState&, const PointerHit& hit, bool pressed) -> void {
-    events_->push_back(
+auto RecordingBackend::OnPointer(const PointerHit& hit, bool pressed) -> void {
+    m_events->push_back(
         {.kind = RecordedKind::Pointer,
          .pointer = hit.pointer,
          .uv = hit.uv,
@@ -77,6 +81,6 @@ auto RecordingBackend::OnPointer(AppState&, const PointerHit& hit, bool pressed)
     );
 }
 
-auto RecordingBackend::OnScroll(AppState&, const PointerHit& hit, float delta_y, float delta_x) -> void {
-    events_->push_back({.kind = RecordedKind::Scroll, .pointer = hit.pointer, .delta_y = delta_y, .delta_x = delta_x});
+auto RecordingBackend::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void {
+    m_events->push_back({.kind = RecordedKind::Scroll, .pointer = hit.pointer, .delta_y = delta_y, .delta_x = delta_x});
 }

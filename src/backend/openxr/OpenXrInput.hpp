@@ -35,12 +35,12 @@
 
 #include "Error.hpp"
 #include "Input.hpp"
+#include "OpenXrHand.hpp"
 #include "OpenXrState.hpp"
 
-class AppState;
 class Monado;
+
 class OpenXrInstance;
-struct Config;
 
 struct OpenXrActionBinding {
     std::optional<std::string> left;
@@ -66,95 +66,27 @@ struct OpenXrActionProfile {
     std::optional<OpenXrActionBinding> haptic;
 };
 
-class OpenXrMultiClick final {
-  public:
-    OpenXrMultiClick() = default;
-
-    static auto Create(
-        const OpenXrInstance& instance,
-        XrActionSet action_set,
-        std::string_view action_name,
-        std::string_view side,
-        size_t count
-    ) -> Result<OpenXrMultiClick>;
-
-    [[nodiscard]] auto BoolAction() const -> XrAction { return bool_action_; }
-    [[nodiscard]] auto FloatAction() const -> XrAction { return float_action_; }
-
-    auto Check(const OpenXrState& xr, float threshold) -> Result<bool>;
-
-  private:
-    OpenXrMultiClick(std::string name, XrAction bool_action, XrAction float_action, size_t count);
-
-    std::string name_;
-    XrAction bool_action_ = XR_NULL_HANDLE;
-    XrAction float_action_ = XR_NULL_HANDLE;
-    size_t count_ = 0;
-    std::vector<std::chrono::steady_clock::time_point> previous_;
-    bool held_active_ = false;
-    bool held_inactive_ = false;
-};
-
-class OpenXrClickAction final {
-  public:
-    OpenXrClickAction() = default;
-
-    static auto Create(const OpenXrInstance& instance, XrActionSet action_set, std::string_view name, std::string_view side)
-        -> Result<OpenXrClickAction>;
-
-    [[nodiscard]] auto Handler(size_t count) const -> const OpenXrMultiClick& { return handlers_.at(count); }
-
-    auto State(bool before, const OpenXrState& xr, const Config& config) -> Result<bool>;
-
-  private:
-    explicit OpenXrClickAction(std::array<OpenXrMultiClick, 3> handlers);
-
-    std::array<OpenXrMultiClick, 3> handlers_;
-};
-
-struct OpenXrHandActions {
-    XrAction pose = XR_NULL_HANDLE;
-    XrAction scroll = XR_NULL_HANDLE;
-    XrAction haptics = XR_NULL_HANDLE;
-    OpenXrClickAction click;
-    OpenXrClickAction grab;
-    OpenXrClickAction alt_click;
-    OpenXrClickAction space_drag;
-    OpenXrClickAction space_rotate;
-    OpenXrClickAction space_reset;
-    OpenXrClickAction modifier_right;
-    OpenXrClickAction modifier_middle;
-    OpenXrClickAction move_mouse;
-
-    static auto Create(const OpenXrInstance& instance, XrActionSet action_set, std::string_view side) -> Result<OpenXrHandActions>;
-};
-
-struct OpenXrHand {
-    OpenXrHandActions actions;
-    XrSpace space = XR_NULL_HANDLE;
-
-    auto Update(Pointer& pointer, const OpenXrState& xr, const Config& config) -> Result<>;
-};
-
 class OpenXrInput final {
   public:
     static auto Create(const OpenXrState& xr) -> Result<std::unique_ptr<OpenXrInput>>;
-    static auto UpdateDevices(AppState& app, Monado& monado) -> void;
+    static auto UpdateDevices(Monado& monado) -> void;
 
     ~OpenXrInput();
     OpenXrInput(const OpenXrInput&) = delete;
     auto operator=(const OpenXrInput&) -> OpenXrInput& = delete;
 
-    auto Update(const OpenXrState& xr, AppState& app) -> Result<>;
+    auto Update(const OpenXrState& xr) -> Result<>;
     auto ApplyHaptics(const OpenXrState& xr, size_t hand, const Haptics& haptics) -> void;
 
   private:
     OpenXrInput(XrActionSet action_set, std::array<OpenXrHand, 2> hands);
 
+    static auto CreateHandActions(const OpenXrInstance& instance, XrActionSet action_set, std::string_view side)
+        -> Result<OpenXrHandActions>;
     static auto LoadProfiles() -> std::vector<OpenXrActionProfile>;
     static auto ParseProfiles(const nlohmann::json& json) -> Result<std::vector<OpenXrActionProfile>>;
     static auto SuggestBindings(const OpenXrInstance& instance, const std::array<OpenXrHandActions, 2>& hands) -> void;
 
-    XrActionSet action_set_;
-    std::array<OpenXrHand, 2> hands_;
+    XrActionSet m_action_set;
+    std::array<OpenXrHand, 2> m_hands;
 };

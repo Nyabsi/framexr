@@ -84,6 +84,6 @@ class ScreenCastPortal final {
     static auto Connection() -> Result<DBusConnection*>;
     static auto NewToken() -> std::string;
 
-    DBusConnection* connection_;
-    std::string sender_;
+    DBusConnection* m_connection;
+    std::string m_sender;
 };

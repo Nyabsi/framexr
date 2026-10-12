@@ -22,13 +22,13 @@
 #include "Watch.hpp"
 
 #include <algorithm>
-#include <system_error>
 #include <format>
+#include <system_error>
 
 #include "Config.hpp"
+#include "Input.hpp"
 #include "Logger.hpp"
 #include "Modular.hpp"
-#include "State.hpp"
 #include "Yaml.hpp"
 
 namespace {
@@ -41,27 +41,27 @@ constexpr char kWatchYaml[] = {
 
 } // namespace
 
-auto Watch::Create(AppState& app) -> Result<std::unique_ptr<Overlay>> {
-    const auto config = LoadConfig(app.config.watch_profile);
+auto Watch::Create() -> Result<std::unique_ptr<Overlay>> {
+    const auto config = LoadConfig(g_config->watch_profile);
 
     OverlayState state;
-    state.name = kWatchName;
-    state.want_visible = true;
-    state.interactable = true;
-    state.z_order = kZOrderWatch;
-    state.spawn_scale = config.width;
-    state.spawn_point = app.config.watch_pos;
-    state.spawn_rotation = app.config.watch_rot;
+    state.SetName(std::string(kWatchName));
+    state.SetWantVisible(true);
+    state.SetInteractable(true);
+    state.SetZOrder(kZOrderWatch);
+    state.SetSpawnScale(config.Width());
+    state.SetSpawnPoint(g_config->watch_pos);
+    state.SetSpawnRotation(g_config->watch_rot);
     const auto size = config.Size();
-    state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
-    state.relative_to = app.config.watch_hand == Handedness::Left ? RelativeTo::LeftHand : RelativeTo::RightHand;
+    state.SetInteractionTransform(OverlayState::UiTransform({size[0], size[1]}));
+    state.SetAttachedTo(g_config->watch_hand == Handedness::Left ? RelativeTo::LeftHand : RelativeTo::RightHand);
 
-    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config, app));
+    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config));
     return std::make_unique<Overlay>(std::move(state), std::move(canvas));
 }
 
 auto Watch::UserFile(std::string_view profile) -> std::filesystem::path {
-    return Config::Root() / "watches" / std::format("{}.yaml", profile);
+    return ConfigStore::Root() / "watches" / std::format("{}.yaml", profile);
 }
 
 auto Watch::IsBuiltIn(std::string_view profile) -> bool {
@@ -72,7 +72,7 @@ auto Watch::Profiles() -> std::vector<std::string> {
     std::vector<std::string> profiles{std::string(kDefaultProfile)};
     std::error_code error;
     std::vector<std::string> mine;
-    for (const auto& entry : std::filesystem::directory_iterator(Config::Root() / "watches", error)) {
+    for (const auto& entry : std::filesystem::directory_iterator(ConfigStore::Root() / "watches", error)) {
         if (entry.path().extension() == ".yaml" && entry.path().stem() != kDefaultProfile) {
             mine.push_back(entry.path().stem().string());
         }
@@ -83,7 +83,7 @@ auto Watch::Profiles() -> std::vector<std::string> {
 }
 
 auto Watch::LoadConfig(std::string_view profile) -> ModularUiConfig {
-    if (const auto text = Config::ReadFile(UserFile(profile))) {
+    if (const auto text = ConfigStore::ReadFile(UserFile(profile))) {
         if (auto parsed = Yaml::Parse(*text)) {
             try {
                 return parsed->get<ModularUiConfig>();
@@ -103,38 +103,38 @@ auto Watch::LoadConfig(std::string_view profile) -> ModularUiConfig {
     return built_in->get<ModularUiConfig>();
 }
 
-auto Watch::RebuildCanvas(AppState& app, Overlay& watch) -> Result<> {
-    return Apply(app, watch, LoadConfig(app.config.watch_profile));
+auto Watch::RebuildCanvas(Overlay& watch) -> Result<> {
+    return Apply(watch, LoadConfig(g_config->watch_profile));
 }
 
-auto Watch::Apply(AppState& app, Overlay& watch, const ModularUiConfig& config) -> Result<> {
-    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config, app));
+auto Watch::Apply(Overlay& watch, const ModularUiConfig& config) -> Result<> {
+    ASSIGN_OR_RETURN(auto canvas, Modular::CreateCanvas(config));
     const auto size = config.Size();
-    watch.backend = std::move(canvas);
-    watch.state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
-    watch.state.spawn_scale = config.width;
-    watch.state.dirty = true;
+    watch.SetBackend(std::move(canvas));
+    watch.State().SetInteractionTransform(OverlayState::UiTransform({size[0], size[1]}));
+    watch.State().SetSpawnScale(config.Width());
+    watch.State().SetDirty(true);
     return {};
 }
 
-auto Watch::Fade(AppState& app, Overlay& watch) -> void {
-    auto& state = watch.state;
-    if (state.saved_transform) {
-        state.want_visible = false;
+auto Watch::Fade(Overlay& watch) -> void {
+    auto& state = watch.State();
+    if (state.SavedTransform()) {
+        state.SetWantVisible(false);
         return;
     }
 
-    const Eigen::Vector3f to_hmd = (state.transform.translation() - app.input.hmd.translation()).normalized();
-    const Eigen::Vector3f watch_normal = (state.transform.linear() * -Eigen::Vector3f::UnitZ()).normalized();
+    const Eigen::Vector3f to_hmd = (state.Transform().translation() - g_input->Hmd().translation()).normalized();
+    const Eigen::Vector3f watch_normal = (state.Transform().linear() * -Eigen::Vector3f::UnitZ()).normalized();
     const float dot = to_hmd.dot(watch_normal);
 
-    const auto& config = app.config;
+    const auto& config = *g_config;
     if (dot < config.watch_view_angle_min) {
-        state.want_visible = false;
+        state.SetWantVisible(false);
     } else {
-        state.want_visible = true;
-        state.alpha = (dot - config.watch_view_angle_min) / (config.watch_view_angle_max - config.watch_view_angle_min);
-        state.alpha += 0.1f;
-        state.alpha = std::clamp(state.alpha, 0.0f, 1.0f);
+        state.SetWantVisible(true);
+        const float alpha = (dot - config.watch_view_angle_min) / (config.watch_view_angle_max - config.watch_view_angle_min)
+                          + 0.1f;
+        state.SetAlpha(std::clamp(alpha, 0.0f, 1.0f));
     }
 }

@@ -27,17 +27,12 @@
 
 #include "framexr_config.h"
 
-namespace {
+CommandLine* g_command_line = nullptr;
 
-auto PrintError(std::string_view message) -> int {
-    std::fputs(
-        std::format("error: {}\n\n{}\n\nFor more information, try '--help'.\n", message, CommandLine::Usage()).c_str(),
-        stderr
-    );
+auto CommandLine::PrintError(std::string_view message) -> int {
+    std::fputs(std::format("error: {}\n\n{}\n\nFor more information, try '--help'.\n", message, Usage()).c_str(), stderr);
     return 2;
 }
-
-} // namespace
 
 auto CommandLine::Usage() -> std::string {
     return std::format("Usage: {} [OPTIONS]", FRAMEXR_PKG_NAME);
@@ -61,8 +56,7 @@ auto CommandLine::Help() -> std::string {
     return help;
 }
 
-auto CommandLine::Parse(std::span<char*> arguments) -> std::variant<CommandLine, int> {
-    CommandLine result;
+auto CommandLine::Parse(std::span<char*> arguments) -> std::optional<int> {
     const auto args = arguments.subspan(arguments.empty() ? 0 : 1);
 
     bool any_non_empty = false;
@@ -70,7 +64,7 @@ auto CommandLine::Parse(std::span<char*> arguments) -> std::variant<CommandLine,
         any_non_empty = any_non_empty || *arg != '\0';
     }
     if (!any_non_empty) {
-        return result;
+        return std::nullopt;
     }
 
     for (size_t i = 0; i < args.size(); ++i) {
@@ -102,31 +96,31 @@ auto CommandLine::Parse(std::span<char*> arguments) -> std::variant<CommandLine,
         }
 #if FRAMEXR_FEATURE_OPENVR
         if (arg == "--openvr") {
-            result.openvr = true;
+            m_openvr = true;
             continue;
         }
 #endif
 #if FRAMEXR_FEATURE_OPENXR
         if (arg == "--openxr") {
-            result.openxr = true;
+            m_openxr = true;
             continue;
         }
 #endif
         if (arg == "--show") {
-            result.show = true;
+            m_show = true;
         } else if (arg == "--uninstall") {
-            result.uninstall = true;
+            m_uninstall = true;
         } else if (arg == "--replace") {
-            result.replace = true;
+            m_replace = true;
         } else if (arg == "--multi") {
-            result.multi = true;
+            m_multi = true;
         } else if (arg == "--log-to" || arg.starts_with("--log-to=") || arg.starts_with("-l")) {
-            if (const auto error = take_value("log-to", "FILE_PATH", result.log_to)) {
-                return *error;
+            if (auto error = take_value("log-to", "FILE_PATH", m_log_to)) {
+                return error;
             }
         } else {
             return PrintError(std::format("unexpected argument '{}' found", arg));
         }
     }
-    return result;
+    return std::nullopt;
 }

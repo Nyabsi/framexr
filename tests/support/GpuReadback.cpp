@@ -23,15 +23,13 @@
 #include <cstdint>
 #include <cstring>
 
-#include <vulkan/vulkan.h>
-
 #include "Device.hpp"
 #include "Image.hpp"
 
-auto GpuReadback::Read(Device& device, Image& image) -> std::vector<unsigned char> {
+auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
     const auto extent = image.Extent();
     const VkDeviceSize size = VkDeviceSize{extent.width} * extent.height * 4;
-    const VkDevice handle = device.Handle();
+    const VkDevice handle = g_device->Handle();
 
     const VkBufferCreateInfo buffer_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -46,7 +44,7 @@ auto GpuReadback::Read(Device& device, Image& image) -> std::vector<unsigned cha
     VkMemoryRequirements requirements{};
     vkGetBufferMemoryRequirements(handle, buffer, &requirements);
     VkPhysicalDeviceMemoryProperties properties{};
-    vkGetPhysicalDeviceMemoryProperties(device.PhysicalDevice(), &properties);
+    vkGetPhysicalDeviceMemoryProperties(g_device->PhysicalDevice(), &properties);
     uint32_t type_index = 0;
     constexpr VkMemoryPropertyFlags kWanted = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     for (uint32_t i = 0; i < properties.memoryTypeCount; ++i) {
@@ -64,7 +62,7 @@ auto GpuReadback::Read(Device& device, Image& image) -> std::vector<unsigned cha
     vkAllocateMemory(handle, &allocate_info, nullptr, &memory);
     vkBindBufferMemory(handle, buffer, memory, 0);
 
-    auto& queue = device.GraphicsQueue();
+    auto& queue = g_device->GraphicsQueue();
     const VkCommandPoolCreateInfo pool_info{.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, .queueFamilyIndex = queue.Family()};
     VkCommandPool pool = VK_NULL_HANDLE;
     vkCreateCommandPool(handle, &pool_info, nullptr, &pool);

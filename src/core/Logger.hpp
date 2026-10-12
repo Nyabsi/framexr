@@ -42,7 +42,7 @@ struct LogModuleFilter {
 
 class Logger final {
   public:
-    static auto Instance() -> Logger&;
+    Logger();
 
     auto SetOutputFile(FILE* file) -> void;
     [[nodiscard]] auto IsEnabled(LogLevel level, std::string_view source_file) const -> bool;
@@ -52,8 +52,6 @@ class Logger final {
     auto operator=(const Logger&) -> Logger& = delete;
 
   private:
-    Logger();
-
     auto ParseFilters(std::string_view spec) -> void;
     [[nodiscard]] auto LevelFor(std::string_view module) const -> LogLevel;
 
@@ -63,18 +61,20 @@ class Logger final {
     static auto LevelColor(LogLevel level) -> std::string_view;
     static auto CurrentTimestamp() -> std::string;
 
-    std::mutex mutex_;
-    std::vector<LogModuleFilter> filters_;
-    LogLevel default_level_ = LogLevel::Info;
-    FILE* file_ = nullptr;
-    bool colored_;
+    std::mutex m_mutex;
+    std::vector<LogModuleFilter> m_filters;
+    LogLevel m_default_level = LogLevel::Info;
+    FILE* m_file = nullptr;
+    bool m_colored;
 };
 
-#define LOG_IMPL(level, ...)                                                     \
-    do {                                                                         \
-        if (Logger::Instance().IsEnabled(level, __FILE__)) {                     \
-            Logger::Instance().Write(level, __FILE__, std::format(__VA_ARGS__)); \
-        }                                                                        \
+extern Logger* g_logger;
+
+#define LOG_IMPL(level, ...)                                               \
+    do {                                                                   \
+        if (g_logger != nullptr && g_logger->IsEnabled(level, __FILE__)) { \
+            g_logger->Write(level, __FILE__, std::format(__VA_ARGS__));    \
+        }                                                                  \
     } while (false)
 
 #define LOG_ERROR(...) LOG_IMPL(LogLevel::Error, __VA_ARGS__)

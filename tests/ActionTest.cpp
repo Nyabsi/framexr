@@ -22,11 +22,12 @@
 
 #include <gtest/gtest.h>
 
-#include "Button.hpp"
+#include "ActionRunner.hpp"
+#include "ButtonAction.hpp"
 #include "Keymap.hpp"
+#include "OverlayContainer.hpp"
 #include "RecordingHid.hpp"
-#include "State.hpp"
-#include "TestApp.hpp"
+#include "ScopedRecordingHid.hpp"
 
 namespace {
 
@@ -45,10 +46,9 @@ auto Join(std::initializer_list<std::vector<HidEvent>> parts) -> std::vector<Hid
 } // namespace
 
 TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse) {
-    auto& app = TestApp::Get();
-    ScopedRecordingHid hid(app);
+    ScopedRecordingHid hid;
     ActionRunner runner;
-    runner.Run(app, ShortcutButtonAction{.keys = {VirtualKey::LSuper, VirtualKey::LCtrl, VirtualKey::Escape}});
+    runner.Run(ShortcutButtonAction{.keys = {VirtualKey::LSuper, VirtualKey::LCtrl, VirtualKey::Escape}});
     const std::vector<HidEvent> expected{
         {.key = VirtualKey::LSuper, .down = true},
         {.key = VirtualKey::LCtrl, .down = true},
@@ -61,15 +61,14 @@ TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse) {
 }
 
 TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds) {
-    auto& app = TestApp::Get();
-    auto previous = app.keymap;
+    auto previous = g_input->TypingKeymap();
     auto us = Keymap::FromNames("us", "");
     ASSERT_TRUE(us.has_value());
-    app.keymap = std::make_shared<const Keymap>(std::move(*us));
+    g_input->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*us)));
 
-    ScopedRecordingHid hid(app);
+    ScopedRecordingHid hid;
     ActionRunner runner;
-    runner.Run(app, TypeTextButtonAction{.text = "Hi!\n"});
+    runner.Run(TypeTextButtonAction{.text = "Hi!\n"});
     EXPECT_EQ(
         hid.Events(),
         Join({Tap(VirtualKey::H, kModShift), Tap(VirtualKey::I), Tap(VirtualKey::N1, kModShift), Tap(VirtualKey::Return)})
@@ -77,9 +76,9 @@ TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds) {
 
     auto finnish = Keymap::FromNames("fi", "");
     ASSERT_TRUE(finnish.has_value());
-    app.keymap = std::make_shared<const Keymap>(std::move(*finnish));
+    g_input->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*finnish)));
     hid.Clear();
-    runner.Run(app, TypeTextButtonAction{.text = "ä@"});
+    runner.Run(TypeTextButtonAction{.text = "ä@"});
     EXPECT_EQ(hid.Events(), Join({Tap(VirtualKey::Oem7), Tap(VirtualKey::N2, kModMeta)}));
-    app.keymap = previous;
+    g_input->SetTypingKeymap(previous);
 }

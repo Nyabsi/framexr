@@ -23,15 +23,14 @@
 
 #include "Input.hpp"
 
-class AppState;
 class Monado;
 
 class OpenXrBlocker final {
   public:
-    auto Update(const AppState& app, OverlayId watch_id, Monado& monado) -> void;
+    auto Update(OverlayId watch_id, Monado& monado) -> void;
 
   private:
     static auto SetClientsIoActive(Monado& monado, bool active) -> void;
 
-    bool hovered_last_frame_ = false;
+    bool m_hovered_last_frame = false;
 };

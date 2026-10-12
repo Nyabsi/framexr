@@ -61,7 +61,7 @@ class WlrScreencopyCapture final : public Capture {
     ~WlrScreencopyCapture() override;
 
     auto Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void override;
-    [[nodiscard]] auto IsStarted() const -> bool override { return channel_ != nullptr; }
+    [[nodiscard]] auto IsStarted() const -> bool override { return m_channel != nullptr; }
     [[nodiscard]] auto SupportsDmabuf() const -> bool override { return false; }
     auto Receive() -> std::unique_ptr<ProcessedFrame> override;
     auto Pause() -> void override {}
@@ -99,9 +99,9 @@ class WlrScreencopyCapture final : public Capture {
         -> void;
     static auto OnBufferDone(void* data, zwlr_screencopy_frame_v1* frame) -> void;
 
-    uint32_t output_id_;
-    std::unique_ptr<WaylandClient> client_;
-    std::future<std::unique_ptr<WaylandClient>> worker_;
-    std::shared_ptr<ProcessedFrameChannel> channel_;
-    FrameProcessor processor_;
+    uint32_t m_output_id;
+    std::unique_ptr<WaylandClient> m_client;
+    std::future<std::unique_ptr<WaylandClient>> m_worker;
+    std::shared_ptr<ProcessedFrameChannel> m_channel;
+    FrameProcessor m_processor;
 };

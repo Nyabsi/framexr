@@ -29,13 +29,12 @@
 
 #include <Eigen/Geometry>
 
+#include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Error.hpp"
 #include "OpenXrState.hpp"
 #include "OpenXrSwapchain.hpp"
 #include "Pipeline.hpp"
-
-class Device;
 
 struct OpenXrLine {
     size_t color = 0;
@@ -50,17 +49,17 @@ struct OpenXrLineContainer {
 
 class OpenXrLines final {
   public:
-    static auto Create(Device& device) -> Result<std::unique_ptr<OpenXrLines>>;
+    static auto Create() -> Result<std::unique_ptr<OpenXrLines>>;
 
-    auto Allocate(const OpenXrState& xr, Device& device) -> Result<size_t>;
+    auto Allocate(const OpenXrState& xr) -> Result<size_t>;
     auto DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void;
-    auto Render(Device& device, CommandBatch& batch) -> Result<>;
+    auto Render(CommandBatch& batch) -> Result<>;
     auto Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>>;
 
   private:
     explicit OpenXrLines(std::shared_ptr<Pipeline> pipeline);
 
-    std::shared_ptr<Pipeline> pipeline_;
-    std::map<size_t, OpenXrLineContainer> lines_;
-    size_t next_id_ = 1;
+    std::shared_ptr<Pipeline> m_pipeline;
+    std::map<size_t, OpenXrLineContainer> m_lines;
+    size_t m_next_id = 1;
 };

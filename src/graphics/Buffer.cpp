@@ -23,8 +23,7 @@
 
 #include "Device.hpp"
 
-auto Buffer::Create(std::shared_ptr<Device> device, VkDeviceSize size, VkBufferUsageFlags usage)
-    -> Result<std::shared_ptr<Buffer>> {
+auto Buffer::Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::shared_ptr<Buffer>> {
     const VkBufferCreateInfo buffer_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
@@ -39,27 +38,32 @@ auto Buffer::Create(std::shared_ptr<Device> device, VkDeviceSize size, VkBufferU
     VkBuffer buffer = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
     VmaAllocationInfo allocation_result{};
-    if (const auto
-            result = vmaCreateBuffer(device->Allocator(), &buffer_info, &allocation_info, &buffer, &allocation, &allocation_result);
+    if (const auto result = vmaCreateBuffer(
+            g_device->Allocator(),
+            &buffer_info,
+            &allocation_info,
+            &buffer,
+            &allocation,
+            &allocation_result
+        );
         result != VK_SUCCESS) {
         return Unexpected(std::format("Failed to create buffer of {} bytes: {}", size, static_cast<int>(result)));
     }
-    return std::shared_ptr<Buffer>(new Buffer(std::move(device), buffer, allocation, allocation_result.pMappedData, size));
+    return std::shared_ptr<Buffer>(new Buffer(buffer, allocation, allocation_result.pMappedData, size));
 }
 
-Buffer::Buffer(std::shared_ptr<Device> device, VkBuffer buffer, VmaAllocation allocation, void* mapped, VkDeviceSize size)
-    : device_(std::move(device)),
-      buffer_(buffer),
-      allocation_(allocation),
-      mapped_(mapped),
-      size_(size) {
+Buffer::Buffer(VkBuffer buffer, VmaAllocation allocation, void* mapped, VkDeviceSize size)
+    : m_buffer(buffer),
+      m_allocation(allocation),
+      m_mapped(mapped),
+      m_size(size) {
 }
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(device_->Allocator(), buffer_, allocation_);
+    vmaDestroyBuffer(g_device->Allocator(), m_buffer, m_allocation);
 }
 
 auto Buffer::Write(std::span<const std::byte> data) -> void {
-    std::memcpy(mapped_, data.data(), std::min<size_t>(data.size(), size_));
-    vmaFlushAllocation(device_->Allocator(), allocation_, 0, VK_WHOLE_SIZE);
+    std::memcpy(m_mapped, data.data(), std::min<size_t>(data.size(), m_size));
+    vmaFlushAllocation(g_device->Allocator(), m_allocation, 0, VK_WHOLE_SIZE);
 }

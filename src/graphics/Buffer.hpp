@@ -27,17 +27,14 @@
 
 #include "Error.hpp"
 
-class Device;
-
 class Buffer final {
   public:
-    static auto Create(std::shared_ptr<Device> device, VkDeviceSize size, VkBufferUsageFlags usage)
-        -> Result<std::shared_ptr<Buffer>>;
+    static auto Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::shared_ptr<Buffer>>;
 
     ~Buffer();
 
-    [[nodiscard]] auto Handle() const -> VkBuffer { return buffer_; }
-    [[nodiscard]] auto Size() const -> VkDeviceSize { return size_; }
+    [[nodiscard]] auto Handle() const -> VkBuffer { return m_buffer; }
+    [[nodiscard]] auto Size() const -> VkDeviceSize { return m_size; }
 
     auto Write(std::span<const std::byte> data) -> void;
 
@@ -45,11 +42,10 @@ class Buffer final {
     auto operator=(const Buffer&) -> Buffer& = delete;
 
   private:
-    Buffer(std::shared_ptr<Device> device, VkBuffer buffer, VmaAllocation allocation, void* mapped, VkDeviceSize size);
+    Buffer(VkBuffer buffer, VmaAllocation allocation, void* mapped, VkDeviceSize size);
 
-    std::shared_ptr<Device> device_;
-    VkBuffer buffer_;
-    VmaAllocation allocation_;
-    void* mapped_;
-    VkDeviceSize size_;
+    VkBuffer m_buffer;
+    VmaAllocation m_allocation;
+    void* m_mapped;
+    VkDeviceSize m_size;
 };

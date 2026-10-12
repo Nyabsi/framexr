@@ -18,16 +18,16 @@
 
 #include "Process.hpp"
 
-#include <fcntl.h>
-#include <spawn.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <format>
 #include <utility>
+
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 extern char** environ;
 
@@ -61,16 +61,6 @@ auto ToPointers(std::vector<std::string>& strings) -> std::vector<char*> {
 }
 
 } // namespace
-
-auto ExitStatus::Describe() const -> std::string {
-    if (signal) {
-        if (const char* name = sigabbrev_np(*signal)) {
-            return std::format("signal: {} (SIG{})", *signal, name);
-        }
-        return std::format("signal: {}", *signal);
-    }
-    return std::format("exit status: {}", code);
-}
 
 auto Process::Spawn(const std::vector<std::string>& command, const ProcessOptions& options) -> Result<Process> {
     if (command.empty()) {
@@ -117,43 +107,43 @@ auto Process::Spawn(const std::vector<std::string>& command, const ProcessOption
     return Process(pid, pipe_fds[0]);
 }
 
-Process::Process(pid_t pid, int stdout_fd) : pid_(pid), stdout_fd_(stdout_fd) {
+Process::Process(pid_t pid, int stdout_fd) : m_pid(pid), m_stdout_fd(stdout_fd) {
 }
 
 auto Process::Pid() const -> uint32_t {
-    return static_cast<uint32_t>(pid_);
+    return static_cast<uint32_t>(m_pid);
 }
 
 Process::~Process() {
-    if (stdout_fd_ >= 0) {
-        close(stdout_fd_);
+    if (m_stdout_fd >= 0) {
+        close(m_stdout_fd);
     }
 }
 
 Process::Process(Process&& other) noexcept
-    : pid_(std::exchange(other.pid_, -1)),
-      stdout_fd_(std::exchange(other.stdout_fd_, -1)),
-      exit_status_(other.exit_status_) {
+    : m_pid(std::exchange(other.m_pid, -1)),
+      m_stdout_fd(std::exchange(other.m_stdout_fd, -1)),
+      m_exit_status(other.m_exit_status) {
 }
 
 auto Process::operator=(Process&& other) noexcept -> Process& {
     if (this != &other) {
-        if (stdout_fd_ >= 0) {
-            close(stdout_fd_);
+        if (m_stdout_fd >= 0) {
+            close(m_stdout_fd);
         }
-        pid_ = std::exchange(other.pid_, -1);
-        stdout_fd_ = std::exchange(other.stdout_fd_, -1);
-        exit_status_ = other.exit_status_;
+        m_pid = std::exchange(other.m_pid, -1);
+        m_stdout_fd = std::exchange(other.m_stdout_fd, -1);
+        m_exit_status = other.m_exit_status;
     }
     return *this;
 }
 
 auto Process::TryWait() -> Result<std::optional<ExitStatus>> {
-    if (exit_status_) {
-        return exit_status_;
+    if (m_exit_status) {
+        return m_exit_status;
     }
     int status = 0;
-    const pid_t result = waitpid(pid_, &status, WNOHANG);
+    const pid_t result = waitpid(m_pid, &status, WNOHANG);
     if (result < 0) {
         return Unexpected(std::format("{} (os error {})", std::strerror(errno), errno));
     }
@@ -161,27 +151,27 @@ auto Process::TryWait() -> Result<std::optional<ExitStatus>> {
         return std::nullopt;
     }
     if (WIFSIGNALED(status)) {
-        exit_status_ = ExitStatus{.code = 0, .signal = WTERMSIG(status)};
+        m_exit_status = ExitStatus(0, WTERMSIG(status));
     } else {
-        exit_status_ = ExitStatus{.code = WEXITSTATUS(status)};
+        m_exit_status = ExitStatus(WEXITSTATUS(status));
     }
-    return exit_status_;
+    return m_exit_status;
 }
 
 auto Process::Signal(int signal) const -> void {
-    if (pid_ > 0) {
-        kill(pid_, signal);
+    if (m_pid > 0) {
+        kill(m_pid, signal);
     }
 }
 
 auto Process::ReadStdout() -> std::optional<std::string> {
-    if (stdout_fd_ < 0) {
+    if (m_stdout_fd < 0) {
         return std::nullopt;
     }
     std::string output;
     char buffer[4096];
     while (true) {
-        const auto count = read(stdout_fd_, buffer, sizeof(buffer));
+        const auto count = read(m_stdout_fd, buffer, sizeof(buffer));
         if (count < 0) {
             if (errno == EINTR) {
                 continue;
@@ -193,7 +183,7 @@ auto Process::ReadStdout() -> std::optional<std::string> {
         }
         output.append(buffer, static_cast<size_t>(count));
     }
-    close(stdout_fd_);
-    stdout_fd_ = -1;
+    close(m_stdout_fd);
+    m_stdout_fd = -1;
     return output;
 }

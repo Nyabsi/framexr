@@ -32,20 +32,19 @@
 struct KeyboardRegion {
     std::string layout;
     std::string variant;
-
-    static auto Parse(std::string_view text) -> KeyboardRegion;
 };
 
 class KeyTranslator final {
   public:
     static auto Create(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop) -> KeyTranslator;
+    static auto ParseRegion(std::string_view text) -> KeyboardRegion;
 
     [[nodiscard]] auto Translate(VirtualKey key, uint8_t modifiers, bool caps_lock) const -> std::optional<TranslatedKey>;
 
   private:
     KeyTranslator(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop);
 
-    std::shared_ptr<const Keymap> region_;
-    std::shared_ptr<const Keymap> desktop_;
-    std::array<std::unordered_map<uint32_t, TranslatedKey>, 2> desktop_keys_;
+    std::shared_ptr<const Keymap> m_region;
+    std::shared_ptr<const Keymap> m_desktop;
+    std::array<std::unordered_map<uint32_t, TranslatedKey>, 2> m_desktop_keys;
 };

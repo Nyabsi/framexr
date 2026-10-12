@@ -33,7 +33,6 @@
 #include "History.hpp"
 #include "KeyboardLayout.hpp"
 
-class AppState;
 class Keymap;
 
 enum class KeyHitKind : uint8_t {
@@ -77,20 +76,27 @@ class KeyboardDesigner final {
 
     explicit KeyboardDesigner(KeyboardLayout layout);
 
-    History<KeyboardLayout> history;
-    std::optional<size_t> selected;
-    std::optional<KeyHit> hovered;
-    std::optional<std::pair<KeyTemplate, Eigen::Vector2f>> carrying;
-    std::chrono::milliseconds hold{250};
+    [[nodiscard]] auto Revisions() const -> const History<KeyboardLayout>& { return m_revisions; }
+    [[nodiscard]] auto Revisions() -> History<KeyboardLayout>& { return m_revisions; }
+    [[nodiscard]] auto Selected() const -> const std::optional<size_t>& { return m_selected; }
+    [[nodiscard]] auto Selected() -> std::optional<size_t>& { return m_selected; }
+    [[nodiscard]] auto Hovered() const -> const std::optional<KeyHit>& { return m_hovered; }
+    [[nodiscard]] auto Hovered() -> std::optional<KeyHit>& { return m_hovered; }
+    [[nodiscard]] auto Carrying() const -> const std::optional<std::pair<KeyTemplate, Eigen::Vector2f>>& { return m_carrying; }
+    [[nodiscard]] auto Carrying() -> std::optional<std::pair<KeyTemplate, Eigen::Vector2f>>& { return m_carrying; }
 
-    [[nodiscard]] auto Document() const -> const KeyboardLayout& { return history.Current(); }
+    auto SetSelected(std::optional<size_t> selected) -> void { m_selected = selected; }
+    auto SetCarrying(std::optional<std::pair<KeyTemplate, Eigen::Vector2f>> carrying) -> void { m_carrying = std::move(carrying); }
+    auto SetHold(std::chrono::milliseconds hold) -> void { m_hold = hold; }
+
+    [[nodiscard]] auto Document() const -> const KeyboardLayout& { return Revisions().Current(); }
     [[nodiscard]] auto PreviewSize() const -> Eigen::Vector2f;
     [[nodiscard]] auto ToGrid(const Eigen::Vector2f& preview) const -> Eigen::Vector2f;
     [[nodiscard]] auto KeyPreviewCenter(size_t index) const -> Eigen::Vector2f;
     [[nodiscard]] auto HitTest(const Eigen::Vector2f& preview) const -> KeyHit;
-    [[nodiscard]] auto RemoveArmed(KeyHitKind kind) const -> bool { return armed_ == kind; }
+    [[nodiscard]] auto RemoveArmed(KeyHitKind kind) const -> bool { return m_armed == kind; }
     [[nodiscard]] auto DropCell(const Eigen::Vector2f& preview) const -> std::pair<float, int>;
-    [[nodiscard]] auto Engaged() const -> bool { return drag_ && drag_->engaged; }
+    [[nodiscard]] auto Engaged() const -> bool { return m_drag && m_drag->engaged; }
 
     auto Hover(const Eigen::Vector2f& preview) -> void;
     auto Press(const Eigen::Vector2f& preview) -> void;
@@ -104,7 +110,7 @@ class KeyboardDesigner final {
     auto Duplicate(size_t index) -> bool;
     auto Remove(size_t index) -> void;
     auto Place(KeyTemplate key_template, float x, int row) -> bool;
-    auto Draw(Canvas& canvas, AppState& app, const std::shared_ptr<const Keymap>& keymap) const -> void;
+    auto Draw(Canvas& canvas, const std::shared_ptr<const Keymap>& keymap) const -> void;
 
     static auto Template(KeyTemplate key_template) -> const KeyboardLayout&;
     static auto TemplateName(KeyTemplate key_template) -> std::string_view;
@@ -127,6 +133,12 @@ class KeyboardDesigner final {
     [[nodiscard]] auto CellRect(float x, int row, float width) const -> CanvasRect;
     auto Move(const Eigen::Vector2f& preview) -> void;
 
-    std::optional<Drag> drag_;
-    std::optional<KeyHitKind> armed_;
+    std::optional<Drag> m_drag;
+    std::optional<KeyHitKind> m_armed;
+
+    History<KeyboardLayout> m_revisions;
+    std::optional<size_t> m_selected;
+    std::optional<KeyHit> m_hovered;
+    std::optional<std::pair<KeyTemplate, Eigen::Vector2f>> m_carrying;
+    std::chrono::milliseconds m_hold{250};
 };

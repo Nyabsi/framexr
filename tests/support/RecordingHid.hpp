@@ -24,8 +24,6 @@
 
 #include "Hid.hpp"
 
-class AppState;
-
 struct HidEvent {
     VirtualKey key = VirtualKey::Escape;
     bool down = false;
@@ -43,9 +41,8 @@ struct ButtonEvent {
 
 class RecordingHid final : public HidProvider {
   public:
-    std::vector<HidEvent> events;
-    std::vector<ButtonEvent> buttons;
-    uint8_t modifiers = 0;
+    [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_events; }
+    [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_buttons; }
 
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
     auto SendButton(uint16_t button, bool down) -> void override;
@@ -55,21 +52,10 @@ class RecordingHid final : public HidProvider {
     auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void override;
     auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void override;
     auto Commit() -> void override;
-};
-
-class ScopedRecordingHid final {
-  public:
-    explicit ScopedRecordingHid(AppState& app);
-    ~ScopedRecordingHid();
-    ScopedRecordingHid(const ScopedRecordingHid&) = delete;
-    auto operator=(const ScopedRecordingHid&) -> ScopedRecordingHid& = delete;
-
-    [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return recording_->events; }
-    [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return recording_->buttons; }
-    auto Clear() -> void { recording_->events.clear(); }
+    auto Clear() -> void;
 
   private:
-    AppState& app_;
-    RecordingHid* recording_;
-    std::unique_ptr<HidProvider> previous_;
+    std::vector<HidEvent> m_events;
+    std::vector<ButtonEvent> m_buttons;
+    uint8_t m_modifiers = 0;
 };

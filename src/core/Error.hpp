@@ -26,11 +26,11 @@ class Error {
   public:
     explicit Error(std::string message);
 
-    [[nodiscard]] auto Message() const -> const std::string& { return message_; }
+    [[nodiscard]] auto Message() const -> const std::string& { return m_message; }
     [[nodiscard]] auto WithContext(std::string_view context) const -> Error;
 
   private:
-    std::string message_;
+    std::string m_message;
 };
 
 template <typename T = void>
@@ -42,12 +42,14 @@ using Result = std::expected<T, Error>;
 #define RESULT_CONCAT_IMPL(a, b) a##b
 #define RESULT_CONCAT(a, b) RESULT_CONCAT_IMPL(a, b)
 
-#define RETURN_IF_ERROR(expr)                        \
-    do {                                             \
-        if (auto result_ = (expr); !result_) {       \
-            return std::unexpected(result_.error()); \
-        }                                            \
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define RETURN_IF_ERROR(expr)                         \
+    do {                                              \
+        if (auto m_result = (expr); !m_result) {      \
+            return std::unexpected(m_result.error()); \
+        }                                             \
     } while (false)
+// NOLINTEND(bugprone-macro-parentheses)
 
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ASSIGN_OR_RETURN_IMPL(result, lhs, expr) \
@@ -58,4 +60,4 @@ using Result = std::expected<T, Error>;
     lhs = std::move(*result)
 // NOLINTEND(bugprone-macro-parentheses)
 
-#define ASSIGN_OR_RETURN(lhs, expr) ASSIGN_OR_RETURN_IMPL(RESULT_CONCAT(result_, __LINE__), lhs, expr)
+#define ASSIGN_OR_RETURN(lhs, expr) ASSIGN_OR_RETURN_IMPL(RESULT_CONCAT(m_result, __LINE__), lhs, expr)

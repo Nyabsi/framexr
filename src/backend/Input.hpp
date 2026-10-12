@@ -25,21 +25,19 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
 #include <Eigen/Geometry>
 
 #include "OneEuroFilter.hpp"
+#include "Pointer.hpp"
 #include "Process.hpp"
 
-class AppState;
-class Overlay;
-class OverlayContainer;
-struct Config;
-struct OverlayState;
+class Keymap;
 
-enum class OverlayId : uint64_t {};
+class TextInput;
 
 enum class TrackedDeviceRole : uint8_t {
     None,
@@ -55,130 +53,51 @@ struct TrackedDevice {
     TrackedDeviceRole role = TrackedDeviceRole::None;
 };
 
-enum class PointerMode : uint8_t {
-    Left,
-    Right,
-    Middle,
-    Special,
-};
-
-struct Haptics {
-    float intensity = 0.0f;
-    float duration = 0.0f;
-    float frequency = 0.0f;
-};
-
-struct PointerHit {
-    size_t pointer = 0;
-    OverlayId overlay{};
-    PointerMode mode = PointerMode::Left;
-    bool primary = false;
-    Eigen::Vector2f uv = Eigen::Vector2f::Zero();
-    float dist = 0.0f;
-};
-
-struct PointerState {
-    float scroll_x = 0.0f;
-    float scroll_y = 0.0f;
-    bool click = false;
-    bool grab = false;
-    bool alt_click = false;
-    bool space_drag = false;
-    bool space_rotate = false;
-    bool space_reset = false;
-    bool click_modifier_right = false;
-    bool click_modifier_middle = false;
-    bool move_mouse = false;
-};
-
-struct GrabData {
-    Eigen::Affine3f offset = Eigen::Affine3f::Identity();
-    OverlayId grabbed_id{};
-    Eigen::Vector3f grab_point = Eigen::Vector3f::Zero();
-    std::optional<float> old_curvature;
-    bool grab_all = false;
-};
-
-struct RayHit {
-    OverlayId overlay{};
-    Eigen::Vector3f global_position = Eigen::Vector3f::Zero();
-    Eigen::Vector2f local_position = Eigen::Vector2f::Zero();
-    float dist = 0.0f;
-};
-
-struct InteractionState {
-    PointerMode mode = PointerMode::Left;
-    std::optional<GrabData> grabbed;
-    std::optional<OverlayId> clicked_id;
-    std::optional<OverlayId> hovered_id;
-    std::optional<float> haptics;
-};
-
-struct InteractionResult {
-    float length = 0.0f;
-    std::optional<Haptics> haptics;
-    std::optional<Eigen::Vector3f> target;
-
-    [[nodiscard]] auto LinePose(const Eigen::Affine3f& pointer) const -> Eigen::Affine3f;
-};
-
-class Pointer {
-  public:
-    explicit Pointer(size_t index);
-
-    size_t index;
-    Eigen::Affine3f pose = Eigen::Affine3f::Identity();
-    Eigen::Affine3f raw_pose = Eigen::Affine3f::Identity();
-    PointerState now;
-    PointerState before;
-    std::chrono::steady_clock::time_point last_click;
-    Eigen::Affine3f tracked_pose = Eigen::Affine3f::Identity();
-    PoseFilter grab_filter;
-    PoseFilter aim_filter;
-    InteractionState interaction;
-
-    auto Interact(AppState& app, OverlayContainer& overlays) -> InteractionResult;
-
-  private:
-    [[nodiscard]] auto NearestHit(OverlayContainer& overlays) const -> std::optional<PointerHit>;
-    [[nodiscard]] auto RayTest(OverlayId overlay, const Eigen::Affine3f& transform, std::optional<float> curvature) const
-        -> std::optional<RayHit>;
-    auto StartGrab(Overlay& overlay, const Eigen::Vector3f& point) -> void;
-    auto HandleGrabbed(AppState& app, OverlayContainer& overlays, Overlay& overlay) -> void;
-    auto ReleaseClick(AppState& app, OverlayContainer& overlays, const std::optional<PointerHit>& hit) -> void;
-};
-
 class InputState {
   public:
     InputState();
 
-    Eigen::Affine3f hmd = Eigen::Affine3f::Identity();
-    float ipd = 0.0f;
-    std::chrono::steady_clock::time_point time = std::chrono::steady_clock::now();
-    float delta_seconds = 0.0f;
-    std::array<Pointer, 2> pointers;
-    std::vector<TrackedDevice> devices;
+    [[nodiscard]] auto Hmd() const -> const Eigen::Affine3f& { return m_hmd; }
+    [[nodiscard]] auto Hmd() -> Eigen::Affine3f& { return m_hmd; }
+    [[nodiscard]] auto Ipd() const -> float { return m_ipd; }
+    [[nodiscard]] auto DeltaSeconds() const -> float { return m_delta_seconds; }
+    [[nodiscard]] auto Pointers() const -> const std::array<Pointer, 2>& { return m_pointers; }
+    [[nodiscard]] auto Pointers() -> std::array<Pointer, 2>& { return m_pointers; }
+    [[nodiscard]] auto Devices() const -> const std::vector<TrackedDevice>& { return m_devices; }
+    [[nodiscard]] auto Devices() -> std::vector<TrackedDevice>& { return m_devices; }
+    [[nodiscard]] auto DisplayPixelsPerRadian() const -> const Eigen::Vector2f& { return m_display_pixels_per_radian; }
+    [[nodiscard]] auto DisplayPixelsPerRadian() -> Eigen::Vector2f& { return m_display_pixels_per_radian; }
+    [[nodiscard]] auto TypingKeymap() const -> const std::shared_ptr<const Keymap>& { return m_typing_keymap; }
+    [[nodiscard]] auto FocusedTextInput() const -> std::shared_ptr<TextInput> { return m_focused_text_input; }
+
+    auto SetHmd(Eigen::Affine3f hmd) -> void { m_hmd = std::move(hmd); }
+    auto SetIpd(float ipd) -> void { m_ipd = ipd; }
+    auto SetDeltaSeconds(float delta_seconds) -> void { m_delta_seconds = delta_seconds; }
+    auto SetDisplayPixelsPerRadian(Eigen::Vector2f display_pixels_per_radian) -> void {
+        m_display_pixels_per_radian = std::move(display_pixels_per_radian);
+    }
+    auto SetTypingKeymap(std::shared_ptr<const Keymap> keymap) -> void { m_typing_keymap = std::move(keymap); }
+    auto SetFocusedTextInput(std::shared_ptr<TextInput> input) -> void { m_focused_text_input = std::move(input); }
 
     auto PreUpdate() -> void;
-    auto PostUpdate(const Config& config) -> void;
+    auto PostUpdate() -> void;
     auto SortDevices() -> void;
 
-    static auto Interact(AppState& app, OverlayContainer& overlays) -> std::array<InteractionResult, 2>;
+    static auto Interact() -> std::array<InteractionResult, 2>;
 
   private:
     auto LogChanges(const Pointer& pointer) const -> void;
 
-    std::vector<Process> processes_;
+    Eigen::Affine3f m_hmd = Eigen::Affine3f::Identity();
+    float m_ipd = 0.0f;
+    std::chrono::steady_clock::time_point m_time = std::chrono::steady_clock::now();
+    float m_delta_seconds = 0.0f;
+    std::array<Pointer, 2> m_pointers;
+    std::vector<TrackedDevice> m_devices;
+    Eigen::Vector2f m_display_pixels_per_radian = Eigen::Vector2f::Zero();
+    std::shared_ptr<const Keymap> m_typing_keymap;
+    std::shared_ptr<TextInput> m_focused_text_input;
+    std::vector<Process> m_processes;
 };
 
-class Raycast {
-  public:
-    static auto Plane(const Eigen::Affine3f& source, const Eigen::Vector3f& source_forward, const Eigen::Affine3f& plane)
-        -> std::pair<float, Eigen::Vector2f>;
-    static auto Cylinder(
-        const Eigen::Affine3f& source,
-        const Eigen::Vector3f& source_forward,
-        const Eigen::Affine3f& plane,
-        float curvature
-    ) -> std::optional<std::pair<float, Eigen::Vector2f>>;
-};
+extern InputState* g_input;

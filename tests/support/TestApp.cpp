@@ -22,32 +22,37 @@
 
 #include "Device.hpp"
 #include "Hid.hpp"
+#include "Logger.hpp"
 #include "State.hpp"
 
-std::unique_ptr<AppState> TestApp::app_;
-std::filesystem::path TestApp::output_dir_;
-
-auto TestApp::Get() -> AppState& {
-    return *app_;
-}
+std::unique_ptr<Logger> TestApp::m_logger;
+std::unique_ptr<Device> TestApp::m_device;
+std::unique_ptr<AppState> TestApp::m_app;
+std::filesystem::path TestApp::m_output_dir;
 
 auto TestApp::OutputDir() -> const std::filesystem::path& {
-    return output_dir_;
+    return m_output_dir;
 }
 
 auto TestApp::SetUp() -> void {
     const char* output = std::getenv("FRAMEXR_TEST_OUTPUT");
-    output_dir_ = output != nullptr ? std::filesystem::path(output) : std::filesystem::current_path() / "test-output";
-    std::filesystem::create_directories(output_dir_);
+    m_output_dir = output != nullptr ? std::filesystem::path(output) : std::filesystem::current_path() / "test-output";
+    std::filesystem::create_directories(m_output_dir);
 
-    HidProvider::use_uinput.store(false);
+    m_logger = std::make_unique<Logger>();
+    g_logger = m_logger.get();
+    HidProvider::SetUseNative(false);
     auto device = Device::Create({});
     ASSERT_TRUE(device.has_value()) << device.error().Message();
-    auto app = AppState::Create(*device);
+    m_device = std::move(*device);
+    auto app = AppState::Create();
     ASSERT_TRUE(app.has_value()) << app.error().Message();
-    app_ = std::move(*app);
+    m_app = std::move(*app);
 }
 
 auto TestApp::TearDown() -> void {
-    app_.reset();
+    m_app.reset();
+    m_device.reset();
+    m_logger.reset();
+    g_logger = nullptr;
 }

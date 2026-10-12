@@ -18,12 +18,12 @@
 
 #include "UdpSocket.hpp"
 
-#include <winsock2.h>
-
 #include <format>
 #include <mutex>
 #include <system_error>
 #include <utility>
+
+#include <winsock2.h>
 
 namespace {
 
@@ -70,31 +70,31 @@ auto UdpSocket::Bind(UdpAddress address, uint16_t port) -> Result<UdpSocket> {
     return created;
 }
 
-UdpSocket::UdpSocket(intptr_t handle) : handle_(handle) {
+UdpSocket::UdpSocket(intptr_t handle) : m_handle(handle) {
 }
 
 UdpSocket::~UdpSocket() {
-    if (handle_ != kInvalid) {
-        closesocket(Handle(handle_));
+    if (m_handle != kInvalid) {
+        closesocket(Handle(m_handle));
     }
 }
 
-UdpSocket::UdpSocket(UdpSocket&& other) noexcept : handle_(std::exchange(other.handle_, kInvalid)) {
+UdpSocket::UdpSocket(UdpSocket&& other) noexcept : m_handle(std::exchange(other.m_handle, kInvalid)) {
 }
 
 auto UdpSocket::operator=(UdpSocket&& other) noexcept -> UdpSocket& {
     if (this != &other) {
-        if (handle_ != kInvalid) {
-            closesocket(Handle(handle_));
+        if (m_handle != kInvalid) {
+            closesocket(Handle(m_handle));
         }
-        handle_ = std::exchange(other.handle_, kInvalid);
+        m_handle = std::exchange(other.m_handle, kInvalid);
     }
     return *this;
 }
 
 auto UdpSocket::ConnectLoopback(uint16_t port) -> Result<> {
     const auto remote = Address(INADDR_LOOPBACK, port);
-    if (connect(Handle(handle_), reinterpret_cast<const sockaddr*>(&remote), sizeof(remote)) != 0) {
+    if (connect(Handle(m_handle), reinterpret_cast<const sockaddr*>(&remote), sizeof(remote)) != 0) {
         return Unexpected(LastError());
     }
     return {};
@@ -103,7 +103,7 @@ auto UdpSocket::ConnectLoopback(uint16_t port) -> Result<> {
 auto UdpSocket::LocalPort() const -> uint16_t {
     sockaddr_in address{};
     int length = sizeof(address);
-    if (getsockname(Handle(handle_), reinterpret_cast<sockaddr*>(&address), &length) != 0) {
+    if (getsockname(Handle(m_handle), reinterpret_cast<sockaddr*>(&address), &length) != 0) {
         return 0;
     }
     return ntohs(address.sin_port);
@@ -111,18 +111,18 @@ auto UdpSocket::LocalPort() const -> uint16_t {
 
 auto UdpSocket::SetReceiveTimeout(std::chrono::milliseconds timeout) -> Result<> {
     const auto value = static_cast<DWORD>(timeout.count());
-    if (setsockopt(Handle(handle_), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&value), sizeof(value)) != 0) {
+    if (setsockopt(Handle(m_handle), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&value), sizeof(value)) != 0) {
         return Unexpected(LastError());
     }
     return {};
 }
 
 auto UdpSocket::Send(std::span<const std::byte> data) const -> bool {
-    return send(Handle(handle_), reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0) != SOCKET_ERROR;
+    return send(Handle(m_handle), reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0) != SOCKET_ERROR;
 }
 
 auto UdpSocket::Receive(std::span<std::byte> buffer) const -> std::optional<size_t> {
-    const int received = recv(Handle(handle_), reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
+    const int received = recv(Handle(m_handle), reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
     if (received <= 0) {
         return std::nullopt;
     }

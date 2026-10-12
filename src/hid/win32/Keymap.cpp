@@ -18,15 +18,15 @@
 
 #include "Keymap.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #include <algorithm>
 #include <array>
 #include <format>
 #include <string>
 #include <utility>
 #include <vector>
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 #include "Scancodes.hpp"
 
@@ -69,11 +69,6 @@ auto FirstCodepoint(std::wstring_view text) -> uint32_t {
     }
     return high;
 }
-
-struct Translation {
-    std::wstring text;
-    bool dead = false;
-};
 
 auto KeyboardState(uint8_t modifiers) -> std::array<BYTE, 256> {
     std::array<BYTE, 256> state{};
@@ -137,13 +132,14 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
 
 } // namespace
 
-auto KeyboardLayoutDeleter::operator()(void* layout) const -> void {
-    if (owned) {
-        UnloadKeyboardLayout(static_cast<HKL>(layout));
-    }
+auto Keymap::UnloadLayout(void* layout) -> void {
+    UnloadKeyboardLayout(static_cast<HKL>(layout));
 }
 
-Keymap::Keymap(std::unique_ptr<void, KeyboardLayoutDeleter> layout) : layout_(std::move(layout)) {
+auto Keymap::KeepLayout(void*) -> void {
+}
+
+Keymap::Keymap(std::unique_ptr<void, void (*)(void*)> layout) : m_layout(std::move(layout)) {
 }
 
 auto Keymap::FromWayland() -> Result<Keymap> {
@@ -161,7 +157,7 @@ auto Keymap::FromWindows() -> Result<Keymap> {
     if (layout == nullptr) {
         return Unexpected("Could not read the active keyboard layout");
     }
-    return Keymap(std::unique_ptr<void, KeyboardLayoutDeleter>(layout, KeyboardLayoutDeleter{.owned = false}));
+    return Keymap(std::unique_ptr<void, void (*)(void*)>(layout, &KeepLayout));
 }
 
 auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
@@ -184,17 +180,17 @@ auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Res
         return Unexpected(std::format("Keyboard layout for region '{}' is not available", name));
     }
     const bool owned = std::ranges::find(loaded, handle) == loaded.end();
-    return Keymap(std::unique_ptr<void, KeyboardLayoutDeleter>(handle, KeyboardLayoutDeleter{.owned = owned}));
+    return Keymap(std::unique_ptr<void, void (*)(void*)>(handle, owned ? &UnloadLayout : &KeepLayout));
 }
 
 auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
-    const auto translated = Translate(static_cast<HKL>(layout_.get()), key, modifiers);
+    const auto translated = Translate(static_cast<HKL>(m_layout.get()), key, modifiers);
     const uint32_t codepoint = FirstCodepoint(translated.text);
     return translated.dead && codepoint != 0 ? kDeadKeyBit | codepoint : codepoint;
 }
 
 auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
-    const auto translated = Translate(static_cast<HKL>(layout_.get()), key, modifiers);
+    const auto translated = Translate(static_cast<HKL>(m_layout.get()), key, modifiers);
     return translated.dead ? std::string() : Narrow(translated.text);
 }
 
@@ -212,7 +208,7 @@ auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
 }
 
 auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
-    return Narrow(Translate(static_cast<HKL>(layout_.get()), key, modifier).text);
+    return Narrow(Translate(static_cast<HKL>(m_layout.get()), key, modifier).text);
 }
 
 auto Keymap::HasAltGr() const -> bool {

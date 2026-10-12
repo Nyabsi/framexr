@@ -35,50 +35,9 @@
 
 #include "Error.hpp"
 #include "Toast.hpp"
+#include "ToastIngest.hpp"
 
-class AppState;
 struct DBusConnection;
-struct DBusMessage;
-
-class ByteWriter final {
-  public:
-    auto Byte(std::byte value) -> void;
-    auto Float(float value) -> void;
-    auto String(std::string_view value) -> void;
-    auto Take() -> std::vector<std::byte>;
-
-  private:
-    std::vector<std::byte> bytes_;
-};
-
-class ByteReader final {
-  public:
-    explicit ByteReader(std::span<const std::byte> bytes);
-
-    auto Byte() -> std::optional<std::byte>;
-    auto Float() -> std::optional<float>;
-    auto String() -> std::optional<std::string>;
-    [[nodiscard]] auto Empty() const -> bool;
-
-  private:
-    std::span<const std::byte> bytes_;
-};
-
-class ToastIngest final {
-  public:
-    static auto Encode(const Toast& toast) -> std::vector<std::byte>;
-    static auto Decode(std::span<const std::byte> message) -> Result<Toast>;
-    static auto FromXsOverlay(std::string_view json) -> Result<std::optional<Toast>>;
-    static auto Utf8Error(std::string_view text) -> std::optional<std::string>;
-    static auto FromDbusNotify(DBusMessage* message) -> Result<Toast>;
-
-    auto Push(const Toast& toast) -> void;
-    auto Drain() -> std::vector<Toast>;
-
-  private:
-    std::mutex mutex_;
-    std::vector<std::vector<std::byte>> messages_;
-};
 
 class NotificationManager final {
   public:
@@ -89,40 +48,16 @@ class NotificationManager final {
 
     auto RunDesktop() -> void;
     auto RunUdp() -> void;
-    auto SubmitPending(AppState& app) -> void;
+    auto SubmitPending() -> void;
 
   private:
     auto PollDesktop() -> void;
     auto CloseDesktop() -> void;
     auto RunNative() -> void;
 
-    std::shared_ptr<ToastIngest> ingest_;
-    std::shared_ptr<std::atomic<bool>> running_;
-    DBusConnection* dbus_ = nullptr;
-    std::thread udp_thread_;
-    std::thread native_thread_;
-};
-
-class DbusNotificationSender final {
-  public:
-    static auto Create() -> Result<std::unique_ptr<DbusNotificationSender>>;
-
-    ~DbusNotificationSender();
-    DbusNotificationSender(const DbusNotificationSender&) = delete;
-    auto operator=(const DbusNotificationSender&) -> DbusNotificationSender& = delete;
-
-    auto NotifySend(
-        std::string_view summary,
-        std::string_view body,
-        uint8_t urgency,
-        int32_t timeout,
-        uint32_t replaces_id,
-        bool transient
-    ) -> Result<uint32_t>;
-    auto NotifyClose(uint32_t id) -> Result<>;
-
-  private:
-    explicit DbusNotificationSender(DBusConnection* connection);
-
-    DBusConnection* connection_;
+    std::shared_ptr<ToastIngest> m_ingest;
+    std::shared_ptr<std::atomic<bool>> m_running;
+    DBusConnection* m_dbus = nullptr;
+    std::thread m_udp_thread;
+    std::thread m_native_thread;
 };

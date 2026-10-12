@@ -24,10 +24,11 @@
 #include <cmath>
 #include <vector>
 
+#include "Config.hpp"
+#include "Input.hpp"
 #include "Logger.hpp"
 #include "OpenVrMath.hpp"
 #include "OverlayContainer.hpp"
-#include "State.hpp"
 
 auto OpenVrPlayspace::UniverseName(vr::ETrackingUniverseOrigin universe) -> std::string_view {
     switch (universe) {
@@ -42,8 +43,8 @@ auto OpenVrPlayspace::WorkingCopy() const -> std::optional<Eigen::Affine3f> {
     auto* chaperone = vr::VRChaperoneSetup();
     chaperone->RevertWorkingCopy();
     vr::HmdMatrix34_t matrix{};
-    const bool valid = universe_ == vr::TrackingUniverseStanding ? chaperone->GetWorkingStandingZeroPoseToRawTrackingPose(&matrix)
-                                                                 : chaperone->GetWorkingSeatedZeroPoseToRawTrackingPose(&matrix);
+    const bool valid = m_universe == vr::TrackingUniverseStanding ? chaperone->GetWorkingStandingZeroPoseToRawTrackingPose(&matrix)
+                                                                  : chaperone->GetWorkingSeatedZeroPoseToRawTrackingPose(&matrix);
     if (!valid) {
         return std::nullopt;
     }
@@ -52,7 +53,7 @@ auto OpenVrPlayspace::WorkingCopy() const -> std::optional<Eigen::Affine3f> {
 
 auto OpenVrPlayspace::SetWorkingCopy(const Eigen::Affine3f& pose) const -> void {
     const auto matrix = OpenVrMath::ToHmdMatrix(pose);
-    if (universe_ == vr::TrackingUniverseStanding) {
+    if (m_universe == vr::TrackingUniverseStanding) {
         vr::VRChaperoneSetup()->SetWorkingStandingZeroPoseToRawTrackingPose(&matrix);
     } else {
         vr::VRChaperoneSetup()->SetWorkingSeatedZeroPoseToRawTrackingPose(&matrix);
@@ -90,24 +91,24 @@ auto OpenVrPlayspace::ApplyChaperoneTransform(const Eigen::Affine3f& transform) 
     chaperone->SetWorkingCollisionBoundsInfo(quads.data(), count);
 }
 
-auto OpenVrPlayspace::UpdateRotate(OverlayContainer& overlays, const AppState& app) -> bool {
-    if (rotate_) {
-        const auto& pointer = app.input.pointers[rotate_->hand];
-        if (!pointer.now.space_rotate) {
-            rotate_.reset();
+auto OpenVrPlayspace::UpdateRotate() -> bool {
+    if (m_rotate) {
+        const auto& pointer = g_input->Pointers()[m_rotate->hand];
+        if (!pointer.Now().space_rotate) {
+            m_rotate.reset();
             LOG_INFO("End space rotate");
             return true;
         }
 
-        const Eigen::Matrix3f new_hand_rotation = (rotate_->pose * pointer.raw_pose).linear();
+        const Eigen::Matrix3f new_hand_rotation = (m_rotate->pose * pointer.RawPose()).linear();
         const Eigen::Quaternionf new_hand(new_hand_rotation);
-        const Eigen::Quaternionf dq = new_hand * rotate_->hand_rotation.conjugate();
+        const Eigen::Quaternionf dq = new_hand * m_rotate->hand_rotation.conjugate();
         const float rel_y = std::atan2(
             2.0f * std::fma(dq.y(), dq.w(), dq.x() * dq.z()),
             std::fma(2.0f, std::fma(dq.w(), dq.w(), dq.x() * dq.x()), -1.0f)
         );
 
-        const Eigen::Vector3f hmd = app.input.hmd.translation();
+        const Eigen::Vector3f hmd = g_input->Hmd().translation();
         Eigen::Affine3f space_transform(Eigen::AngleAxisf(rel_y, Eigen::Vector3f::UnitY()));
         const Eigen::Matrix3f space_rotation = space_transform.linear();
         const Eigen::Vector3f offset = (space_rotation * hmd - hmd) * -1.0f;
@@ -115,27 +116,27 @@ auto OpenVrPlayspace::UpdateRotate(OverlayContainer& overlays, const AppState& a
         overlay_transform.translation() = offset;
         space_transform.translation() = offset;
 
-        for (auto& overlay : overlays.Overlays()) {
-            if (overlay->state.grabbable) {
-                overlay->state.dirty = true;
-                overlay->state.transform.translation() = overlay_transform * overlay->state.transform.translation();
+        for (auto& overlay : g_overlays->Overlays()) {
+            if (overlay->State().Grabbable()) {
+                overlay->State().SetDirty(true);
+                overlay->State().Transform().translation() = overlay_transform * overlay->State().Transform().translation();
             }
         }
 
-        rotate_->pose = rotate_->pose * space_transform;
-        rotate_->hand_rotation = new_hand;
+        m_rotate->pose = m_rotate->pose * space_transform;
+        m_rotate->hand_rotation = new_hand;
 
-        if (universe_ == vr::TrackingUniverseStanding) {
+        if (m_universe == vr::TrackingUniverseStanding) {
             ApplyChaperoneTransform(Eigen::Affine3f(space_transform.matrix().inverse()));
         }
-        SetWorkingCopy(rotate_->pose);
+        SetWorkingCopy(m_rotate->pose);
         vr::VRChaperoneSetup()->CommitWorkingCopy(vr::EChaperoneConfigFile_Live);
         return false;
     }
 
-    for (size_t i = 0; i < app.input.pointers.size(); ++i) {
-        const auto& pointer = app.input.pointers[i];
-        if (!pointer.now.space_rotate) {
+    for (size_t i = 0; i < g_input->Pointers().size(); ++i) {
+        const auto& pointer = g_input->Pointers()[i];
+        if (!pointer.Now().space_rotate) {
             continue;
         }
         const auto pose = WorkingCopy();
@@ -143,54 +144,54 @@ auto OpenVrPlayspace::UpdateRotate(OverlayContainer& overlays, const AppState& a
             LOG_WARN("Can't space rotate - failed to get zero pose");
             return true;
         }
-        const Eigen::Matrix3f hand_rotation = (*pose * pointer.raw_pose).linear();
-        rotate_ = OpenVrPlayspaceRotate{.pose = *pose, .hand = i, .hand_rotation = Eigen::Quaternionf(hand_rotation)};
-        drag_.reset();
+        const Eigen::Matrix3f hand_rotation = (*pose * pointer.RawPose()).linear();
+        m_rotate = OpenVrPlayspaceRotate{.pose = *pose, .hand = i, .hand_rotation = Eigen::Quaternionf(hand_rotation)};
+        m_drag.reset();
         LOG_INFO("Start space rotate");
         return true;
     }
     return false;
 }
 
-auto OpenVrPlayspace::UpdateDrag(OverlayContainer& overlays, const AppState& app) -> void {
-    if (drag_) {
-        const auto& pointer = app.input.pointers[drag_->hand];
-        if (!pointer.now.space_drag) {
-            drag_.reset();
+auto OpenVrPlayspace::UpdateDrag() -> void {
+    if (m_drag) {
+        const auto& pointer = g_input->Pointers()[m_drag->hand];
+        if (!pointer.Now().space_drag) {
+            m_drag.reset();
             LOG_INFO("End space drag");
             return;
         }
 
-        const Eigen::Vector3f new_hand = drag_->pose * pointer.raw_pose.translation();
-        const Eigen::Vector3f relative = (new_hand - drag_->hand_position) * app.config.space_drag_multiplier;
+        const Eigen::Vector3f new_hand = m_drag->pose * pointer.RawPose().translation();
+        const Eigen::Vector3f relative = (new_hand - m_drag->hand_position) * g_config->space_drag_multiplier;
         if (relative.squaredNorm() > 1000.0f) {
             LOG_WARN("Space drag too fast, ignoring");
             return;
         }
 
-        const Eigen::Matrix3f inverse_rotation = drag_->pose.linear().inverse();
+        const Eigen::Matrix3f inverse_rotation = m_drag->pose.linear().inverse();
         const Eigen::Vector3f overlay_offset = inverse_rotation * relative * -1.0f;
-        for (auto& overlay : overlays.Overlays()) {
-            if (overlay->state.grabbable) {
-                overlay->state.dirty = true;
-                overlay->state.transform.translation() += overlay_offset;
+        for (auto& overlay : g_overlays->Overlays()) {
+            if (overlay->State().Grabbable()) {
+                overlay->State().SetDirty(true);
+                overlay->State().Transform().translation() += overlay_offset;
             }
         }
 
-        drag_->pose.translation() += relative;
-        drag_->hand_position = new_hand;
+        m_drag->pose.translation() += relative;
+        m_drag->hand_position = new_hand;
 
-        if (universe_ == vr::TrackingUniverseStanding) {
+        if (m_universe == vr::TrackingUniverseStanding) {
             ApplyChaperoneOffset(overlay_offset);
         }
-        SetWorkingCopy(drag_->pose);
+        SetWorkingCopy(m_drag->pose);
         vr::VRChaperoneSetup()->CommitWorkingCopy(vr::EChaperoneConfigFile_Live);
         return;
     }
 
-    for (size_t i = 0; i < app.input.pointers.size(); ++i) {
-        const auto& pointer = app.input.pointers[i];
-        if (!pointer.now.space_drag) {
+    for (size_t i = 0; i < g_input->Pointers().size(); ++i) {
+        const auto& pointer = g_input->Pointers()[i];
+        if (!pointer.Now().space_drag) {
             continue;
         }
         const auto pose = WorkingCopy();
@@ -198,42 +199,42 @@ auto OpenVrPlayspace::UpdateDrag(OverlayContainer& overlays, const AppState& app
             LOG_WARN("Can't space drag - failed to get zero pose");
             return;
         }
-        drag_ = OpenVrPlayspaceDrag{.pose = *pose, .hand = i, .hand_position = *pose * pointer.raw_pose.translation()};
-        rotate_.reset();
+        m_drag = OpenVrPlayspaceDrag{.pose = *pose, .hand = i, .hand_position = *pose * pointer.RawPose().translation()};
+        m_rotate.reset();
         LOG_INFO("Start space drag");
         return;
     }
 }
 
-auto OpenVrPlayspace::Update(OverlayContainer& overlays, const AppState& app) -> void {
-    if (UpdateRotate(overlays, app)) {
+auto OpenVrPlayspace::Update() -> void {
+    if (UpdateRotate()) {
         return;
     }
-    UpdateDrag(overlays, app);
+    UpdateDrag();
 }
 
 auto OpenVrPlayspace::InterruptMoves(std::string_view reason) -> void {
-    if (drag_) {
+    if (m_drag) {
         LOG_INFO("Space drag interrupted by {}", reason);
-        drag_.reset();
+        m_drag.reset();
     }
-    if (rotate_) {
+    if (m_rotate) {
         LOG_INFO("Space rotate interrupted by {}", reason);
-        rotate_.reset();
+        m_rotate.reset();
     }
 }
 
-auto OpenVrPlayspace::ResetOffset(const InputState& input) -> void {
+auto OpenVrPlayspace::ResetOffset() -> void {
     float height = 1.6f;
     if (const auto pose = WorkingCopy()) {
-        height = input.hmd.translation().y() - pose->translation().y();
-        if (universe_ == vr::TrackingUniverseStanding) {
+        height = g_input->Hmd().translation().y() - pose->translation().y();
+        if (m_universe == vr::TrackingUniverseStanding) {
             ApplyChaperoneTransform(*pose);
         }
     }
 
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    if (universe_ == vr::TrackingUniverseSeated) {
+    if (m_universe == vr::TrackingUniverseSeated) {
         transform.translation() = -Eigen::Vector3f::UnitY() * height;
     }
     SetWorkingCopy(transform);
@@ -241,9 +242,9 @@ auto OpenVrPlayspace::ResetOffset(const InputState& input) -> void {
     InterruptMoves("manual reset");
 }
 
-auto OpenVrPlayspace::FixFloor(const InputState& input) -> void {
-    const float y1 = input.pointers[0].tracked_pose.translation().y();
-    const float y2 = input.pointers[1].tracked_pose.translation().y();
+auto OpenVrPlayspace::FixFloor() -> void {
+    const float y1 = g_input->Pointers()[0].TrackedPose().translation().y();
+    const float y2 = g_input->Pointers()[1].TrackedPose().translation().y();
     auto pose = WorkingCopy();
     if (!pose) {
         LOG_WARN("Can't fix floor - failed to get zero pose");
@@ -257,9 +258,9 @@ auto OpenVrPlayspace::FixFloor(const InputState& input) -> void {
 
 auto OpenVrPlayspace::PlayspaceChanged() -> void {
     const auto universe = vr::VRCompositor()->GetTrackingSpace();
-    if (universe != universe_) {
-        LOG_INFO("Playspace changed: {} -> {}", UniverseName(universe_), UniverseName(universe));
-        universe_ = universe;
+    if (universe != m_universe) {
+        LOG_INFO("Playspace changed: {} -> {}", UniverseName(m_universe), UniverseName(universe));
+        m_universe = universe;
     }
     InterruptMoves("external change");
 }

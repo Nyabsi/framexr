@@ -22,13 +22,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace {
-
-constexpr float kMinDeltaSeconds = 1e-4f;
-
-} // namespace
-
-OneEuroFilter::OneEuroFilter(OneEuroSettings settings) : settings_(settings) {
+OneEuroFilter::OneEuroFilter(OneEuroSettings settings) : m_settings(settings) {
 }
 
 auto OneEuroFilter::Alpha(float cutoff, float delta_seconds) -> float {
@@ -37,56 +31,19 @@ auto OneEuroFilter::Alpha(float cutoff, float delta_seconds) -> float {
 }
 
 auto OneEuroFilter::Reset() -> void {
-    value_.reset();
-    derivative_ = Eigen::Vector3f::Zero();
+    m_value.reset();
+    m_derivative = Eigen::Vector3f::Zero();
 }
 
 auto OneEuroFilter::Filter(const Eigen::Vector3f& value, float delta_seconds) -> Eigen::Vector3f {
-    if (!value_) {
-        value_ = value;
+    if (!m_value) {
+        m_value = value;
         return value;
     }
     const float delta = std::max(delta_seconds, kMinDeltaSeconds);
-    const Eigen::Vector3f raw_derivative = (value - *value_) / delta;
-    derivative_ += Alpha(settings_.derivative_cutoff, delta) * (raw_derivative - derivative_);
-    const float cutoff = std::fma(settings_.beta, derivative_.norm(), settings_.min_cutoff);
-    *value_ += Alpha(cutoff, delta) * (value - *value_);
-    return *value_;
-}
-
-RotationFilter::RotationFilter(OneEuroSettings settings) : settings_(settings) {
-}
-
-auto RotationFilter::Reset() -> void {
-    value_.reset();
-    speed_ = 0.0f;
-}
-
-auto RotationFilter::Filter(const Eigen::Quaternionf& value, float delta_seconds) -> Eigen::Quaternionf {
-    if (!value_) {
-        value_ = value.normalized();
-        return *value_;
-    }
-    const float delta = std::max(delta_seconds, kMinDeltaSeconds);
-    const float raw_speed = value_->angularDistance(value) / delta;
-    speed_ += OneEuroFilter::Alpha(settings_.derivative_cutoff, delta) * (raw_speed - speed_);
-    const float cutoff = std::fma(settings_.beta, speed_, settings_.min_cutoff);
-    value_ = value_->slerp(OneEuroFilter::Alpha(cutoff, delta), value).normalized();
-    return *value_;
-}
-
-PoseFilter::PoseFilter(OneEuroSettings position, OneEuroSettings rotation) : position_(position), rotation_(rotation) {
-}
-
-auto PoseFilter::Reset() -> void {
-    position_.Reset();
-    rotation_.Reset();
-}
-
-auto PoseFilter::Filter(const Eigen::Affine3f& pose, float delta_seconds) -> Eigen::Affine3f {
-    const Eigen::Matrix3f linear = pose.linear();
-    Eigen::Affine3f filtered = Eigen::Affine3f::Identity();
-    filtered.linear() = rotation_.Filter(Eigen::Quaternionf(linear), delta_seconds).toRotationMatrix();
-    filtered.translation() = position_.Filter(pose.translation(), delta_seconds);
-    return filtered;
+    const Eigen::Vector3f raw_derivative = (value - *m_value) / delta;
+    m_derivative += Alpha(m_settings.derivative_cutoff, delta) * (raw_derivative - m_derivative);
+    const float cutoff = std::fma(m_settings.beta, m_derivative.norm(), m_settings.min_cutoff);
+    *m_value += Alpha(cutoff, delta) * (value - *m_value);
+    return *m_value;
 }

@@ -21,35 +21,21 @@
 
 #include "XshmCapture.hpp"
 
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
 #include <cstdlib>
 #include <format>
 #include <mutex>
 #include <optional>
 #include <utility>
 
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
-#include <X11/extensions/Xrandr.h>
 
 #include "Logger.hpp"
 
 namespace {
-
-auto EnsureXlibThreads() -> void {
-    static std::once_flag once;
-    std::call_once(once, []() -> void { XInitThreads(); });
-}
-
-auto ReplaceAll(std::string text, std::string_view from, std::string_view to) -> std::string {
-    for (size_t pos = text.find(from); pos != std::string::npos; pos = text.find(from, pos + to.size())) {
-        text.replace(pos, from.size(), to);
-    }
-    return text;
-}
 
 auto MouseInScreen(::Display* display, const XshmScreen& screen, int image_width, int image_height) -> std::optional<MouseMeta> {
     Window root = 0;
@@ -75,68 +61,31 @@ auto MouseInScreen(::Display* display, const XshmScreen& screen, int image_width
 
 } // namespace
 
-auto Xshm::Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>> {
-    EnsureXlibThreads();
-    const char* display_name = std::getenv("DISPLAY");
-    if (display_name == nullptr) {
-        return Unexpected("environment variable not found");
-    }
-    auto* display = XOpenDisplay(display_name);
-    if (display == nullptr) {
-        return Unexpected("X11: Failed to open display");
-    }
-
-    int count = 0;
-    auto* monitors = XRRGetMonitors(display, XDefaultRootWindow(display), False, &count);
-    std::vector<std::shared_ptr<XshmScreen>> screens;
-    for (int index = 0; index < count; ++index) {
-        const auto& monitor = monitors[index];
-        char* atom_name = XGetAtomName(display, monitor.name);
-        screens.push_back(
-            std::make_shared<XshmScreen>(XshmScreen{
-                .name = ReplaceAll(atom_name != nullptr ? atom_name : "", "DisplayPort", "DP"),
-                .x = monitor.x,
-                .y = monitor.y,
-                .width = static_cast<uint32_t>(monitor.width),
-                .height = static_cast<uint32_t>(monitor.height),
-            })
-        );
-        if (atom_name != nullptr) {
-            XFree(atom_name);
-        }
-    }
-    if (monitors != nullptr) {
-        XRRFreeMonitors(monitors);
-    }
-    XCloseDisplay(display);
-    return screens;
-}
-
-XshmCapture::XshmCapture(std::shared_ptr<XshmScreen> screen) : screen_(std::move(screen)) {
+XshmCapture::XshmCapture(std::shared_ptr<XshmScreen> screen) : m_screen(std::move(screen)) {
 }
 
 XshmCapture::~XshmCapture() {
     {
-        std::scoped_lock lock(request_mutex_);
-        stopping_ = true;
+        std::scoped_lock lock(m_request_mutex);
+        m_stopping = true;
     }
-    request_signal_.notify_all();
-    if (thread_.joinable()) {
-        thread_.join();
+    m_request_signal.notify_all();
+    if (m_thread.joinable()) {
+        m_thread.join();
     }
 }
 
 auto XshmCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
-    channel_ = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(4);
-    processor_ = std::move(processor);
-    thread_ = std::thread(&XshmCapture::Run, this);
+    m_channel = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(4);
+    m_processor = std::move(processor);
+    m_thread = std::thread(&XshmCapture::Run, this);
 }
 
 auto XshmCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!channel_) {
+    if (!m_channel) {
         return nullptr;
     }
-    auto frames = channel_->TakeAll();
+    auto frames = m_channel->TakeAll();
     if (frames.empty()) {
         return nullptr;
     }
@@ -144,40 +93,40 @@ auto XshmCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
 }
 
 auto XshmCapture::Resume() -> void {
-    if (channel_) {
-        LOG_DEBUG("{}: dropped {} old frames before resuming", screen_->name, channel_->TakeAll().size());
+    if (m_channel) {
+        LOG_DEBUG("{}: dropped {} old frames before resuming", m_screen->name, m_channel->TakeAll().size());
     }
     RequestNewFrame();
 }
 
 auto XshmCapture::RequestNewFrame() -> void {
-    if (!channel_) {
+    if (!m_channel) {
         return;
     }
     {
-        std::scoped_lock lock(request_mutex_);
-        if (pending_requests_ >= 2) {
+        std::scoped_lock lock(m_request_mutex);
+        if (m_pending_requests >= 2) {
             LOG_DEBUG("Failed to send frame request: channel full");
             return;
         }
-        ++pending_requests_;
+        ++m_pending_requests;
     }
-    request_signal_.notify_one();
+    m_request_signal.notify_one();
 }
 
 auto XshmCapture::WaitForRequest() -> bool {
-    std::unique_lock lock(request_mutex_);
-    request_signal_.wait(lock, [this]() -> bool { return stopping_ || pending_requests_ > 0; });
-    if (stopping_) {
+    std::unique_lock lock(m_request_mutex);
+    m_request_signal.wait(lock, [this]() -> bool { return m_stopping || m_pending_requests > 0; });
+    if (m_stopping) {
         return false;
     }
-    --pending_requests_;
+    --m_pending_requests;
     return true;
 }
 
 auto XshmCapture::Run() -> void {
-    EnsureXlibThreads();
-    const auto& name = screen_->name;
+    Xshm::EnsureThreads();
+    const auto& name = m_screen->name;
 
     const char* display_name = std::getenv("DISPLAY");
     auto* display = display_name != nullptr ? XOpenDisplay(display_name) : nullptr;
@@ -197,8 +146,8 @@ auto XshmCapture::Run() -> void {
             ZPixmap,
             nullptr,
             &segment,
-            screen_->width,
-            screen_->height
+            m_screen->width,
+            m_screen->height
         );
     }
     if (image != nullptr) {
@@ -229,7 +178,7 @@ auto XshmCapture::Run() -> void {
 
     const auto root = XDefaultRootWindow(display);
     while (WaitForRequest()) {
-        if (XShmGetImage(display, root, image, screen_->x, screen_->y, ~0UL) == 0) {
+        if (XShmGetImage(display, root, image, m_screen->x, m_screen->y, ~0UL) == 0) {
             LOG_DEBUG("{}: XShmGetImage failed", name);
             continue;
         }
@@ -243,12 +192,12 @@ auto XshmCapture::Run() -> void {
                 },
             .data = reinterpret_cast<const std::byte*>(image->data),
             .size = static_cast<size_t>(image->bytes_per_line) * static_cast<size_t>(image->height),
-            .mouse = MouseInScreen(display, *screen_, image->width, image->height),
+            .mouse = MouseInScreen(display, *m_screen, image->width, image->height),
         };
         LOG_TRACE("{}: captured frame", name);
 
-        if (auto result = processor_(Frame(frame))) {
-            if (channel_->Push(std::move(result))) {
+        if (auto result = m_processor(Frame(frame))) {
+            if (m_channel->Push(std::move(result))) {
                 LOG_DEBUG("{}: channel full", name);
             }
         }

@@ -50,5 +50,5 @@ class UdpSocket final {
   private:
     explicit UdpSocket(intptr_t handle);
 
-    intptr_t handle_;
+    intptr_t m_handle;
 };

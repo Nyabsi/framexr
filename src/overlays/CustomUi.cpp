@@ -26,7 +26,6 @@
 #include "Config.hpp"
 #include "Logger.hpp"
 #include "Modular.hpp"
-#include "State.hpp"
 #include "Yaml.hpp"
 
 namespace {
@@ -43,7 +42,7 @@ constexpr char kSettingsYaml[] = {
 
 auto CustomUi::Load(const std::string& name) -> Result<ModularUiConfig> {
     const auto filename = std::format("{}.yaml", name);
-    const auto text = Config::LoadText(filename);
+    const auto text = ConfigStore::LoadText(filename);
     if (!text) {
         return Unexpected(std::format("Could not read file at {}", filename));
     }
@@ -55,10 +54,10 @@ auto CustomUi::Load(const std::string& name) -> Result<ModularUiConfig> {
     }
 }
 
-auto CustomUi::Create(AppState& app, std::string name) -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>> {
+auto CustomUi::Create(std::string name) -> std::optional<std::pair<OverlayState, std::unique_ptr<OverlayBackend>>> {
     ModularUiConfig config;
     if (name == kSettingsName) {
-        config = Config::LoadKnownYaml<ModularUiConfig>("settings.yaml", kSettingsYaml);
+        config = ConfigStore::LoadKnownYaml<ModularUiConfig>("settings.yaml", kSettingsYaml);
     } else if (auto loaded = Load(name)) {
         config = std::move(*loaded);
     } else {
@@ -66,21 +65,21 @@ auto CustomUi::Create(AppState& app, std::string name) -> std::optional<std::pai
         return std::nullopt;
     }
 
-    auto canvas = Modular::CreateCanvas(config, app);
+    auto canvas = Modular::CreateCanvas(config);
     if (!canvas) {
         LOG_ERROR("Failed to create canvas for {}: {}", name, canvas.error().Message());
         return std::nullopt;
     }
 
-    const auto spawn = config.spawn_pos.value_or(std::array{0.0f, 0.0f, -0.5f});
+    const auto spawn = config.SpawnPos().value_or(std::array{0.0f, 0.0f, -0.5f});
     OverlayState state;
-    state.name = std::move(name);
-    state.want_visible = true;
-    state.interactable = true;
-    state.grabbable = true;
-    state.spawn_scale = config.width;
-    state.spawn_point = Eigen::Vector3f(spawn[0], spawn[1], spawn[2]);
+    state.SetName(std::move(name));
+    state.SetWantVisible(true);
+    state.SetInteractable(true);
+    state.SetGrabbable(true);
+    state.SetSpawnScale(config.Width());
+    state.SetSpawnPoint(Eigen::Vector3f(spawn[0], spawn[1], spawn[2]));
     const auto size = config.Size();
-    state.interaction_transform = OverlayState::UiTransform({size[0], size[1]});
+    state.SetInteractionTransform(OverlayState::UiTransform({size[0], size[1]}));
     return std::pair<OverlayState, std::unique_ptr<OverlayBackend>>{std::move(state), std::move(*canvas)};
 }

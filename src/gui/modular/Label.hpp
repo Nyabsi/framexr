@@ -35,8 +35,6 @@
 #include "Control.hpp"
 #include "Process.hpp"
 
-class AppState;
-
 enum class NumberPadding : uint8_t {
     Zero,
     Space,
@@ -88,6 +86,7 @@ using LabelContent = std::variant<
     IpdLabelContent>;
 
 auto from_json(const nlohmann::json& json, LabelContent& value) -> void;
+
 auto to_json(nlohmann::ordered_json& json, const LabelContent& value) -> void;
 
 struct LabelSetup {
@@ -98,70 +97,8 @@ struct LabelSetup {
 
 class Labels {
   public:
-    static auto Create(const LabelContent& content, const AppState& app, const Eigen::Vector4f& fg_color) -> LabelSetup;
+    static auto Create(const LabelContent& content, const Eigen::Vector4f& fg_color) -> LabelSetup;
     static auto FormatTime(std::string_view format, const std::chrono::time_zone* zone, std::chrono::system_clock::time_point now)
         -> std::string;
-    static auto City(const std::optional<std::variant<size_t, std::string>>& zone, const AppState& app) -> std::string;
-};
-
-class BatteryLabel final : public Control {
-  public:
-    BatteryLabel(size_t device, float low_threshold, Eigen::Vector4f normal, Eigen::Vector4f low, Eigen::Vector4f charging);
-
-    auto Update(AppState& app) -> void override;
-
-  private:
-    size_t device_;
-    float low_threshold_;
-    Eigen::Vector4f normal_color_;
-    Eigen::Vector4f low_color_;
-    Eigen::Vector4f charging_color_;
-};
-
-class ClockLabel final : public Control {
-  public:
-    ClockLabel(std::string format, const std::chrono::time_zone* zone);
-
-    auto Update(AppState& app) -> void override;
-
-  private:
-    std::string format_;
-    const std::chrono::time_zone* zone_;
-};
-
-class TimerLabel final : public Control {
-  public:
-    explicit TimerLabel(std::string format);
-
-    auto Update(AppState& app) -> void override;
-
-  private:
-    std::string format_;
-    std::chrono::steady_clock::time_point start_;
-};
-
-class ExecLabel final : public Control {
-  public:
-    ExecLabel(std::vector<std::string> command, float interval);
-
-    auto Update(AppState& app) -> void override;
-
-  private:
-    std::vector<std::string> command_;
-    float interval_;
-    std::chrono::steady_clock::time_point last_exec_;
-    std::optional<Process> child_;
-};
-
-class IpdLabel final : public Control {
-  public:
-    auto Update(AppState& app) -> void override;
-
-  private:
-    float last_ipd_ = -1.0f;
-};
-
-class DragMultiplierLabel final : public Control {
-  public:
-    auto Update(AppState& app) -> void override;
+    static auto City(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string;
 };

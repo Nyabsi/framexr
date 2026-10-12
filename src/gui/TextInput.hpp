@@ -23,12 +23,10 @@
 
 #include "VirtualKey.hpp"
 
-class AppState;
-
 class TextInput {
   public:
     virtual ~TextInput() = default;
 
     [[nodiscard]] virtual auto WantsRawKeys() const -> bool = 0;
-    virtual auto Key(AppState& app, VirtualKey key, uint8_t modifiers, std::string_view text) -> void = 0;
+    virtual auto Key(VirtualKey key, uint8_t modifiers, std::string_view text) -> void = 0;
 };

@@ -21,14 +21,13 @@
 
 #include "Monado.hpp"
 
-#include <dlfcn.h>
-#include <link.h>
-
 #include <cstdlib>
 #include <format>
 #include <optional>
 #include <ranges>
 
+#include <dlfcn.h>
+#include <link.h>
 #include <nlohmann/json.hpp>
 
 #include "Config.hpp"
@@ -180,7 +179,7 @@ auto Monado::AutoConnect() -> Result<std::unique_ptr<Monado>> {
     }
 
     for (const auto& candidate : RuntimeJsonCandidates()) {
-        const auto contents = Config::ReadFile(candidate);
+        const auto contents = ConfigStore::ReadFile(candidate);
         if (!contents) {
             continue;
         }
@@ -229,27 +228,27 @@ auto Monado::Create(const std::filesystem::path& library) -> std::expected<std::
     return std::unique_ptr<Monado>(new Monado(handle, *api, root));
 }
 
-Monado::Monado(void* library, const MonadoApi& api, void* root) : library_(library), api_(api), root_(root) {
+Monado::Monado(void* library, const MonadoApi& api, void* root) : m_library(library), m_api(api), m_root(root) {
 }
 
 Monado::~Monado() {
-    api_.root_destroy(&root_);
-    dlclose(library_);
+    m_api.root_destroy(&m_root);
+    dlclose(m_library);
 }
 
 auto Monado::Clients() -> std::expected<std::vector<uint32_t>, MonadoResult> {
-    if (const auto result = ToMonadoResult(api_.update_client_list(root_)); !result) {
+    if (const auto result = ToMonadoResult(m_api.update_client_list(m_root)); !result) {
         return std::unexpected(result.error());
     }
     uint32_t count = 0;
-    if (const auto result = ToMonadoResult(api_.get_number_clients(root_, &count)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_number_clients(m_root, &count)); !result) {
         return std::unexpected(result.error());
     }
     std::vector<uint32_t> ids;
     ids.reserve(count);
     for (uint32_t index = 0; index < count; ++index) {
         uint32_t id = 0;
-        if (const auto result = ToMonadoResult(api_.get_client_id_at_index(root_, index, &id)); !result) {
+        if (const auto result = ToMonadoResult(m_api.get_client_id_at_index(m_root, index, &id)); !result) {
             return std::unexpected(result.error());
         }
         ids.push_back(id);
@@ -259,7 +258,7 @@ auto Monado::Clients() -> std::expected<std::vector<uint32_t>, MonadoResult> {
 
 auto Monado::ClientName(uint32_t id) -> std::expected<std::string, MonadoResult> {
     const char* name = nullptr;
-    if (const auto result = ToMonadoResult(api_.get_client_name(root_, id, &name)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_client_name(m_root, id, &name)); !result) {
         return std::unexpected(result.error());
     }
     return std::string(name);
@@ -267,7 +266,7 @@ auto Monado::ClientName(uint32_t id) -> std::expected<std::string, MonadoResult>
 
 auto Monado::ClientState(uint32_t id) -> std::expected<uint32_t, MonadoResult> {
     uint32_t state = 0;
-    if (const auto result = ToMonadoResult(api_.get_client_state(root_, id, &state)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_client_state(m_root, id, &state)); !result) {
         return std::unexpected(result.error());
     }
     return state;
@@ -279,7 +278,7 @@ auto Monado::SetClientIoActive(uint32_t id, bool active) -> std::expected<void, 
         return std::unexpected(state.error());
     }
     if (((*state & kMonadoClientIoActive) != 0) != active) {
-        return ToMonadoResult(api_.toggle_client_io_active(root_, id));
+        return ToMonadoResult(m_api.toggle_client_io_active(m_root, id));
     }
     return {};
 }
@@ -287,7 +286,7 @@ auto Monado::SetClientIoActive(uint32_t id, bool active) -> std::expected<void, 
 auto Monado::DeviceInfo(uint32_t index) -> std::expected<MonadoDevice, MonadoResult> {
     MonadoDevice device{.index = index};
     const char* name = nullptr;
-    if (const auto result = ToMonadoResult(api_.get_device_info(root_, index, &device.name_id, &name)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_device_info(m_root, index, &device.name_id, &name)); !result) {
         return std::unexpected(result.error());
     }
     device.name = name != nullptr ? name : "";
@@ -296,7 +295,7 @@ auto Monado::DeviceInfo(uint32_t index) -> std::expected<MonadoDevice, MonadoRes
 
 auto Monado::DeviceFromRole(MonadoDeviceRole role) -> std::expected<MonadoDevice, MonadoResult> {
     int32_t index = -1;
-    if (const auto result = ToMonadoResult(api_.get_device_from_role(root_, RoleName(role), &index)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_device_from_role(m_root, RoleName(role), &index)); !result) {
         return std::unexpected(result.error());
     }
     if (index == -1) {
@@ -307,7 +306,7 @@ auto Monado::DeviceFromRole(MonadoDeviceRole role) -> std::expected<MonadoDevice
 
 auto Monado::Devices() -> std::expected<std::vector<MonadoDevice>, MonadoResult> {
     uint32_t count = 0;
-    if (const auto result = ToMonadoResult(api_.get_device_count(root_, &count)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_device_count(m_root, &count)); !result) {
         return std::unexpected(result.error());
     }
     std::vector<MonadoDevice> devices;
@@ -325,7 +324,7 @@ auto Monado::Devices() -> std::expected<std::vector<MonadoDevice>, MonadoResult>
 auto Monado::BatteryStatus(const MonadoDevice& device) -> std::expected<MonadoBatteryStatus, MonadoResult> {
     MonadoBatteryStatus status;
     if (const auto result = ToMonadoResult(
-            api_.get_device_battery_status(root_, device.index, &status.present, &status.charging, &status.charge)
+            m_api.get_device_battery_status(m_root, device.index, &status.present, &status.charging, &status.charge)
         );
         !result) {
         return std::unexpected(result.error());
@@ -335,7 +334,7 @@ auto Monado::BatteryStatus(const MonadoDevice& device) -> std::expected<MonadoBa
 
 auto Monado::ReferenceSpaceOffset(MonadoReferenceSpace space) -> std::expected<MonadoPose, MonadoResult> {
     MonadoRawPose raw{};
-    if (const auto result = ToMonadoResult(api_.get_reference_space_offset(root_, static_cast<int32_t>(space), &raw)); !result) {
+    if (const auto result = ToMonadoResult(m_api.get_reference_space_offset(m_root, static_cast<int32_t>(space), &raw)); !result) {
         return std::unexpected(result.error());
     }
     return MonadoPose{
@@ -349,5 +348,5 @@ auto Monado::SetReferenceSpaceOffset(MonadoReferenceSpace space, const MonadoPos
         .orientation = {pose.orientation.x(), pose.orientation.y(), pose.orientation.z(), pose.orientation.w()},
         .position = {pose.position.x(), pose.position.y(), pose.position.z()},
     };
-    return ToMonadoResult(api_.set_reference_space_offset(root_, static_cast<int32_t>(space), &raw));
+    return ToMonadoResult(m_api.set_reference_space_offset(m_root, static_cast<int32_t>(space), &raw));
 }

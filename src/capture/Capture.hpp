@@ -26,11 +26,7 @@
 #include <span>
 
 #include "Frame.hpp"
-
-class ProcessedFrame {
-  public:
-    virtual ~ProcessedFrame() = default;
-};
+#include "ProcessedFrame.hpp"
 
 using FrameProcessor = std::function<std::unique_ptr<ProcessedFrame>(Frame&&)>;
 

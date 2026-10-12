@@ -26,10 +26,13 @@
 #include <cmath>
 #include <format>
 
+#include "CommandBatch.hpp"
+#include "Device.hpp"
 #include "Font.hpp"
+#include "InteractionHandler.hpp"
+#include "OverlayRenderer.hpp"
 #include "Shaders.hpp"
 #include "Theme.hpp"
-#include "State.hpp"
 
 namespace {
 
@@ -55,32 +58,39 @@ auto ParseHexByte(std::string_view text) -> std::optional<uint8_t> {
 
 } // namespace
 
-auto Canvas::Create(std::shared_ptr<Device> device, uint32_t width, uint32_t height, VkFormat format)
-    -> Result<std::unique_ptr<Canvas>> {
-    ASSIGN_OR_RETURN(auto foreground, device->CreateRenderTexture(width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-    ASSIGN_OR_RETURN(auto background, device->CreateRenderTexture(width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+auto Canvas::Create(uint32_t width, uint32_t height, VkFormat format) -> Result<std::unique_ptr<Canvas>> {
+    ASSIGN_OR_RETURN(
+        auto foreground,
+        g_device->CreateRenderTexture(width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    );
+    ASSIGN_OR_RETURN(
+        auto background,
+        g_device->CreateRenderTexture(width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+    );
 
     CanvasPipelines pipelines;
-    ASSIGN_OR_RETURN(pipelines.background_color, device->CreatePipeline(Shaders::Color(), format, Blend::AlphaMaxCoverage));
-    ASSIGN_OR_RETURN(pipelines.foreground_glyph, device->CreatePipeline(Shaders::Glyph(), format, Blend::AlphaMaxCoverage));
-    ASSIGN_OR_RETURN(pipelines.background_sprite, device->CreatePipeline(Shaders::SpriteTint(), format, Blend::AlphaMaxCoverage));
+    ASSIGN_OR_RETURN(pipelines.background_color, g_device->CreatePipeline(Shaders::Color(), format, Blend::AlphaMaxCoverage));
+    ASSIGN_OR_RETURN(pipelines.foreground_glyph, g_device->CreatePipeline(Shaders::Glyph(), format, Blend::AlphaMaxCoverage));
+    ASSIGN_OR_RETURN(pipelines.background_sprite, g_device->CreatePipeline(Shaders::SpriteTint(), format, Blend::AlphaMaxCoverage));
     ASSIGN_OR_RETURN(
         pipelines.highlight_color,
-        device->CreatePipeline(Shaders::Color(), device->NativeFormat(), Blend::AlphaMaxCoverage)
+        g_device->CreatePipeline(Shaders::Color(), g_device->NativeFormat(), Blend::AlphaMaxCoverage)
     );
     ASSIGN_OR_RETURN(
         pipelines.highlight_sprite,
-        device->CreatePipeline(Shaders::SpriteHighlight(), device->NativeFormat(), Blend::AlphaMaxCoverage)
+        g_device->CreatePipeline(Shaders::SpriteHighlight(), g_device->NativeFormat(), Blend::AlphaMaxCoverage)
     );
-    ASSIGN_OR_RETURN(pipelines.composite, device->CreatePipeline(Shaders::Srgb(), device->NativeFormat(), Blend::AlphaMaxCoverage));
+    ASSIGN_OR_RETURN(
+        pipelines.composite,
+        g_device->CreatePipeline(Shaders::Srgb(), g_device->NativeFormat(), Blend::AlphaMaxCoverage)
+    );
 
     return std::unique_ptr<Canvas>(
-        new Canvas(std::move(device), width, height, format, std::move(pipelines), std::move(foreground), std::move(background))
+        new Canvas(width, height, format, std::move(pipelines), std::move(foreground), std::move(background))
     );
 }
 
 Canvas::Canvas(
-    std::shared_ptr<Device> device,
     uint32_t width,
     uint32_t height,
     VkFormat format,
@@ -88,20 +98,19 @@ Canvas::Canvas(
     std::shared_ptr<Image> foreground,
     std::shared_ptr<Image> background
 )
-    : device_(std::move(device)),
-      width_(width),
-      height_(height),
-      format_(format),
-      pipelines_(std::move(pipelines)),
-      foreground_(std::move(foreground)),
-      background_(std::move(background)),
-      interact_map_((width / kResolutionDivider) * (height / kResolutionDivider)),
-      interact_stride_(width / kResolutionDivider),
-      interact_rows_(height / kResolutionDivider) {
+    : m_width(width),
+      m_height(height),
+      m_format(format),
+      m_pipelines(std::move(pipelines)),
+      m_foreground(std::move(foreground)),
+      m_background(std::move(background)),
+      m_interact_map((width / kResolutionDivider) * (height / kResolutionDivider)),
+      m_interact_stride(width / kResolutionDivider),
+      m_interact_rows(height / kResolutionDivider) {
 }
 
 auto Canvas::ParseColor(std::string_view color) -> Result<Eigen::Vector4f> {
-    const auto resolved = Theme::Color(color);
+    const auto resolved = g_themes->Color(color);
     const std::string_view html_hex = resolved;
     if (html_hex.size() == 7 || html_hex.size() == 9) {
         const auto r = ParseHexByte(html_hex.substr(1, 2));
@@ -125,101 +134,101 @@ auto Canvas::FallbackColor() -> Eigen::Vector4f {
 }
 
 auto Canvas::Clear() -> void {
-    controls_.clear();
-    std::ranges::fill(interact_map_, std::nullopt);
-    hovered_ = {};
-    pressed_ = {};
-    released_.clear();
-    background_dirty_ = true;
-    foreground_dirty_ = true;
-    highlight_dirty_ = true;
+    m_controls.clear();
+    std::ranges::fill(m_interact_map, std::nullopt);
+    m_hovered = {};
+    m_pressed = {};
+    m_released.clear();
+    m_background_dirty = true;
+    m_foreground_dirty = true;
+    m_highlight_dirty = true;
 }
 
 auto Canvas::AddControl(std::unique_ptr<Control> control) -> Control& {
-    controls_.push_back(control ? std::move(control) : std::make_unique<Control>());
-    return *controls_.back();
+    m_controls.push_back(control ? std::move(control) : std::make_unique<Control>());
+    return *m_controls.back();
 }
 
 auto Canvas::MarkInteractive(float x, float y, float w, float h, size_t index) -> void {
     const auto x_min = TruncateToIndex(x) / kResolutionDivider;
     const auto y_min = TruncateToIndex(y) / kResolutionDivider;
-    const auto x_max = std::min(x_min + TruncateToIndex(w) / kResolutionDivider, interact_stride_ - 1);
-    const auto y_max = std::min(y_min + TruncateToIndex(h) / kResolutionDivider, interact_rows_ - 1);
+    const auto x_max = std::min(x_min + TruncateToIndex(w) / kResolutionDivider, m_interact_stride - 1);
+    const auto y_max = std::min(y_min + TruncateToIndex(h) / kResolutionDivider, m_interact_rows - 1);
     for (auto row = y_min; row < y_max; ++row) {
         for (auto column = x_min; column < x_max; ++column) {
-            interact_map_[row * interact_stride_ + column] = static_cast<uint16_t>(index);
+            m_interact_map[row * m_interact_stride + column] = static_cast<uint16_t>(index);
         }
     }
 }
 
 auto Canvas::InteractiveAt(const Eigen::Vector2f& uv) const -> std::optional<size_t> {
-    const auto x = std::min(TruncateToIndex(uv.x() * static_cast<float>(width_)) / kResolutionDivider, interact_stride_ - 1);
-    const auto y = std::min(TruncateToIndex(uv.y() * static_cast<float>(height_)) / kResolutionDivider, interact_rows_ - 1);
-    return interact_map_[y * interact_stride_ + x];
+    const auto x = std::min(TruncateToIndex(uv.x() * static_cast<float>(m_width)) / kResolutionDivider, m_interact_stride - 1);
+    const auto y = std::min(TruncateToIndex(uv.y() * static_cast<float>(m_height)) / kResolutionDivider, m_interact_rows - 1);
+    return m_interact_map[y * m_interact_stride + x];
 }
 
 auto Canvas::Panel(float x, float y, float w, float h, float radius) -> Control& {
     auto& control = AddControl(nullptr);
-    control.rect = {x, y, w, h};
-    control.corner_radius = radius;
-    control.bg_color = bg_color;
-    control.background = BackgroundStyle::RoundedRect;
+    control.SetRect({x, y, w, h});
+    control.SetCornerRadius(radius);
+    control.SetBgColor(BgColor());
+    control.SetBackground(BackgroundStyle::RoundedRect);
     return control;
 }
 
-auto Canvas::Label(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control)
+auto Canvas::Label(float x, float y, float w, float h, float radius, std::string_view text, std::unique_ptr<Control> control)
     -> Control& {
     auto& label = AddControl(std::move(control));
-    label.rect = {x, y, w, h};
-    label.corner_radius = radius;
-    label.text = std::move(text);
-    label.fg_color = fg_color;
-    label.font_size = font_size;
-    label.foreground = ForegroundStyle::Text;
+    label.SetRect({x, y, w, h});
+    label.SetCornerRadius(radius);
+    label.SetText(text);
+    label.SetFgColor(FgColor());
+    label.SetFontSize(FontSize());
+    label.SetForeground(ForegroundStyle::Text);
     return label;
 }
 
-auto Canvas::LabelCentered(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control)
+auto Canvas::LabelCentered(float x, float y, float w, float h, float radius, std::string_view text, std::unique_ptr<Control> control)
     -> Control& {
-    auto& label = Label(x, y, w, h, radius, std::move(text), std::move(control));
-    label.foreground = ForegroundStyle::TextCentered;
+    auto& label = Label(x, y, w, h, radius, text, std::move(control));
+    label.SetForeground(ForegroundStyle::TextCentered);
     return label;
 }
 
 auto Canvas::Sprite(float x, float y, float w, float h) -> Control& {
     auto& sprite = AddControl(nullptr);
-    sprite.rect = {x, y, w, h};
-    sprite.background = BackgroundStyle::Sprite;
+    sprite.SetRect({x, y, w, h});
+    sprite.SetBackground(BackgroundStyle::Sprite);
     return sprite;
 }
 
 auto Canvas::SpriteInteractive(float x, float y, float w, float h) -> Control& {
     auto& sprite = Sprite(x, y, w, h);
-    sprite.highlight = HighlightStyle::Sprite;
+    sprite.SetHighlight(HighlightStyle::Sprite);
     return sprite;
 }
 
-auto Canvas::Button(float x, float y, float w, float h, float radius, std::string text, std::unique_ptr<Control> control)
+auto Canvas::Button(float x, float y, float w, float h, float radius, std::string_view text, std::unique_ptr<Control> control)
     -> Control& {
-    MarkInteractive(x, y, w, h, controls_.size());
+    MarkInteractive(x, y, w, h, m_controls.size());
     auto& button = AddControl(std::move(control));
-    button.rect = {x, y, w, h};
-    button.corner_radius = radius;
-    button.text = std::move(text);
-    button.fg_color = fg_color;
-    button.bg_color = bg_color;
-    button.font_size = font_size;
-    button.background = BackgroundStyle::RoundedRect;
-    button.foreground = ForegroundStyle::TextCentered;
-    button.highlight = HighlightStyle::RoundedRect;
+    button.SetRect({x, y, w, h});
+    button.SetCornerRadius(radius);
+    button.SetText(text);
+    button.SetFgColor(FgColor());
+    button.SetBgColor(BgColor());
+    button.SetFontSize(FontSize());
+    button.SetBackground(BackgroundStyle::RoundedRect);
+    button.SetForeground(ForegroundStyle::TextCentered);
+    button.SetHighlight(HighlightStyle::RoundedRect);
     return button;
 }
 
 auto Canvas::Decoration(float x, float y, float w, float h, float radius, std::unique_ptr<Control> control) -> Control& {
     auto& decoration = AddControl(std::move(control));
-    decoration.rect = {x, y, w, h};
-    decoration.corner_radius = radius;
-    decoration.highlight = HighlightStyle::RoundedRect;
+    decoration.SetRect({x, y, w, h});
+    decoration.SetCornerRadius(radius);
+    decoration.SetHighlight(HighlightStyle::RoundedRect);
     return decoration;
 }
 
@@ -233,17 +242,17 @@ auto Canvas::KeyButton(
     std::span<const std::string> labels,
     std::unique_ptr<Control> control
 ) -> Control& {
-    const auto index = controls_.size();
+    const auto index = m_controls.size();
     MarkInteractive(x, y, w, h, index);
 
     auto& key = AddControl(std::move(control));
-    key.rect = {x, y, w, h};
-    key.corner_radius = radius;
-    key.bg_color = bg_color;
-    key.background = BackgroundStyle::RoundedRect;
-    key.highlight = HighlightStyle::RoundedRect;
+    key.SetRect({x, y, w, h});
+    key.SetCornerRadius(radius);
+    key.SetBgColor(BgColor());
+    key.SetBackground(BackgroundStyle::RoundedRect);
+    key.SetHighlight(HighlightStyle::RoundedRect);
 
-    const auto size = static_cast<float>(font_size);
+    const auto size = static_cast<float>(FontSize());
     std::vector<KeyCapLabel> layout;
     switch (cap_type) {
     case KeyCapType::Regular: layout.push_back({ForegroundStyle::TextCentered, {x, y, w, h - size}, 1.0f}); break;
@@ -264,13 +273,13 @@ auto Canvas::KeyButton(
 
     for (size_t i = 0; i < layout.size() && i < labels.size(); ++i) {
         auto& label = AddControl(nullptr);
-        label.rect = layout[i].rect;
-        label.text = labels[i];
-        label.fg_color = fg_color * layout[i].alpha;
-        label.font_size = font_size;
-        label.foreground = layout[i].style;
+        label.SetRect(layout[i].rect);
+        label.SetText(labels[i]);
+        label.SetFgColor(FgColor() * layout[i].alpha);
+        label.SetFontSize(FontSize());
+        label.SetForeground(layout[i].style);
     }
-    return *controls_[index];
+    return *m_controls[index];
 }
 
 auto Canvas::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
@@ -279,36 +288,36 @@ auto Canvas::SetRenderer(std::unique_ptr<OverlayRenderer>) -> void {
 auto Canvas::SetInteraction(std::unique_ptr<InteractionHandler>) -> void {
 }
 
-auto Canvas::Init(AppState&) -> Result<> {
+auto Canvas::Init() -> Result<> {
     return {};
 }
 
-auto Canvas::Pause(AppState&) -> Result<> {
+auto Canvas::Pause() -> Result<> {
     return {};
 }
 
-auto Canvas::Resume(AppState&) -> Result<> {
+auto Canvas::Resume() -> Result<> {
     return {};
 }
 
-auto Canvas::ShouldRender(AppState& app) -> Result<RenderReadiness> {
-    for (auto& control : controls_) {
-        control->Update(app);
-        if (control->foreground_dirty) {
-            foreground_dirty_ = true;
-            control->foreground_dirty = false;
+auto Canvas::ShouldRender() -> Result<RenderReadiness> {
+    for (auto& control : m_controls) {
+        control->Update();
+        if (control->ForegroundDirty()) {
+            m_foreground_dirty = true;
+            control->SetForegroundDirty(false);
         }
-        if (control->background_dirty) {
-            background_dirty_ = true;
-            control->background_dirty = false;
+        if (control->BackgroundDirty()) {
+            m_background_dirty = true;
+            control->SetBackgroundDirty(false);
         }
     }
     const auto now = std::chrono::steady_clock::now();
-    std::erase_if(released_, [now](const PressFlash& flash) -> bool { return now - flash.released > kPressFlashDuration; });
-    if (!released_.empty()) {
-        highlight_dirty_ = true;
+    std::erase_if(m_released, [now](const PressFlash& flash) -> bool { return now - flash.released > kPressFlashDuration; });
+    if (!m_released.empty()) {
+        m_highlight_dirty = true;
     }
-    if (background_dirty_ || foreground_dirty_ || highlight_dirty_) {
+    if (m_background_dirty || m_foreground_dirty || m_highlight_dirty) {
         return RenderReadiness::Should;
     }
     return RenderReadiness::Can;
@@ -321,9 +330,9 @@ auto Canvas::RenderRoundedRect(
     const Eigen::Vector4f& color,
     const std::optional<HighlightOutline>& outline
 ) -> Result<> {
-    const auto& rect = control.rect;
-    ASSIGN_OR_RETURN(auto vertices, device_->UploadVertices({width_, height_}, rect.x, rect.y, rect.w, rect.h));
-    const float radius = std::min({control.corner_radius, rect.w / 2.0f, rect.h / 2.0f});
+    const auto& rect = control.Rect();
+    ASSIGN_OR_RETURN(auto vertices, g_device->UploadVertices({m_width, m_height}, rect.x, rect.y, rect.w, rect.h));
+    const float radius = std::min({control.CornerRadius(), rect.w / 2.0f, rect.h / 2.0f});
     const Eigen::Vector4f outline_color = outline ? outline->color : Eigen::Vector4f::Zero();
     const float outline_width = outline ? outline->width : 0.0f;
     const std::array uniform{
@@ -341,16 +350,16 @@ auto Canvas::RenderRoundedRect(
         outline_width,
     };
     ASSIGN_OR_RETURN(auto set, pipeline.CreateUniformSet(0, uniform));
-    command_buffer.Draw(pipeline.CreatePass({width_, height_}, std::move(vertices), {std::move(set)}));
+    command_buffer.Draw(pipeline.CreatePass({m_width, m_height}, std::move(vertices), {std::move(set)}));
     return {};
 }
 
 auto Canvas::PressStrength(size_t index, std::chrono::steady_clock::time_point now) const -> float {
-    if (std::ranges::find(pressed_, std::optional<size_t>(index)) != pressed_.end()) {
+    if (std::ranges::find(m_pressed, std::optional<size_t>(index)) != m_pressed.end()) {
         return 1.0f;
     }
     float strength = 0.0f;
-    for (const auto& flash : released_) {
+    for (const auto& flash : m_released) {
         if (flash.index == index) {
             const std::chrono::duration<float> elapsed = now - flash.released;
             const std::chrono::duration<float> duration = kPressFlashDuration;
@@ -362,53 +371,53 @@ auto Canvas::PressStrength(size_t index, std::chrono::steady_clock::time_point n
 
 auto Canvas::RenderSprite(CommandBuffer& command_buffer, Pipeline& pipeline, const Control& control, const Eigen::Vector4f& color)
     -> Result<> {
-    if (!control.sprite) {
+    if (!control.Sprite()) {
         return {};
     }
-    const auto& rect = control.rect;
-    ASSIGN_OR_RETURN(auto vertices, device_->UploadVertices({width_, height_}, rect.x, rect.y, rect.w, rect.h));
-    ASSIGN_OR_RETURN(auto texture_set, pipeline.CreateTextureSet(0, control.sprite, device_->TextureFilter()));
-    const auto& st = control.sprite_st;
+    const auto& rect = control.Rect();
+    ASSIGN_OR_RETURN(auto vertices, g_device->UploadVertices({m_width, m_height}, rect.x, rect.y, rect.w, rect.h));
+    ASSIGN_OR_RETURN(auto texture_set, pipeline.CreateTextureSet(0, control.Sprite(), g_device->TextureFilter()));
+    const auto& st = control.SpriteSt();
     const std::array uniform{st.x(), st.y(), st.z(), st.w(), color.x(), color.y(), color.z(), color.w()};
     ASSIGN_OR_RETURN(auto uniform_set, pipeline.CreateUniformSet(1, uniform));
     command_buffer.Draw(
-        pipeline.CreatePass({width_, height_}, std::move(vertices), {std::move(texture_set), std::move(uniform_set)})
+        pipeline.CreatePass({m_width, m_height}, std::move(vertices), {std::move(texture_set), std::move(uniform_set)})
     );
     return {};
 }
 
-auto Canvas::RenderText(AppState& app, CommandBuffer& command_buffer, const Control& control, bool centered) -> Result<> {
-    const auto& rect = control.rect;
-    const auto size = static_cast<float>(control.font_size);
-    auto& pipeline = *pipelines_.foreground_glyph;
+auto Canvas::RenderText(CommandBuffer& command_buffer, const Control& control, bool centered) -> Result<> {
+    const auto& rect = control.Rect();
+    const auto size = static_cast<float>(control.FontSize());
+    auto& pipeline = *m_pipelines.foreground_glyph;
 
     float cursor_y = rect.y;
     std::optional<TextSize> measured;
     if (centered) {
-        ASSIGN_OR_RETURN(measured, app.fonts->MeasureText(control.text, control.font_size, *device_));
+        ASSIGN_OR_RETURN(measured, g_fonts->MeasureText(control.Text(), control.FontSize()));
         cursor_y = std::fma(size, -0.25f, std::fma(measured->height, -0.5f, rect.y + rect.h));
     }
 
-    for (const auto line : FontCache::SplitLines(control.text)) {
+    for (const auto line : FontCache::SplitLines(control.Text())) {
         float cursor_x = centered ? std::fma(measured->width, -0.5f, std::fma(rect.w, 0.5f, rect.x)) : rect.x;
-        ASSIGN_OR_RETURN(const auto glyphs, app.fonts->Glyphs(line, control.font_size, *device_));
+        ASSIGN_OR_RETURN(const auto glyphs, g_fonts->Glyphs(line, control.FontSize()));
         for (const auto& glyph : glyphs) {
             if (glyph->texture) {
                 ASSIGN_OR_RETURN(
                     auto vertices,
-                    device_->UploadVertices(
-                        {width_, height_},
+                    g_device->UploadVertices(
+                        {m_width, m_height},
                         cursor_x + glyph->left,
                         cursor_y - glyph->top,
                         glyph->width,
                         glyph->height
                     )
                 );
-                ASSIGN_OR_RETURN(auto texture_set, pipeline.CreateTextureSet(0, glyph->texture, device_->TextureFilter()));
-                const std::array color{control.fg_color.x(), control.fg_color.y(), control.fg_color.z(), control.fg_color.w()};
+                ASSIGN_OR_RETURN(auto texture_set, pipeline.CreateTextureSet(0, glyph->texture, g_device->TextureFilter()));
+                const std::array color{control.FgColor().x(), control.FgColor().y(), control.FgColor().z(), control.FgColor().w()};
                 ASSIGN_OR_RETURN(auto color_set, pipeline.CreateUniformSet(1, color));
                 command_buffer.Draw(
-                    pipeline.CreatePass({width_, height_}, std::move(vertices), {std::move(texture_set), std::move(color_set)})
+                    pipeline.CreatePass({m_width, m_height}, std::move(vertices), {std::move(texture_set), std::move(color_set)})
                 );
             }
             cursor_x += glyph->advance;
@@ -418,39 +427,39 @@ auto Canvas::RenderText(AppState& app, CommandBuffer& command_buffer, const Cont
     return {};
 }
 
-auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
-    highlight_dirty_ = false;
-    ASSIGN_OR_RETURN(auto command_buffer, device_->CreateCommandBuffer(device_->GraphicsQueue()));
+auto Canvas::Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
+    m_highlight_dirty = false;
+    ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->GraphicsQueue()));
 
-    if (background_dirty_) {
-        command_buffer.BeginRendering(background_);
-        for (const auto& control : controls_) {
-            if (control->background == BackgroundStyle::RoundedRect) {
+    if (m_background_dirty) {
+        command_buffer.BeginRendering(m_background);
+        for (const auto& control : m_controls) {
+            if (control->Background() == BackgroundStyle::RoundedRect) {
                 RETURN_IF_ERROR(
-                    RenderRoundedRect(command_buffer, *pipelines_.background_color, *control, control->bg_color, std::nullopt)
+                    RenderRoundedRect(command_buffer, *m_pipelines.background_color, *control, control->BgColor(), std::nullopt)
                 );
-            } else if (control->background == BackgroundStyle::Sprite) {
-                RETURN_IF_ERROR(RenderSprite(command_buffer, *pipelines_.background_sprite, *control, control->fg_color));
+            } else if (control->Background() == BackgroundStyle::Sprite) {
+                RETURN_IF_ERROR(RenderSprite(command_buffer, *m_pipelines.background_sprite, *control, control->FgColor()));
             }
         }
         command_buffer.EndRendering();
-        background_dirty_ = false;
+        m_background_dirty = false;
     }
 
-    if (foreground_dirty_) {
-        command_buffer.BeginRendering(foreground_);
-        for (const auto& control : controls_) {
-            if (control->foreground != ForegroundStyle::None) {
-                RETURN_IF_ERROR(RenderText(app, command_buffer, *control, control->foreground == ForegroundStyle::TextCentered));
+    if (m_foreground_dirty) {
+        command_buffer.BeginRendering(m_foreground);
+        for (const auto& control : m_controls) {
+            if (control->Foreground() != ForegroundStyle::None) {
+                RETURN_IF_ERROR(RenderText(command_buffer, *control, control->Foreground() == ForegroundStyle::TextCentered));
             }
         }
         command_buffer.EndRendering();
-        foreground_dirty_ = false;
+        m_foreground_dirty = false;
     }
 
-    auto& composite = *pipelines_.composite;
-    ASSIGN_OR_RETURN(auto foreground_set, composite.CreateTextureSet(0, foreground_, app.device->TextureFilter()));
-    ASSIGN_OR_RETURN(auto background_set, composite.CreateTextureSet(0, background_, app.device->TextureFilter()));
+    auto& composite = *m_pipelines.composite;
+    ASSIGN_OR_RETURN(auto foreground_set, composite.CreateTextureSet(0, m_foreground, g_device->TextureFilter()));
+    ASSIGN_OR_RETURN(auto background_set, composite.CreateTextureSet(0, m_background, g_device->TextureFilter()));
     const std::array alpha_uniform{alpha};
     ASSIGN_OR_RETURN(auto alpha_set, composite.CreateUniformSet(1, alpha_uniform));
     auto foreground_pass = composite.CreatePassForTarget(*target, {std::move(foreground_set), alpha_set});
@@ -460,20 +469,20 @@ auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, Command
     command_buffer.Draw(background_pass);
 
     const auto now = std::chrono::steady_clock::now();
-    for (size_t index = 0; index < controls_.size(); ++index) {
-        auto& control = *controls_[index];
-        if (control.highlight == HighlightStyle::None) {
+    for (size_t index = 0; index < m_controls.size(); ++index) {
+        auto& control = *m_controls[index];
+        if (control.Highlight() == HighlightStyle::None) {
             continue;
         }
         const auto render_highlight = [&](const Eigen::Vector4f& color,
                                           const std::optional<HighlightOutline>& outline) -> Result<> {
-            if (control.highlight == HighlightStyle::Sprite) {
-                return RenderSprite(command_buffer, *pipelines_.highlight_sprite, control, color);
+            if (control.Highlight() == HighlightStyle::Sprite) {
+                return RenderSprite(command_buffer, *m_pipelines.highlight_sprite, control, color);
             }
-            return RenderRoundedRect(command_buffer, *pipelines_.highlight_color, control, color, outline);
+            return RenderRoundedRect(command_buffer, *m_pipelines.highlight_color, control, color, outline);
         };
-        const auto color = control.HighlightColor(app);
-        const auto outline = control.Outline(app);
+        const auto color = control.HighlightColor();
+        const auto outline = control.Outline();
         if (color || outline) {
             RETURN_IF_ERROR(render_highlight(color.value_or(Eigen::Vector4f::Zero()), outline));
         }
@@ -482,7 +491,7 @@ auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, Command
             flash.w() *= strength;
             RETURN_IF_ERROR(render_highlight(flash, std::nullopt));
         }
-        if (std::ranges::find(hovered_, std::optional<size_t>(index)) != hovered_.end()) {
+        if (std::ranges::find(m_hovered, std::optional<size_t>(index)) != m_hovered.end()) {
             RETURN_IF_ERROR(render_highlight(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.3f), std::nullopt));
         }
     }
@@ -494,43 +503,43 @@ auto Canvas::Render(AppState& app, const std::shared_ptr<Image>& target, Command
 }
 
 auto Canvas::Meta() -> std::optional<FrameMeta> {
-    return FrameMeta{.extent = {width_, height_}, .format = format_};
+    return FrameMeta{.extent = {m_width, m_height}, .format = m_format};
 }
 
-auto Canvas::OnHover(AppState&, const PointerHit& hit) -> std::optional<Haptics> {
-    highlight_dirty_ = true;
-    const auto previous = hovered_[hit.pointer];
-    hovered_[hit.pointer] = InteractiveAt(hit.uv);
-    if (previous == hovered_[hit.pointer]) {
+auto Canvas::OnHover(const PointerHit& hit) -> std::optional<Haptics> {
+    m_highlight_dirty = true;
+    const auto previous = m_hovered[hit.pointer];
+    m_hovered[hit.pointer] = InteractiveAt(hit.uv);
+    if (previous == m_hovered[hit.pointer]) {
         return std::nullopt;
     }
     return Haptics{.intensity = 0.1f, .duration = 0.01f, .frequency = 5.0f};
 }
 
-auto Canvas::OnLeft(AppState&, size_t pointer) -> void {
-    highlight_dirty_ = true;
-    hovered_[pointer].reset();
+auto Canvas::OnLeft(size_t pointer) -> void {
+    m_highlight_dirty = true;
+    m_hovered[pointer].reset();
 }
 
-auto Canvas::OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void {
-    const auto index = pressed ? InteractiveAt(hit.uv) : pressed_[hit.pointer];
+auto Canvas::OnPointer(const PointerHit& hit, bool pressed) -> void {
+    const auto index = pressed ? InteractiveAt(hit.uv) : m_pressed[hit.pointer];
     if (!index) {
         return;
     }
-    auto& control = *controls_[*index];
-    highlight_dirty_ = true;
+    auto& control = *m_controls[*index];
+    m_highlight_dirty = true;
     if (pressed) {
-        pressed_[hit.pointer] = index;
-        control.OnPress(app, hit.mode);
+        m_pressed[hit.pointer] = index;
+        control.OnPress(hit.mode);
     } else {
-        pressed_[hit.pointer].reset();
-        released_.push_back({.index = *index, .released = std::chrono::steady_clock::now()});
-        control.OnRelease(app);
+        m_pressed[hit.pointer].reset();
+        m_released.push_back({.index = *index, .released = std::chrono::steady_clock::now()});
+        control.OnRelease();
     }
 }
 
-auto Canvas::OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void {
-    if (const auto index = hovered_[hit.pointer]) {
-        controls_[*index]->OnScroll(app, delta_y, delta_x);
+auto Canvas::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void {
+    if (const auto index = m_hovered[hit.pointer]) {
+        m_controls[*index]->OnScroll(delta_y, delta_x);
     }
 }

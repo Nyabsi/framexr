@@ -28,47 +28,47 @@ class History {
   public:
     static constexpr size_t kLimit = 100;
 
-    explicit History(Document document) : current_(std::move(document)) {}
+    explicit History(Document document) : m_current(std::move(document)) {}
 
-    [[nodiscard]] auto Current() const -> const Document& { return current_; }
-    [[nodiscard]] auto Live() -> Document& { return current_; }
-    [[nodiscard]] auto CanUndo() const -> bool { return !undo_.empty(); }
-    [[nodiscard]] auto CanRedo() const -> bool { return !redo_.empty(); }
-    [[nodiscard]] auto Dirty() const -> bool { return version_ != saved_version_; }
-    [[nodiscard]] auto Version() const -> uint64_t { return version_; }
+    [[nodiscard]] auto Current() const -> const Document& { return m_current; }
+    [[nodiscard]] auto Live() -> Document& { return m_current; }
+    [[nodiscard]] auto CanUndo() const -> bool { return !m_undo.empty(); }
+    [[nodiscard]] auto CanRedo() const -> bool { return !m_redo.empty(); }
+    [[nodiscard]] auto Dirty() const -> bool { return m_version != m_saved_version; }
+    [[nodiscard]] auto Version() const -> uint64_t { return m_version; }
 
     template <typename Change>
     auto Edit(Change&& change) -> void {
-        auto before = current_;
-        std::forward<Change>(change)(current_);
+        auto before = m_current;
+        std::forward<Change>(change)(m_current);
         Commit(std::move(before));
     }
 
     template <typename Change>
     auto Amend(Change&& change) -> void {
-        std::forward<Change>(change)(current_);
-        version_ = ++next_version_;
+        std::forward<Change>(change)(m_current);
+        m_version = ++m_next_version;
     }
 
     auto Commit(Document before) -> void {
-        undo_.push_back({std::move(before), version_});
-        if (undo_.size() > kLimit) {
-            undo_.erase(undo_.begin());
+        m_undo.push_back({std::move(before), m_version});
+        if (m_undo.size() > kLimit) {
+            m_undo.erase(m_undo.begin());
         }
-        redo_.clear();
-        version_ = ++next_version_;
+        m_redo.clear();
+        m_version = ++m_next_version;
     }
 
-    auto Undo() -> bool { return Step(undo_, redo_); }
-    auto Redo() -> bool { return Step(redo_, undo_); }
-    auto MarkSaved() -> void { saved_version_ = version_; }
+    auto Undo() -> bool { return Step(m_undo, m_redo); }
+    auto Redo() -> bool { return Step(m_redo, m_undo); }
+    auto MarkSaved() -> void { m_saved_version = m_version; }
 
     auto Reset(Document document) -> void {
-        current_ = std::move(document);
-        undo_.clear();
-        redo_.clear();
-        version_ = ++next_version_;
-        saved_version_ = version_;
+        m_current = std::move(document);
+        m_undo.clear();
+        m_redo.clear();
+        m_version = ++m_next_version;
+        m_saved_version = m_version;
     }
 
   private:
@@ -81,17 +81,17 @@ class History {
         if (from.empty()) {
             return false;
         }
-        to.push_back({std::move(current_), version_});
-        current_ = std::move(from.back().document);
-        version_ = from.back().version;
+        to.push_back({std::move(m_current), m_version});
+        m_current = std::move(from.back().document);
+        m_version = from.back().version;
         from.pop_back();
         return true;
     }
 
-    Document current_;
-    std::vector<Entry> undo_;
-    std::vector<Entry> redo_;
-    uint64_t version_ = 0;
-    uint64_t saved_version_ = 0;
-    uint64_t next_version_ = 0;
+    Document m_current;
+    std::vector<Entry> m_undo;
+    std::vector<Entry> m_redo;
+    uint64_t m_version = 0;
+    uint64_t m_saved_version = 0;
+    uint64_t m_next_version = 0;
 };

@@ -32,19 +32,7 @@
 #include "Capture.hpp"
 #include "Error.hpp"
 #include "FrameChannel.hpp"
-
-struct XshmScreen {
-    std::string name;
-    int32_t x = 0;
-    int32_t y = 0;
-    uint32_t width = 0;
-    uint32_t height = 0;
-};
-
-class Xshm final {
-  public:
-    static auto Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>>;
-};
+#include "Xshm.hpp"
 
 class XshmCapture final : public Capture {
   public:
@@ -52,14 +40,14 @@ class XshmCapture final : public Capture {
     ~XshmCapture() override;
 
     auto Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void override;
-    [[nodiscard]] auto IsStarted() const -> bool override { return channel_ != nullptr; }
+    [[nodiscard]] auto IsStarted() const -> bool override { return m_channel != nullptr; }
     [[nodiscard]] auto SupportsDmabuf() const -> bool override { return false; }
     auto Receive() -> std::unique_ptr<ProcessedFrame> override;
     auto Pause() -> void override {}
     auto Resume() -> void override;
     auto RequestNewFrame() -> void override;
 
-    [[nodiscard]] auto Screen() const -> const std::shared_ptr<XshmScreen>& { return screen_; }
+    [[nodiscard]] auto Screen() const -> const std::shared_ptr<XshmScreen>& { return m_screen; }
 
     XshmCapture(const XshmCapture&) = delete;
     auto operator=(const XshmCapture&) -> XshmCapture& = delete;
@@ -68,12 +56,12 @@ class XshmCapture final : public Capture {
     auto Run() -> void;
     auto WaitForRequest() -> bool;
 
-    std::shared_ptr<XshmScreen> screen_;
-    FrameProcessor processor_;
-    std::shared_ptr<FrameChannel<std::unique_ptr<ProcessedFrame>>> channel_;
-    std::thread thread_;
-    std::mutex request_mutex_;
-    std::condition_variable request_signal_;
-    uint32_t pending_requests_ = 0;
-    bool stopping_ = false;
+    std::shared_ptr<XshmScreen> m_screen;
+    FrameProcessor m_processor;
+    std::shared_ptr<FrameChannel<std::unique_ptr<ProcessedFrame>>> m_channel;
+    std::thread m_thread;
+    std::mutex m_request_mutex;
+    std::condition_variable m_request_signal;
+    uint32_t m_pending_requests = 0;
+    bool m_stopping = false;
 };

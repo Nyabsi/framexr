@@ -46,7 +46,7 @@ class WlrDmabufCapture final : public Capture {
     ~WlrDmabufCapture() override;
 
     auto Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void override;
-    [[nodiscard]] auto IsStarted() const -> bool override { return channel_ != nullptr; }
+    [[nodiscard]] auto IsStarted() const -> bool override { return m_channel != nullptr; }
     [[nodiscard]] auto SupportsDmabuf() const -> bool override { return true; }
     auto Receive() -> std::unique_ptr<ProcessedFrame> override;
     auto Pause() -> void override {}
@@ -92,10 +92,10 @@ class WlrDmabufCapture final : public Capture {
         -> void;
     static auto OnCancel(void* data, zwlr_export_dmabuf_frame_v1* frame, uint32_t reason) -> void;
 
-    uint32_t output_id_;
-    std::unique_ptr<WaylandClient> client_;
-    std::future<std::unique_ptr<WaylandClient>> worker_;
-    std::shared_ptr<FrameChannel<DmabufFrame>> channel_;
-    FrameProcessor processor_;
-    std::deque<int> fds_;
+    uint32_t m_output_id;
+    std::unique_ptr<WaylandClient> m_client;
+    std::future<std::unique_ptr<WaylandClient>> m_worker;
+    std::shared_ptr<FrameChannel<DmabufFrame>> m_channel;
+    FrameProcessor m_processor;
+    std::deque<int> m_fds;
 };

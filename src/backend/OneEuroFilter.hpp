@@ -30,6 +30,8 @@ struct OneEuroSettings {
 
 class OneEuroFilter final {
   public:
+    static constexpr float kMinDeltaSeconds = 1e-4f;
+
     explicit OneEuroFilter(OneEuroSettings settings);
 
     static auto Alpha(float cutoff, float delta_seconds) -> float;
@@ -38,32 +40,7 @@ class OneEuroFilter final {
     auto Filter(const Eigen::Vector3f& value, float delta_seconds) -> Eigen::Vector3f;
 
   private:
-    OneEuroSettings settings_;
-    std::optional<Eigen::Vector3f> value_;
-    Eigen::Vector3f derivative_ = Eigen::Vector3f::Zero();
-};
-
-class RotationFilter final {
-  public:
-    explicit RotationFilter(OneEuroSettings settings);
-
-    auto Reset() -> void;
-    auto Filter(const Eigen::Quaternionf& value, float delta_seconds) -> Eigen::Quaternionf;
-
-  private:
-    OneEuroSettings settings_;
-    std::optional<Eigen::Quaternionf> value_;
-    float speed_ = 0.0f;
-};
-
-class PoseFilter final {
-  public:
-    PoseFilter(OneEuroSettings position, OneEuroSettings rotation);
-
-    auto Reset() -> void;
-    auto Filter(const Eigen::Affine3f& pose, float delta_seconds) -> Eigen::Affine3f;
-
-  private:
-    OneEuroFilter position_;
-    RotationFilter rotation_;
+    OneEuroSettings m_settings;
+    std::optional<Eigen::Vector3f> m_value;
+    Eigen::Vector3f m_derivative = Eigen::Vector3f::Zero();
 };

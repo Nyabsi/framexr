@@ -35,23 +35,7 @@
 #include "Image.hpp"
 #include "OpenVrOverlay.hpp"
 #include "Overlay.hpp"
-
-class AppState;
-
-class OpenVrStaticRenderer final : public OverlayRenderer {
-  public:
-    explicit OpenVrStaticRenderer(std::shared_ptr<Image> image);
-
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
-    auto Meta() -> std::optional<FrameMeta> override;
-
-  private:
-    std::shared_ptr<Image> image_;
-};
+#include "OverlayRenderer.hpp"
 
 struct OpenVrLine {
     size_t id = 0;
@@ -61,18 +45,18 @@ struct OpenVrLine {
 
 class OpenVrLines final {
   public:
-    static auto Create(Device& device) -> Result<OpenVrLines>;
+    static auto Create() -> Result<OpenVrLines>;
 
     auto Allocate() -> size_t;
     auto DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void;
     auto Hide(size_t id) -> void;
-    auto Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> Result<>;
+    auto Update(vr::ETrackingUniverseOrigin universe) -> Result<>;
     auto MarkDirty() -> void;
 
   private:
     explicit OpenVrLines(std::shared_ptr<Image> image);
 
-    std::shared_ptr<Image> image_;
-    std::vector<OpenVrLine> lines_;
-    std::array<Eigen::Vector4f, 5> colors_;
+    std::shared_ptr<Image> m_image;
+    std::vector<OpenVrLine> m_lines;
+    std::array<Eigen::Vector4f, 5> m_colors;
 };

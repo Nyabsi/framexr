@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <span>
 #include <vector>
@@ -34,11 +34,9 @@
 #include "Pipeline.hpp"
 #include "Queue.hpp"
 
-class Device;
-
 class CommandBuffer final {
   public:
-    CommandBuffer(std::shared_ptr<Device> device, Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer);
+    CommandBuffer(Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer);
     ~CommandBuffer();
 
     CommandBuffer(CommandBuffer&& other) noexcept;
@@ -46,7 +44,7 @@ class CommandBuffer final {
     CommandBuffer(const CommandBuffer&) = delete;
     auto operator=(const CommandBuffer&) -> CommandBuffer& = delete;
 
-    [[nodiscard]] auto SubmitQueue() const -> Queue& { return *queue_; }
+    [[nodiscard]] auto SubmitQueue() const -> Queue& { return *m_queue; }
 
     auto BeginRendering(std::shared_ptr<Image> target) -> void;
     auto Draw(const Pass& pass) -> void;
@@ -68,22 +66,10 @@ class CommandBuffer final {
     auto Barrier(Image& image, VkImageLayout layout) -> void;
     auto Retain(std::shared_ptr<void> resource) -> void;
 
-    std::shared_ptr<Device> device_;
-    Queue* queue_;
-    VkCommandPool pool_;
-    VkCommandBuffer command_buffer_;
-    std::vector<std::shared_ptr<void>> retained_;
-    std::shared_ptr<Image> render_target_;
-    std::vector<Pass> pending_passes_;
-};
-
-class CommandBatch final {
-  public:
-    auto Push(CommandBuffer command_buffer) -> void;
-    auto Submit() -> Result<>;
-
-    [[nodiscard]] auto Empty() const -> bool { return command_buffers_.empty(); }
-
-  private:
-    std::vector<CommandBuffer> command_buffers_;
+    Queue* m_queue;
+    VkCommandPool m_pool;
+    VkCommandBuffer m_command_buffer;
+    std::vector<std::shared_ptr<void>> m_retained;
+    std::shared_ptr<Image> m_render_target;
+    std::vector<Pass> m_pending_passes;
 };

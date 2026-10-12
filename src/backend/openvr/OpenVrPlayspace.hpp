@@ -27,10 +27,6 @@
 #include <Eigen/Geometry>
 #include <openvr.h>
 
-class AppState;
-class InputState;
-class OverlayContainer;
-
 struct OpenVrPlayspaceDrag {
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     size_t hand = 0;
@@ -45,16 +41,16 @@ struct OpenVrPlayspaceRotate {
 
 class OpenVrPlayspace final {
   public:
-    auto Update(OverlayContainer& overlays, const AppState& app) -> void;
-    auto ResetOffset(const InputState& input) -> void;
-    auto FixFloor(const InputState& input) -> void;
+    auto Update() -> void;
+    auto ResetOffset() -> void;
+    auto FixFloor() -> void;
     auto PlayspaceChanged() -> void;
 
-    [[nodiscard]] auto Universe() const -> vr::ETrackingUniverseOrigin { return universe_; }
+    [[nodiscard]] auto Universe() const -> vr::ETrackingUniverseOrigin { return m_universe; }
 
   private:
-    auto UpdateRotate(OverlayContainer& overlays, const AppState& app) -> bool;
-    auto UpdateDrag(OverlayContainer& overlays, const AppState& app) -> void;
+    auto UpdateRotate() -> bool;
+    auto UpdateDrag() -> void;
     [[nodiscard]] auto WorkingCopy() const -> std::optional<Eigen::Affine3f>;
     auto SetWorkingCopy(const Eigen::Affine3f& pose) const -> void;
     auto InterruptMoves(std::string_view reason) -> void;
@@ -63,7 +59,7 @@ class OpenVrPlayspace final {
     static auto ApplyChaperoneOffset(const Eigen::Vector3f& offset) -> void;
     static auto ApplyChaperoneTransform(const Eigen::Affine3f& transform) -> void;
 
-    vr::ETrackingUniverseOrigin universe_ = vr::TrackingUniverseRawAndUncalibrated;
-    std::optional<OpenVrPlayspaceDrag> drag_;
-    std::optional<OpenVrPlayspaceRotate> rotate_;
+    vr::ETrackingUniverseOrigin m_universe = vr::TrackingUniverseRawAndUncalibrated;
+    std::optional<OpenVrPlayspaceDrag> m_drag;
+    std::optional<OpenVrPlayspaceRotate> m_rotate;
 };

@@ -22,50 +22,50 @@
 #include "Control.hpp"
 
 auto Control::SetText(std::string_view value) -> void {
-    if (text == value) {
+    if (m_text == value) {
         return;
     }
-    text = value;
-    foreground_dirty = true;
+    m_text = value;
+    m_foreground_dirty = true;
 }
 
 auto Control::SetSprite(std::shared_ptr<Image> value) -> void {
-    sprite = std::move(value);
-    background_dirty = true;
+    m_sprite = std::move(value);
+    m_background_dirty = true;
 }
 
 auto Control::SetSpriteSt(const Eigen::Vector4f& value) -> void {
-    if (sprite_st == value) {
+    if (m_sprite_st == value) {
         return;
     }
-    sprite_st = value;
-    background_dirty = true;
+    m_sprite_st = value;
+    m_background_dirty = true;
 }
 
 auto Control::SetFgColor(const Eigen::Vector4f& value) -> void {
-    if (fg_color == value) {
+    if (m_fg_color == value) {
         return;
     }
-    fg_color = value;
-    foreground_dirty = true;
+    m_fg_color = value;
+    m_foreground_dirty = true;
 }
 
-auto Control::Update(AppState&) -> void {
+auto Control::Update() -> void {
 }
 
-auto Control::OnPress(AppState&, PointerMode) -> void {
+auto Control::OnPress(PointerMode) -> void {
 }
 
-auto Control::OnRelease(AppState&) -> void {
+auto Control::OnRelease() -> void {
 }
 
-auto Control::OnScroll(AppState&, float, float) -> void {
+auto Control::OnScroll(float, float) -> void {
 }
 
-auto Control::HighlightColor(AppState&) -> std::optional<Eigen::Vector4f> {
+auto Control::HighlightColor() -> std::optional<Eigen::Vector4f> {
     return std::nullopt;
 }
 
-auto Control::Outline(AppState&) -> std::optional<HighlightOutline> {
+auto Control::Outline() -> std::optional<HighlightOutline> {
     return std::nullopt;
 }

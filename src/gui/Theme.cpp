@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <format>
+#include <memory>
 #include <system_error>
 #include <utility>
 
@@ -59,19 +60,11 @@ auto RoundRadius(Shape shape) -> float {
     return 0.0f;
 }
 
-auto ThemeStore() -> std::optional<std::vector<ThemeDefinition>>& {
-    static std::optional<std::vector<ThemeDefinition>> themes;
-    return themes;
-}
-
-auto ActiveTheme() -> std::optional<ThemeDefinition>& {
-    static std::optional<ThemeDefinition> active;
-    return active;
-}
-
 } // namespace
 
-auto ThemeDefinition::Parse(std::string_view text) -> Result<ThemeDefinition> {
+Theme* g_themes = nullptr;
+
+auto Theme::Parse(std::string_view text) -> Result<ThemeDefinition> {
     ASSIGN_OR_RETURN(const auto parsed, Yaml::Parse(text));
     try {
         auto theme = parsed.get<ThemeDefinition>();
@@ -84,9 +77,9 @@ auto ThemeDefinition::Parse(std::string_view text) -> Result<ThemeDefinition> {
     }
 }
 
-auto ThemeDefinition::Lookup(std::string_view color) const -> std::optional<std::string> {
-    const auto found = std::ranges::find(colors, color, &ThemeColor::name);
-    return found == colors.end() ? std::nullopt : std::optional(found->hex);
+auto Theme::Lookup(const ThemeDefinition& theme, std::string_view color) -> std::optional<std::string> {
+    const auto found = std::ranges::find(theme.colors, color, &ThemeColor::name);
+    return found == theme.colors.end() ? std::nullopt : std::optional(found->hex);
 }
 
 auto Theme::Radius(Rounding rounding, Shape shape) -> float {
@@ -129,7 +122,7 @@ auto Theme::Color(std::string_view color) -> std::string {
         return std::string(color);
     }
     color.remove_prefix(1);
-    if (auto found = Active().Lookup(color)) {
+    if (auto found = Lookup(Active(), color)) {
         return std::move(*found);
     }
     LOG_WARN("Unknown theme color @{}", color);
@@ -148,7 +141,7 @@ auto Theme::Load(std::span<const std::string_view> built_in, const std::filesyst
         }
     };
     for (const auto text : built_in) {
-        auto theme = ThemeDefinition::Parse(text);
+        auto theme = Theme::Parse(text);
         if (!theme) {
             FatalError(std::format("Invalid built-in theme: {}", theme.error().Message()));
         }
@@ -163,11 +156,11 @@ auto Theme::Load(std::span<const std::string_view> built_in, const std::filesyst
     }
     std::ranges::sort(files);
     for (const auto& file : files) {
-        const auto text = Config::ReadFile(file);
+        const auto text = ConfigStore::ReadFile(file);
         if (!text) {
             continue;
         }
-        auto theme = ThemeDefinition::Parse(*text);
+        auto theme = Theme::Parse(*text);
         if (!theme) {
             LOG_ERROR("Skipping theme {}: {}", file.string(), theme.error().Message());
             continue;
@@ -179,19 +172,18 @@ auto Theme::Load(std::span<const std::string_view> built_in, const std::filesyst
 }
 
 auto Theme::UserDirectory() -> std::filesystem::path {
-    return Config::Root() / "themes";
+    return ConfigStore::Root() / "themes";
 }
 
 auto Theme::All() -> const std::vector<ThemeDefinition>& {
-    auto& themes = ThemeStore();
-    if (!themes) {
-        themes = Load(kBuiltInThemes, UserDirectory());
+    if (!m_themes) {
+        m_themes = Load(kBuiltInThemes, UserDirectory());
     }
-    return *themes;
+    return *m_themes;
 }
 
 auto Theme::Reload() -> void {
-    ThemeStore().reset();
+    m_themes.reset();
 }
 
 auto Theme::Find(std::string_view name) -> const ThemeDefinition& {
@@ -202,21 +194,20 @@ auto Theme::Find(std::string_view name) -> const ThemeDefinition& {
 
 auto Theme::IsBuiltIn(std::string_view name) -> bool {
     return std::ranges::any_of(kBuiltInThemes, [name](std::string_view text) -> bool {
-        const auto theme = ThemeDefinition::Parse(text);
+        const auto theme = Theme::Parse(text);
         return theme && theme->name == name;
     });
 }
 
 auto Theme::Active() -> const ThemeDefinition& {
-    auto& active = ActiveTheme();
-    if (!active) {
-        active = All().front();
+    if (!m_active) {
+        m_active = All().front();
     }
-    return *active;
+    return *m_active;
 }
 
 auto Theme::SetActive(ThemeDefinition theme) -> void {
-    ActiveTheme() = std::move(theme);
+    m_active = std::move(theme);
 }
 
 auto from_json(const nlohmann::json& json, Rounding& value) -> void {

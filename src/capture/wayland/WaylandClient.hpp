@@ -81,11 +81,11 @@ class WaylandClient final {
 
     ~WaylandClient();
 
-    [[nodiscard]] auto Display() const -> wl_display* { return display_; }
-    [[nodiscard]] auto Shm() const -> wl_shm* { return shm_; }
-    [[nodiscard]] auto DmabufManager() const -> zwlr_export_dmabuf_manager_v1* { return dmabuf_manager_; }
-    [[nodiscard]] auto ScreencopyManager() const -> zwlr_screencopy_manager_v1* { return screencopy_manager_; }
-    [[nodiscard]] auto Outputs() const -> const std::vector<WaylandOutput>& { return outputs_; }
+    [[nodiscard]] auto Display() const -> wl_display* { return m_display; }
+    [[nodiscard]] auto Shm() const -> wl_shm* { return m_shm; }
+    [[nodiscard]] auto DmabufManager() const -> zwlr_export_dmabuf_manager_v1* { return m_dmabuf_manager; }
+    [[nodiscard]] auto ScreencopyManager() const -> zwlr_screencopy_manager_v1* { return m_screencopy_manager; }
+    [[nodiscard]] auto Outputs() const -> const std::vector<WaylandOutput>& { return m_outputs; }
     [[nodiscard]] auto FindOutput(uint32_t id) const -> const WaylandOutput*;
     [[nodiscard]] auto DesktopOrigin() const -> Eigen::Vector2i;
     [[nodiscard]] auto DesktopExtent() const -> Eigen::Vector2i;
@@ -135,17 +135,17 @@ class WaylandClient final {
     static auto OnXdgName(void* data, zxdg_output_v1* xdg_output, const char* name) -> void;
     static auto OnXdgDescription(void* data, zxdg_output_v1* xdg_output, const char* description) -> void;
 
-    wl_display* display_ = nullptr;
-    wl_registry* registry_ = nullptr;
-    wl_seat* seat_ = nullptr;
-    wl_shm* shm_ = nullptr;
-    zxdg_output_manager_v1* xdg_output_manager_ = nullptr;
-    zwlr_export_dmabuf_manager_v1* dmabuf_manager_ = nullptr;
-    zwlr_screencopy_manager_v1* screencopy_manager_ = nullptr;
-    std::vector<WaylandGlobal> initial_globals_;
-    bool collecting_globals_ = true;
-    std::vector<WaylandOutput> outputs_;
-    std::vector<std::pair<zxdg_output_v1*, uint32_t>> xdg_outputs_;
-    std::vector<OutputChangeEvent> events_;
-    std::mutex mutex_;
+    wl_display* m_display = nullptr;
+    wl_registry* m_registry = nullptr;
+    wl_seat* m_seat = nullptr;
+    wl_shm* m_shm = nullptr;
+    zxdg_output_manager_v1* m_xdg_output_manager = nullptr;
+    zwlr_export_dmabuf_manager_v1* m_dmabuf_manager = nullptr;
+    zwlr_screencopy_manager_v1* m_screencopy_manager = nullptr;
+    std::vector<WaylandGlobal> m_initial_globals;
+    bool m_collecting_globals = true;
+    std::vector<WaylandOutput> m_outputs;
+    std::vector<std::pair<zxdg_output_v1*, uint32_t>> m_xdg_outputs;
+    std::vector<OutputChangeEvent> m_events;
+    std::mutex m_mutex;
 };

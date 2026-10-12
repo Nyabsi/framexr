@@ -23,8 +23,11 @@
 #include <optional>
 
 #include "Canvas.hpp"
+#include "CommandBatch.hpp"
 #include "Editor.hpp"
+#include "InteractionHandler.hpp"
 #include "Overlay.hpp"
+#include "OverlayRenderer.hpp"
 
 class EditorPanel final : public OverlayBackend {
   public:
@@ -33,28 +36,28 @@ class EditorPanel final : public OverlayBackend {
     auto SetRenderer(std::unique_ptr<OverlayRenderer> renderer) -> void override;
     auto SetInteraction(std::unique_ptr<InteractionHandler> interaction) -> void override;
 
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
+    auto Init() -> Result<> override;
+    auto Pause() -> Result<> override;
+    auto Resume() -> Result<> override;
+    auto ShouldRender() -> Result<RenderReadiness> override;
+    auto Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
 
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
+    auto OnHover(const PointerHit& hit) -> std::optional<Haptics> override;
+    auto OnLeft(size_t pointer) -> void override;
+    auto OnPointer(const PointerHit& hit, bool pressed) -> void override;
+    auto OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void override;
     [[nodiscard]] auto Accepts(const Eigen::Vector2f& uv) const -> bool override;
 
-    [[nodiscard]] auto CanvasForTest() -> Canvas* { return canvas_.get(); }
+    [[nodiscard]] auto CanvasForTest() -> Canvas* { return m_canvas.get(); }
 
   private:
-    auto Refresh(AppState& app) -> Result<>;
+    auto Refresh() -> Result<>;
     [[nodiscard]] auto ToCanvas(const PointerHit& hit) const -> Eigen::Vector2f;
     [[nodiscard]] auto IsPreview() const -> bool;
 
-    std::weak_ptr<Editor> editor_;
-    PanelKind kind_;
-    std::unique_ptr<Canvas> canvas_;
-    uint64_t built_ = 0;
+    std::weak_ptr<Editor> m_editor;
+    PanelKind m_kind;
+    std::unique_ptr<Canvas> m_canvas;
+    uint64_t m_built = 0;
 };

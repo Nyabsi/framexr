@@ -24,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -33,11 +34,16 @@
 #include "Task.hpp"
 #include "framexr_config.h"
 
-class AppState;
 class Editor;
 class Keymap;
 class WaylandClient;
 struct ScreenOverlay;
+
+struct ScreenMeta {
+    std::string name;
+    OverlayId id{};
+    uint32_t native_handle = 0;
+};
 
 struct EditorLine {
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
@@ -46,15 +52,15 @@ struct EditorLine {
 
 class OverlayContainer final {
   public:
-    static auto Create(AppState& app) -> Result<std::unique_ptr<OverlayContainer>>;
+    static auto Create() -> Result<std::unique_ptr<OverlayContainer>>;
     static auto CreateEmpty() -> std::unique_ptr<OverlayContainer>;
 
     ~OverlayContainer();
     OverlayContainer(const OverlayContainer&) = delete;
     auto operator=(const OverlayContainer&) -> OverlayContainer& = delete;
 
-    [[nodiscard]] auto Overlays() -> std::vector<std::unique_ptr<Overlay>>& { return overlays_; }
-    [[nodiscard]] auto Overlays() const -> const std::vector<std::unique_ptr<Overlay>>& { return overlays_; }
+    [[nodiscard]] auto Overlays() -> std::vector<std::unique_ptr<Overlay>>& { return m_overlays; }
+    [[nodiscard]] auto Overlays() const -> const std::vector<std::unique_ptr<Overlay>>& { return m_overlays; }
 
     auto ById(OverlayId id) -> Overlay*;
     auto ByName(std::string_view name) -> Overlay*;
@@ -62,16 +68,17 @@ class OverlayContainer final {
 
     auto Add(std::unique_ptr<Overlay> overlay) -> void;
     auto Remove(const OverlaySelector& selector) -> std::unique_ptr<Overlay>;
-    auto Update(AppState& app) -> Result<std::vector<std::unique_ptr<Overlay>>>;
-    auto ShowHide(AppState& app) -> void;
-    auto Recenter(AppState& app) -> void;
-    auto RememberUserPlacement(const AppState& app, Overlay& placed) -> void;
-    auto PlaceShown(const AppState& app, Overlay& shown) -> void;
-    auto UpdateTexelFootprints(const AppState& app) -> void;
-    auto OpenEditor(AppState& app) -> void;
-    auto UpdateEditor(AppState& app) -> void;
+    auto Update() -> Result<std::vector<std::unique_ptr<Overlay>>>;
+    auto ShowHide() -> void;
+    auto Recenter() -> void;
+    auto RememberUserPlacement(Overlay& placed) -> void;
+    auto PlaceShown(Overlay& shown) -> void;
+    auto UpdateTexelFootprints() -> void;
+    auto OpenEditor() -> void;
+    auto UpdateEditor() -> void;
     [[nodiscard]] auto EditorLines() -> std::vector<EditorLine>;
-    [[nodiscard]] auto ActiveEditor() -> Editor* { return editor_.get(); }
+    [[nodiscard]] auto ActiveEditor() -> Editor* { return m_editor.get(); }
+    [[nodiscard]] auto Screens() -> std::vector<ScreenMeta>& { return m_screens; }
 
   private:
     OverlayContainer();
@@ -79,17 +86,20 @@ class OverlayContainer final {
     using OverlayPair = std::pair<OverlayId, OverlayId>;
 
     auto LockedVisible() -> std::vector<Overlay*>;
-    auto FreeVisible(const AppState& app) -> std::vector<Overlay*>;
-    auto ArrangeVisible(const AppState& app) -> void;
+    auto FreeVisible() -> std::vector<Overlay*>;
+    auto ArrangeVisible() -> void;
 
     auto RemoveAt(size_t index) -> std::unique_ptr<Overlay>;
-    auto CreateScreens(AppState& app, std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>>;
+    auto CreateScreens(std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>>;
 
-    std::vector<std::unique_ptr<Overlay>> overlays_;
-    std::set<OverlayPair> user_overlaps_;
-    std::vector<OverlayId> hidden_by_show_hide_;
-    std::shared_ptr<Editor> editor_;
+    std::vector<std::unique_ptr<Overlay>> m_overlays;
+    std::set<OverlayPair> m_user_overlaps;
+    std::vector<OverlayId> m_hidden_by_show_hide;
+    std::shared_ptr<Editor> m_editor;
+    std::vector<ScreenMeta> m_screens;
 #if FRAMEXR_FEATURE_WAYLAND
-    std::unique_ptr<WaylandClient> wayland_;
+    std::unique_ptr<WaylandClient> m_wayland;
 #endif
 };
+
+extern OverlayContainer* g_overlays;

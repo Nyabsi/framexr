@@ -27,29 +27,28 @@
 #include <string>
 #include <utility>
 
+#include "CommandBatch.hpp"
 #include "Overlay.hpp"
+#include "OverlayRenderer.hpp"
 #include "Screen.hpp"
-
-class AppState;
-struct Config;
+#include "ScreenRenderer.hpp"
 
 class MirrorRenderer final : public OverlayRenderer {
   public:
     explicit MirrorRenderer(std::string name);
 
-    static auto Create(std::string name, bool show_hide, const Config& config)
-        -> std::pair<OverlayState, std::unique_ptr<OverlayBackend>>;
+    static auto Create(std::string name, bool show_hide) -> std::pair<OverlayState, std::unique_ptr<OverlayBackend>>;
 
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
+    auto Init() -> Result<> override;
+    auto Pause() -> Result<> override;
+    auto Resume() -> Result<> override;
+    auto ShouldRender() -> Result<RenderReadiness> override;
+    auto Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
 
   private:
-    std::string name_;
-    std::unique_ptr<ScreenRenderer> renderer_;
-    std::optional<std::future<Result<ScreenSelection>>> selection_;
-    VkExtent2D last_extent_{};
+    std::string m_name;
+    std::unique_ptr<ScreenRenderer> m_renderer;
+    std::optional<std::future<Result<ScreenSelection>>> m_selection;
+    VkExtent2D m_last_extent{};
 };

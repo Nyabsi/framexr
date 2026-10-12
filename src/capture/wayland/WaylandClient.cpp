@@ -21,13 +21,11 @@
 
 #include "WaylandClient.hpp"
 
-#include <poll.h>
-
 #include <algorithm>
 #include <climits>
 #include <format>
 
-#include <wayland-client.h>
+#include <poll.h>
 
 #include "Error.hpp"
 #include "Logger.hpp"
@@ -83,14 +81,14 @@ auto WaylandClient::Connect() -> std::unique_ptr<WaylandClient> {
     };
 
     auto client = std::unique_ptr<WaylandClient>(new WaylandClient());
-    client->display_ = wl_display_connect(nullptr);
-    if (client->display_ == nullptr) {
+    client->m_display = wl_display_connect(nullptr);
+    if (client->m_display == nullptr) {
         return nullptr;
     }
 
-    client->registry_ = wl_display_get_registry(client->display_);
-    wl_registry_add_listener(client->registry_, &kRegistryListener, client.get());
-    if (wl_display_roundtrip(client->display_) < 0) {
+    client->m_registry = wl_display_get_registry(client->m_display);
+    wl_registry_add_listener(client->m_registry, &kRegistryListener, client.get());
+    if (wl_display_roundtrip(client->m_display) < 0) {
         return nullptr;
     }
     client->BindGlobals();
@@ -99,76 +97,76 @@ auto WaylandClient::Connect() -> std::unique_ptr<WaylandClient> {
 }
 
 auto WaylandClient::BindGlobals() -> void {
-    collecting_globals_ = false;
+    m_collecting_globals = false;
 
-    xdg_output_manager_ = BindGlobal<zxdg_output_manager_v1>(
-        registry_,
-        FindGlobal(initial_globals_, zxdg_output_manager_v1_interface.name),
+    m_xdg_output_manager = BindGlobal<zxdg_output_manager_v1>(
+        m_registry,
+        FindGlobal(m_initial_globals, zxdg_output_manager_v1_interface.name),
         &zxdg_output_manager_v1_interface,
         2,
         3
     );
-    if (xdg_output_manager_ == nullptr) {
+    if (m_xdg_output_manager == nullptr) {
         FatalError(zxdg_output_manager_v1_interface.name);
     }
-    seat_ = BindGlobal<wl_seat>(registry_, FindGlobal(initial_globals_, wl_seat_interface.name), &wl_seat_interface, 4, 9);
-    if (seat_ == nullptr) {
+    m_seat = BindGlobal<wl_seat>(m_registry, FindGlobal(m_initial_globals, wl_seat_interface.name), &wl_seat_interface, 4, 9);
+    if (m_seat == nullptr) {
         FatalError(wl_seat_interface.name);
     }
-    shm_ = BindGlobal<wl_shm>(registry_, FindGlobal(initial_globals_, wl_shm_interface.name), &wl_shm_interface, 1, 1);
-    if (shm_ == nullptr) {
+    m_shm = BindGlobal<wl_shm>(m_registry, FindGlobal(m_initial_globals, wl_shm_interface.name), &wl_shm_interface, 1, 1);
+    if (m_shm == nullptr) {
         FatalError(wl_shm_interface.name);
     }
-    dmabuf_manager_ = BindGlobal<zwlr_export_dmabuf_manager_v1>(
-        registry_,
-        FindGlobal(initial_globals_, zwlr_export_dmabuf_manager_v1_interface.name),
+    m_dmabuf_manager = BindGlobal<zwlr_export_dmabuf_manager_v1>(
+        m_registry,
+        FindGlobal(m_initial_globals, zwlr_export_dmabuf_manager_v1_interface.name),
         &zwlr_export_dmabuf_manager_v1_interface,
         1,
         1
     );
-    screencopy_manager_ = BindGlobal<zwlr_screencopy_manager_v1>(
-        registry_,
-        FindGlobal(initial_globals_, zwlr_screencopy_manager_v1_interface.name),
+    m_screencopy_manager = BindGlobal<zwlr_screencopy_manager_v1>(
+        m_registry,
+        FindGlobal(m_initial_globals, zwlr_screencopy_manager_v1_interface.name),
         &zwlr_screencopy_manager_v1_interface,
         2,
         2
     );
 
-    for (const auto& global : initial_globals_) {
+    for (const auto& global : m_initial_globals) {
         if (global.interface == wl_output_interface.name) {
             AddOutput(global.name, global.version);
         }
     }
-    initial_globals_.clear();
+    m_initial_globals.clear();
 }
 
 WaylandClient::~WaylandClient() {
-    for (const auto& [xdg_output, id] : xdg_outputs_) {
+    for (const auto& [xdg_output, id] : m_xdg_outputs) {
         zxdg_output_v1_destroy(xdg_output);
     }
-    for (const auto& output : outputs_) {
+    for (const auto& output : m_outputs) {
         wl_output_destroy(output.output);
     }
-    if (screencopy_manager_ != nullptr) {
-        zwlr_screencopy_manager_v1_destroy(screencopy_manager_);
+    if (m_screencopy_manager != nullptr) {
+        zwlr_screencopy_manager_v1_destroy(m_screencopy_manager);
     }
-    if (dmabuf_manager_ != nullptr) {
-        zwlr_export_dmabuf_manager_v1_destroy(dmabuf_manager_);
+    if (m_dmabuf_manager != nullptr) {
+        zwlr_export_dmabuf_manager_v1_destroy(m_dmabuf_manager);
     }
-    if (xdg_output_manager_ != nullptr) {
-        zxdg_output_manager_v1_destroy(xdg_output_manager_);
+    if (m_xdg_output_manager != nullptr) {
+        zxdg_output_manager_v1_destroy(m_xdg_output_manager);
     }
-    if (seat_ != nullptr) {
-        wl_seat_release(seat_);
+    if (m_seat != nullptr) {
+        wl_seat_release(m_seat);
     }
-    if (shm_ != nullptr) {
-        wl_shm_destroy(shm_);
+    if (m_shm != nullptr) {
+        wl_shm_destroy(m_shm);
     }
-    if (registry_ != nullptr) {
-        wl_registry_destroy(registry_);
+    if (m_registry != nullptr) {
+        wl_registry_destroy(m_registry);
     }
-    if (display_ != nullptr) {
-        wl_display_disconnect(display_);
+    if (m_display != nullptr) {
+        wl_display_disconnect(m_display);
     }
 }
 
@@ -187,28 +185,28 @@ auto WaylandClient::ToFrameTransform(int32_t transform) -> FrameTransform {
 }
 
 auto WaylandClient::FindOutput(uint32_t id) const -> const WaylandOutput* {
-    const auto it = std::ranges::find(outputs_, id, &WaylandOutput::id);
-    return it == outputs_.end() ? nullptr : &*it;
+    const auto it = std::ranges::find(m_outputs, id, &WaylandOutput::id);
+    return it == m_outputs.end() ? nullptr : &*it;
 }
 
 auto WaylandClient::OutputById(uint32_t id) -> WaylandOutput* {
-    const auto it = std::ranges::find(outputs_, id, &WaylandOutput::id);
-    return it == outputs_.end() ? nullptr : &*it;
+    const auto it = std::ranges::find(m_outputs, id, &WaylandOutput::id);
+    return it == m_outputs.end() ? nullptr : &*it;
 }
 
 auto WaylandClient::OutputByProxy(const wl_output* output) -> WaylandOutput* {
-    const auto it = std::ranges::find(outputs_, output, &WaylandOutput::output);
-    return it == outputs_.end() ? nullptr : &*it;
+    const auto it = std::ranges::find(m_outputs, output, &WaylandOutput::output);
+    return it == m_outputs.end() ? nullptr : &*it;
 }
 
 auto WaylandClient::OutputByXdgProxy(const zxdg_output_v1* xdg_output) -> WaylandOutput* {
-    const auto it = std::ranges::find_if(xdg_outputs_, [&](const auto& entry) -> bool { return entry.first == xdg_output; });
-    return it == xdg_outputs_.end() ? nullptr : OutputById(it->second);
+    const auto it = std::ranges::find_if(m_xdg_outputs, [&](const auto& entry) -> bool { return entry.first == xdg_output; });
+    return it == m_xdg_outputs.end() ? nullptr : OutputById(it->second);
 }
 
 auto WaylandClient::DesktopOrigin() const -> Eigen::Vector2i {
     Eigen::Vector2i origin(INT_MAX, INT_MAX);
-    for (const auto& output : outputs_) {
+    for (const auto& output : m_outputs) {
         origin = origin.cwiseMin(output.logical_position);
     }
     return origin;
@@ -216,7 +214,7 @@ auto WaylandClient::DesktopOrigin() const -> Eigen::Vector2i {
 
 auto WaylandClient::DesktopExtent() const -> Eigen::Vector2i {
     Eigen::Vector2i extent(0, 0);
-    for (const auto& output : outputs_) {
+    for (const auto& output : m_outputs) {
         extent = extent.cwiseMax(output.logical_position + output.logical_size);
     }
     const Eigen::Vector2i origin = DesktopOrigin();
@@ -227,42 +225,42 @@ auto WaylandClient::DesktopExtent() const -> Eigen::Vector2i {
 }
 
 auto WaylandClient::TakeEvents() -> std::vector<OutputChangeEvent> {
-    std::scoped_lock lock(mutex_);
-    return std::exchange(events_, {});
+    std::scoped_lock lock(m_mutex);
+    return std::exchange(m_events, {});
 }
 
 auto WaylandClient::Dispatch() -> void {
-    std::scoped_lock lock(mutex_);
-    wl_display_dispatch(display_);
+    std::scoped_lock lock(m_mutex);
+    wl_display_dispatch(m_display);
 }
 
 auto WaylandClient::DispatchPending() -> void {
-    std::scoped_lock lock(mutex_);
-    while (wl_display_prepare_read(display_) != 0) {
-        wl_display_dispatch_pending(display_);
+    std::scoped_lock lock(m_mutex);
+    while (wl_display_prepare_read(m_display) != 0) {
+        wl_display_dispatch_pending(m_display);
     }
-    wl_display_flush(display_);
+    wl_display_flush(m_display);
 
-    pollfd descriptor{.fd = wl_display_get_fd(display_), .events = POLLIN, .revents = 0};
+    pollfd descriptor{.fd = wl_display_get_fd(m_display), .events = POLLIN, .revents = 0};
     if (poll(&descriptor, 1, 0) <= 0) {
-        wl_display_cancel_read(display_);
+        wl_display_cancel_read(m_display);
         return;
     }
-    if (wl_display_read_events(display_) < 0) {
-        LOG_WARN("Error while reading from event queue: {}", wl_display_get_error(display_));
+    if (wl_display_read_events(m_display) < 0) {
+        LOG_WARN("Error while reading from event queue: {}", wl_display_get_error(m_display));
         return;
     }
-    const auto dispatched = wl_display_dispatch_pending(display_);
+    const auto dispatched = wl_display_dispatch_pending(m_display);
     if (dispatched < 0) {
-        LOG_WARN("Error while dispatching pending events: {}", wl_display_get_error(display_));
+        LOG_WARN("Error while dispatching pending events: {}", wl_display_get_error(m_display));
         return;
     }
     LOG_DEBUG("Dispatched {} pending events", dispatched);
 }
 
 auto WaylandClient::Roundtrip() -> void {
-    auto* queue = wl_display_create_queue(display_);
-    wl_display_roundtrip_queue(display_, queue);
+    auto* queue = wl_display_create_queue(m_display);
+    wl_display_roundtrip_queue(m_display, queue);
     wl_event_queue_destroy(queue);
 }
 
@@ -284,12 +282,12 @@ auto WaylandClient::AddOutput(uint32_t name, uint32_t version) -> void {
     };
 
     const auto bind_version = std::min(version, static_cast<uint32_t>(wl_output_interface.version));
-    auto* output = static_cast<wl_output*>(wl_registry_bind(registry_, name, &wl_output_interface, bind_version));
+    auto* output = static_cast<wl_output*>(wl_registry_bind(m_registry, name, &wl_output_interface, bind_version));
     wl_output_add_listener(output, &kOutputListener, this);
-    auto* xdg_output = zxdg_output_manager_v1_get_xdg_output(xdg_output_manager_, output);
+    auto* xdg_output = zxdg_output_manager_v1_get_xdg_output(m_xdg_output_manager, output);
     zxdg_output_v1_add_listener(xdg_output, &kXdgOutputListener, this);
 
-    outputs_.push_back({
+    m_outputs.push_back({
         .output = output,
         .id = name,
         .name = "Unknown",
@@ -297,7 +295,7 @@ auto WaylandClient::AddOutput(uint32_t name, uint32_t version) -> void {
         .model = "Unknown",
         .transform = WL_OUTPUT_TRANSFORM_NORMAL,
     });
-    xdg_outputs_.emplace_back(xdg_output, name);
+    m_xdg_outputs.emplace_back(xdg_output, name);
 }
 
 auto WaylandClient::FinalizeOutput(WaylandOutput& output) -> void {
@@ -329,16 +327,16 @@ auto WaylandClient::HandleLogicalChange(WaylandOutput& output, bool finalize, st
     }
     if (was_done) {
         LOG_INFO("{}: Logical {} changed to {}", output.name, what, FormatPair(value));
-        events_.push_back({OutputChange::Logical, output.id});
+        m_events.push_back({OutputChange::Logical, output.id});
     } else {
-        events_.push_back({OutputChange::Create, output.id});
+        m_events.push_back({OutputChange::Create, output.id});
     }
 }
 
 auto WaylandClient::OnGlobal(void* data, wl_registry*, uint32_t name, const char* interface, uint32_t version) -> void {
     auto* self = static_cast<WaylandClient*>(data);
-    if (self->collecting_globals_) {
-        self->initial_globals_.push_back({.name = name, .interface = interface, .version = version});
+    if (self->m_collecting_globals) {
+        self->m_initial_globals.push_back({.name = name, .interface = interface, .version = version});
         return;
     }
     if (std::string_view(interface) == wl_output_interface.name) {
@@ -349,12 +347,12 @@ auto WaylandClient::OnGlobal(void* data, wl_registry*, uint32_t name, const char
 
 auto WaylandClient::OnGlobalRemove(void* data, wl_registry*, uint32_t name) -> void {
     auto* self = static_cast<WaylandClient*>(data);
-    const auto it = std::ranges::find(self->outputs_, name, &WaylandOutput::id);
-    if (it == self->outputs_.end()) {
+    const auto it = std::ranges::find(self->m_outputs, name, &WaylandOutput::id);
+    if (it == self->m_outputs.end()) {
         return;
     }
     LOG_INFO("{}: Device removed", it->name);
-    std::erase_if(self->xdg_outputs_, [&](const auto& entry) -> bool {
+    std::erase_if(self->m_xdg_outputs, [&](const auto& entry) -> bool {
         if (entry.second != name) {
             return false;
         }
@@ -362,8 +360,8 @@ auto WaylandClient::OnGlobalRemove(void* data, wl_registry*, uint32_t name) -> v
         return true;
     });
     wl_output_destroy(it->output);
-    self->outputs_.erase(it);
-    self->events_.push_back({OutputChange::Destroy, name});
+    self->m_outputs.erase(it);
+    self->m_events.push_back({OutputChange::Destroy, name});
 }
 
 auto WaylandClient::OnOutputGeometry(
@@ -387,8 +385,8 @@ auto WaylandClient::OnOutputGeometry(
     entry->transform = transform;
     if (entry->done && old_transform != transform) {
         LOG_INFO("{}: Transform changed {} -> {}", entry->name, TransformName(entry->transform), TransformName(transform));
-        self->events_.push_back({OutputChange::Physical, entry->id});
-        self->events_.push_back({OutputChange::Logical, entry->id});
+        self->m_events.push_back({OutputChange::Physical, entry->id});
+        self->m_events.push_back({OutputChange::Logical, entry->id});
     }
     entry->make = make;
     entry->model = model;
@@ -403,7 +401,7 @@ auto WaylandClient::OnOutputMode(void* data, wl_output* output, uint32_t, int32_
     entry->size = {width, height};
     if (entry->done) {
         LOG_INFO("{}: Resolution changed {} -> {}", entry->name, FormatPair(entry->size), FormatPair(entry->size));
-        self->events_.push_back({OutputChange::Physical, entry->id});
+        self->m_events.push_back({OutputChange::Physical, entry->id});
     }
 }
 

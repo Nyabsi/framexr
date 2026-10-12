@@ -209,28 +209,28 @@ auto BuildMetaParam(std::vector<std::byte>& storage, uint32_t type, size_t size)
 
 } // namespace
 
-PipewireCapture::PipewireCapture(std::string name, uint32_t node_id) : name_(std::move(name)), node_id_(node_id) {
+PipewireCapture::PipewireCapture(std::string name, uint32_t node_id) : m_name(std::move(name)), m_node_id(node_id) {
 }
 
 PipewireCapture::~PipewireCapture() {
-    if (thread_.joinable()) {
+    if (m_thread.joinable()) {
         SendCommand(PipewireCommand::Stop);
-        thread_.join();
+        m_thread.join();
     }
 }
 
 auto PipewireCapture::Start(std::span<const DrmFormat> dmabuf_formats, FrameProcessor processor) -> void {
-    channel_ = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
-    processor_ = std::move(processor);
-    dmabuf_formats_.assign(dmabuf_formats.begin(), dmabuf_formats.end());
-    thread_ = std::thread(&PipewireCapture::Run, this);
+    m_channel = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
+    m_processor = std::move(processor);
+    m_dmabuf_formats.assign(dmabuf_formats.begin(), dmabuf_formats.end());
+    m_thread = std::thread(&PipewireCapture::Run, this);
 }
 
 auto PipewireCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!channel_) {
+    if (!m_channel) {
         return nullptr;
     }
-    auto frames = channel_->TakeAll();
+    auto frames = m_channel->TakeAll();
     if (frames.empty()) {
         return nullptr;
     }
@@ -238,45 +238,45 @@ auto PipewireCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
 }
 
 auto PipewireCapture::Pause() -> void {
-    if (channel_) {
+    if (m_channel) {
         SendCommand(PipewireCommand::Pause);
     }
 }
 
 auto PipewireCapture::Resume() -> void {
-    if (channel_) {
+    if (m_channel) {
         SendCommand(PipewireCommand::Resume);
-        LOG_DEBUG("{}: dropped {} old frames before resuming", name_, channel_->TakeAll().size());
+        LOG_DEBUG("{}: dropped {} old frames before resuming", m_name, m_channel->TakeAll().size());
     }
 }
 
 auto PipewireCapture::SendCommand(PipewireCommand command) -> void {
-    std::scoped_lock lock(command_mutex_);
-    commands_.push_back(command);
-    if (loop_ != nullptr && command_event_ != nullptr) {
-        pw_loop_signal_event(pw_main_loop_get_loop(loop_), command_event_);
+    std::scoped_lock lock(m_command_mutex);
+    m_commands.push_back(command);
+    if (m_loop != nullptr && m_command_event != nullptr) {
+        pw_loop_signal_event(pw_main_loop_get_loop(m_loop), m_command_event);
     }
 }
 
 auto PipewireCapture::ExecuteCommands() -> void {
     std::deque<PipewireCommand> commands;
     {
-        std::scoped_lock lock(command_mutex_);
-        commands = std::exchange(commands_, {});
+        std::scoped_lock lock(m_command_mutex);
+        commands = std::exchange(m_commands, {});
     }
     for (const auto command : commands) {
         switch (command) {
         case PipewireCommand::Pause:
-            active_ = false;
-            pw_stream_set_active(stream_, false);
+            m_active = false;
+            pw_stream_set_active(m_stream, false);
             break;
         case PipewireCommand::Resume:
-            active_ = true;
-            pw_stream_set_active(stream_, true);
+            m_active = true;
+            pw_stream_set_active(m_stream, true);
             break;
         case PipewireCommand::Stop:
-            pw_main_loop_quit(loop_);
-            LOG_INFO("{}: stopping pipewire loop", name_);
+            pw_main_loop_quit(m_loop);
+            LOG_INFO("{}: stopping pipewire loop", m_name);
             break;
         }
     }
@@ -294,13 +294,13 @@ auto PipewireCapture::Run() -> void {
 
     auto* loop = pw_main_loop_new(nullptr);
     if (loop == nullptr) {
-        LOG_ERROR("{}: failed to create pipewire main loop", name_);
+        LOG_ERROR("{}: failed to create pipewire main loop", m_name);
         return;
     }
     auto* context = pw_context_new(pw_main_loop_get_loop(loop), nullptr, 0);
     auto* core = context != nullptr ? pw_context_connect(context, nullptr, 0) : nullptr;
     if (core == nullptr) {
-        LOG_ERROR("{}: failed to connect to pipewire", name_);
+        LOG_ERROR("{}: failed to connect to pipewire", m_name);
         if (context != nullptr) {
             pw_context_destroy(context);
         }
@@ -308,37 +308,37 @@ auto PipewireCapture::Run() -> void {
         return;
     }
 
-    stream_ = pw_stream_new(
+    m_stream = pw_stream_new(
         core,
-        name_.c_str(),
+        m_name.c_str(),
         pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr)
     );
-    pw_stream_add_listener(stream_, &stream_listener_, &kStreamEvents, this);
-    retry_timer_ = pw_loop_add_timer(pw_main_loop_get_loop(loop), &PipewireCapture::OnRetry, this);
+    pw_stream_add_listener(m_stream, &m_stream_listener, &kStreamEvents, this);
+    m_retry_timer = pw_loop_add_timer(pw_main_loop_get_loop(loop), &PipewireCapture::OnRetry, this);
 
     {
-        std::scoped_lock lock(command_mutex_);
-        loop_ = loop;
-        command_event_ = pw_loop_add_event(pw_main_loop_get_loop(loop), &PipewireCapture::OnCommand, this);
-        if (!commands_.empty()) {
-            pw_loop_signal_event(pw_main_loop_get_loop(loop), command_event_);
+        std::scoped_lock lock(m_command_mutex);
+        m_loop = loop;
+        m_command_event = pw_loop_add_event(pw_main_loop_get_loop(loop), &PipewireCapture::OnCommand, this);
+        if (!m_commands.empty()) {
+            pw_loop_signal_event(pw_main_loop_get_loop(loop), m_command_event);
         }
     }
 
     Connect();
 
     pw_main_loop_run(loop);
-    LOG_INFO("{}: pipewire loop exited", name_);
+    LOG_INFO("{}: pipewire loop exited", m_name);
 
     {
-        std::scoped_lock lock(command_mutex_);
-        loop_ = nullptr;
-        command_event_ = nullptr;
+        std::scoped_lock lock(m_command_mutex);
+        m_loop = nullptr;
+        m_command_event = nullptr;
     }
-    pw_loop_destroy_source(pw_main_loop_get_loop(loop), retry_timer_);
-    retry_timer_ = nullptr;
-    pw_stream_destroy(stream_);
-    stream_ = nullptr;
+    pw_loop_destroy_source(pw_main_loop_get_loop(loop), m_retry_timer);
+    m_retry_timer = nullptr;
+    pw_stream_destroy(m_stream);
+    m_stream = nullptr;
     pw_core_disconnect(core);
     pw_context_destroy(context);
     pw_main_loop_destroy(loop);
@@ -347,42 +347,42 @@ auto PipewireCapture::Run() -> void {
 auto PipewireCapture::Connect() -> void {
     std::vector<std::vector<std::byte>> storage;
     std::vector<const spa_pod*> params;
-    if (failures_ < kDmabufAttempts) {
-        for (const auto& format : dmabuf_formats_) {
+    if (m_failures < kDmabufAttempts) {
+        for (const auto& format : m_dmabuf_formats) {
             storage.emplace_back(1024 + format.modifiers.size() * 16);
             params.push_back(BuildFormatParam(storage.back(), &format));
         }
-    } else if (!dmabuf_formats_.empty()) {
-        LOG_WARN("{}: DMA-buf capture keeps failing, falling back to SHM", name_);
+    } else if (!m_dmabuf_formats.empty()) {
+        LOG_WARN("{}: DMA-buf capture keeps failing, falling back to SHM", m_name);
     }
     storage.emplace_back(1024);
     params.push_back(BuildFormatParam(storage.back(), nullptr));
 
     auto flags = PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS;
-    if (!active_) {
+    if (!m_active) {
         flags |= PW_STREAM_FLAG_INACTIVE;
     }
-    format_ = {};
+    m_format = {};
     if (const int result = pw_stream_connect(
-            stream_,
+            m_stream,
             PW_DIRECTION_INPUT,
-            node_id_,
+            m_node_id,
             static_cast<pw_stream_flags>(flags),
             params.data(),
             static_cast<uint32_t>(params.size())
         );
         result < 0) {
-        LOG_ERROR("{}: failed to connect stream: {}", name_, spa_strerror(result));
+        LOG_ERROR("{}: failed to connect stream: {}", m_name, spa_strerror(result));
         ScheduleRetry();
     }
 }
 
 auto PipewireCapture::ScheduleRetry() -> void {
-    ++failures_;
-    const auto delay = std::min(std::chrono::seconds(1U << std::min(failures_ - 1, 5U)), kMaxRetryDelay);
-    LOG_WARN("{}: reconnecting stream in {}s", name_, delay.count());
+    ++m_failures;
+    const auto delay = std::min(std::chrono::seconds(1U << std::min(m_failures - 1, 5U)), kMaxRetryDelay);
+    LOG_WARN("{}: reconnecting stream in {}s", m_name, delay.count());
     timespec value{.tv_sec = delay.count(), .tv_nsec = 0};
-    pw_loop_update_timer(pw_main_loop_get_loop(loop_), retry_timer_, &value, nullptr, false);
+    pw_loop_update_timer(pw_main_loop_get_loop(m_loop), m_retry_timer, &value, nullptr, false);
 }
 
 auto PipewireCapture::OnCommand(void* data, uint64_t) -> void {
@@ -391,8 +391,8 @@ auto PipewireCapture::OnCommand(void* data, uint64_t) -> void {
 
 auto PipewireCapture::OnRetry(void* data, uint64_t) -> void {
     auto* self = static_cast<PipewireCapture*>(data);
-    LOG_INFO("{}: reconnecting stream (attempt {})", self->name_, self->failures_);
-    pw_stream_disconnect(self->stream_);
+    LOG_INFO("{}: reconnecting stream (attempt {})", self->m_name, self->m_failures);
+    pw_stream_disconnect(self->m_stream);
     self->Connect();
 }
 
@@ -401,7 +401,7 @@ auto PipewireCapture::OnStateChanged(void* data, pw_stream_state old_state, pw_s
     if (state == PW_STREAM_STATE_ERROR) {
         LOG_WARN(
             "{}: stream state changed: {} -> Error(\"{}\")",
-            self->name_,
+            self->m_name,
             StreamStateName(old_state),
             error != nullptr ? error : ""
         );
@@ -409,9 +409,9 @@ auto PipewireCapture::OnStateChanged(void* data, pw_stream_state old_state, pw_s
         return;
     }
     if (state == PW_STREAM_STATE_STREAMING) {
-        self->failures_ = 0;
+        self->m_failures = 0;
     }
-    LOG_INFO("{}: stream state changed: {} -> {}", self->name_, StreamStateName(old_state), StreamStateName(state));
+    LOG_INFO("{}: stream state changed: {} -> {}", self->m_name, StreamStateName(old_state), StreamStateName(state));
 }
 
 auto PipewireCapture::OnParamChanged(void* data, uint32_t id, const spa_pod* param) -> void {
@@ -422,17 +422,17 @@ auto PipewireCapture::OnParamChanged(void* data, uint32_t id, const spa_pod* par
 
     spa_video_info_raw info{};
     if (spa_format_video_raw_parse(param, &info) < 0) {
-        LOG_ERROR("{}: Failed to parse param changed to VideoInfoRaw", self->name_);
+        LOG_ERROR("{}: Failed to parse param changed to VideoInfoRaw", self->m_name);
         return;
     }
 
-    self->format_.width = info.size.width;
-    self->format_.height = info.size.height;
-    self->format_.fourcc = SpaFormatToFourcc(info.format);
-    self->format_.modifier = info.modifier;
+    self->m_format.width = info.size.width;
+    self->m_format.height = info.size.height;
+    self->m_format.fourcc = SpaFormatToFourcc(info.format);
+    self->m_format.modifier = info.modifier;
 
-    const auto* kind = self->format_.modifier != 0 ? "DMA-buf" : "SHM";
-    LOG_INFO("{}: got {} video format:", self->name_, kind);
+    const auto* kind = self->m_format.modifier != 0 ? "DMA-buf" : "SHM";
+    LOG_INFO("{}: got {} video format:", self->m_name, kind);
     LOG_INFO("  format: {} ({})", static_cast<uint32_t>(info.format), SpaFormatName(info.format));
     LOG_INFO("  size: {}x{}", info.size.width, info.size.height);
     LOG_INFO("  modifier: {}", info.modifier);
@@ -449,17 +449,17 @@ auto PipewireCapture::UpdateStreamParams() -> void {
         BuildMetaParam(header_storage, SPA_META_Header, sizeof(spa_meta_header)),
         BuildMetaParam(transform_storage, SPA_META_VideoTransform, sizeof(spa_meta_videotransform)),
     };
-    if (const int result = pw_stream_update_params(stream_, params.data(), static_cast<uint32_t>(params.size())); result < 0) {
-        LOG_ERROR("{}: failed to update params: {}", name_, spa_strerror(result));
+    if (const int result = pw_stream_update_params(m_stream, params.data(), static_cast<uint32_t>(params.size())); result < 0) {
+        LOG_ERROR("{}: failed to update params: {}", m_name, spa_strerror(result));
     }
 }
 
 auto PipewireCapture::OnProcess(void* data) -> void {
     auto* self = static_cast<PipewireCapture*>(data);
     pw_buffer* newest = nullptr;
-    while (auto* buffer = pw_stream_dequeue_buffer(self->stream_)) {
+    while (auto* buffer = pw_stream_dequeue_buffer(self->m_stream)) {
         if (newest != nullptr) {
-            pw_stream_queue_buffer(self->stream_, newest);
+            pw_stream_queue_buffer(self->m_stream, newest);
         }
         newest = buffer;
     }
@@ -467,7 +467,7 @@ auto PipewireCapture::OnProcess(void* data) -> void {
         return;
     }
     self->HandleBuffer(*newest->buffer);
-    pw_stream_queue_buffer(self->stream_, newest);
+    pw_stream_queue_buffer(self->m_stream, newest);
 }
 
 auto PipewireCapture::HandleBuffer(const spa_buffer& buffer) -> void {
@@ -475,15 +475,15 @@ auto PipewireCapture::HandleBuffer(const spa_buffer& buffer) -> void {
             spa_buffer_find_meta_data(&buffer, SPA_META_Header, sizeof(spa_meta_header))
         );
         header != nullptr && (header->flags & SPA_META_HEADER_FLAG_CORRUPTED) != 0) {
-        LOG_WARN("{}: PipeWire buffer is corrupt.", name_);
+        LOG_WARN("{}: PipeWire buffer is corrupt.", m_name);
         return;
     }
 
     if (const auto* transform = static_cast<const spa_meta_videotransform*>(
             spa_buffer_find_meta_data(&buffer, SPA_META_VideoTransform, sizeof(spa_meta_videotransform))
         )) {
-        format_.transform = TransformFromMeta(transform->transform);
-        LOG_DEBUG("{}: Transform: {}", name_, TransformName(format_.transform));
+        m_format.transform = TransformFromMeta(transform->transform);
+        LOG_DEBUG("{}: Transform: {}", m_name, TransformName(m_format.transform));
     }
 
     std::optional<MouseMeta> mouse;
@@ -492,13 +492,13 @@ auto PipewireCapture::HandleBuffer(const spa_buffer& buffer) -> void {
         );
         cursor != nullptr && cursor->id != 0) {
         mouse = MouseMeta{
-            .x = static_cast<float>(cursor->position.x) / static_cast<float>(format_.width),
-            .y = static_cast<float>(cursor->position.y) / static_cast<float>(format_.height),
+            .x = static_cast<float>(cursor->position.x) / static_cast<float>(m_format.width),
+            .y = static_cast<float>(cursor->position.y) / static_cast<float>(m_format.height),
         };
     }
 
     if (buffer.n_datas == 0) {
-        LOG_DEBUG("{}: no data", name_);
+        LOG_DEBUG("{}: no data", m_name);
         return;
     }
 
@@ -515,11 +515,11 @@ auto PipewireCapture::HandleBuffer(const spa_buffer& buffer) -> void {
 
     std::optional<Frame> frame;
     switch (datas.front().type) {
-    case SPA_DATA_DmaBuf: frame = DmabufFrame{.format = format_, .planes = std::move(planes), .mouse = mouse}; break;
-    case SPA_DATA_MemFd: frame = MemFdFrame{.format = format_, .plane = planes.front(), .mouse = mouse}; break;
+    case SPA_DATA_DmaBuf: frame = DmabufFrame{.format = m_format, .planes = std::move(planes), .mouse = mouse}; break;
+    case SPA_DATA_MemFd: frame = MemFdFrame{.format = m_format, .plane = planes.front(), .mouse = mouse}; break;
     case SPA_DATA_MemPtr:
         frame = MemPtrFrame{
-            .format = format_,
+            .format = m_format,
             .data = static_cast<const std::byte*>(datas.front().data),
             .size = datas.front().chunk->size,
             .mouse = mouse,
@@ -528,7 +528,7 @@ auto PipewireCapture::HandleBuffer(const spa_buffer& buffer) -> void {
     default: LOG_ERROR("Received invalid frame data type ({})", datas.front().type); return;
     }
 
-    if (auto result = processor_(std::move(*frame))) {
-        channel_->Push(std::move(result));
+    if (auto result = m_processor(std::move(*frame))) {
+        m_channel->Push(std::move(result));
     }
 }

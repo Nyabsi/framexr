@@ -31,8 +31,6 @@
 #include "Image.hpp"
 #include "Overlay.hpp"
 
-class AppState;
-
 struct OpenVrOverlayData {
     vr::VROverlayHandle_t handle = vr::k_ulOverlayHandleInvalid;
     bool visible = false;
@@ -46,20 +44,19 @@ struct OpenVrOverlayData {
 
 class OpenVrOverlay {
   public:
-    static auto EnsureImageAllocated(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<bool>;
-    static auto AfterInput(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
-    static auto AfterRender(vr::ETrackingUniverseOrigin universe, Overlay& overlay, OpenVrOverlayData& data, Device& device)
-        -> void;
+    static auto EnsureImageAllocated(Overlay& overlay, OpenVrOverlayData& data) -> Result<bool>;
+    static auto AfterInput(Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
+    static auto AfterRender(vr::ETrackingUniverseOrigin universe, Overlay& overlay, OpenVrOverlayData& data) -> void;
     static auto Destroy(const Overlay& overlay, OpenVrOverlayData& data) -> void;
 
     static auto UploadColor(const Overlay& overlay, const OpenVrOverlayData& data) -> void;
     static auto UploadTransform(vr::ETrackingUniverseOrigin universe, Overlay& overlay, const OpenVrOverlayData& data) -> void;
-    static auto UploadTexture(Overlay& overlay, OpenVrOverlayData& data, Device& device) -> void;
+    static auto UploadTexture(Overlay& overlay, OpenVrOverlayData& data) -> void;
 
   private:
-    static auto Initialize(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
-    static auto Show(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
-    static auto Hide(AppState& app, Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
+    static auto Initialize(Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
+    static auto Show(Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
+    static auto Hide(Overlay& overlay, OpenVrOverlayData& data) -> Result<>;
     static auto UploadAlpha(const Overlay& overlay, const OpenVrOverlayData& data) -> void;
     static auto UploadWidth(const Overlay& overlay, const OpenVrOverlayData& data) -> void;
     static auto UploadCurvature(const Overlay& overlay, const OpenVrOverlayData& data) -> void;

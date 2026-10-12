@@ -23,6 +23,7 @@
 #include <limits>
 
 #include "Overlay.hpp"
+#include "OverlayRenderer.hpp"
 
 namespace {
 
@@ -31,19 +32,15 @@ constexpr int kMaxNudges = 16;
 
 } // namespace
 
-auto ViewRect::Overlaps(const ViewRect& other, float gap) const -> bool {
-    return min_azimuth < other.max_azimuth + gap && other.min_azimuth < max_azimuth + gap
-        && min_elevation < other.max_elevation + gap && other.min_elevation < max_elevation + gap;
-}
-
 auto OverlayLayout::Corners(Overlay& overlay) -> std::optional<std::array<Eigen::Vector3f, 4>> {
-    const auto meta = overlay.backend->Meta();
-    const VkExtent2D extent = meta && meta->extent.width > 0 && meta->extent.height > 0 ? meta->extent : overlay.state.extent_hint;
+    const auto meta = overlay.Backend()->Meta();
+    const VkExtent2D extent = meta && meta->extent.width > 0 && meta->extent.height > 0 ? meta->extent
+                                                                                        : overlay.State().ExtentHint();
     if (extent.width == 0 || extent.height == 0) {
         return std::nullopt;
     }
     const Eigen::Matrix4f frame = meta ? meta->transform.matrix() : Eigen::Matrix4f::Identity();
-    const Eigen::Matrix4f effective = overlay.state.transform.matrix() * frame;
+    const Eigen::Matrix4f effective = overlay.State().Transform().matrix() * frame;
 
     const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
     const float half_width = std::min(aspect, 1.0f) / 2.0f;
@@ -84,6 +81,11 @@ auto OverlayLayout::ViewBounds(const std::array<Eigen::Vector3f, 4>& corners, co
     return rect;
 }
 
+auto OverlayLayout::Overlaps(const ViewRect& a, const ViewRect& b, float gap) -> bool {
+    return a.min_azimuth < b.max_azimuth + gap && b.min_azimuth < a.max_azimuth + gap && a.min_elevation < b.max_elevation + gap
+        && b.min_elevation < a.max_elevation + gap;
+}
+
 auto OverlayLayout::MeasureFootprint(Overlay& overlay, const Eigen::Affine3f& head, const Eigen::Vector2f& display_pixels_per_radian)
     -> std::optional<TexelFootprint> {
     const auto corners = Corners(overlay);
@@ -114,8 +116,8 @@ auto OverlayLayout::RotateAroundHead(Overlay& overlay, const Eigen::Affine3f& he
     Eigen::Matrix4f around = Eigen::Matrix4f::Identity();
     around.topLeftCorner<3, 3>() = rotation;
     around.topRightCorner<3, 1>() = pivot - rotation * pivot;
-    overlay.state.transform = Eigen::Affine3f(around * overlay.state.transform.matrix());
-    overlay.state.dirty = true;
+    overlay.State().SetTransform(Eigen::Affine3f(around * overlay.State().Transform().matrix()));
+    overlay.State().SetDirty(true);
 }
 
 auto OverlayLayout::NudgeClear(Overlay& moving, std::span<Overlay* const> fixed, const Eigen::Affine3f& head) -> bool {
@@ -137,7 +139,7 @@ auto OverlayLayout::NudgeClear(Overlay& moving, std::span<Overlay* const> fixed,
                 continue;
             }
             if (const auto corners = Corners(*other)) {
-                if (const ViewRect bounds = ViewBounds(*corners, head); rect.Overlaps(bounds, kOverlapGap)) {
+                if (const ViewRect bounds = ViewBounds(*corners, head); Overlaps(rect, bounds, kOverlapGap)) {
                     blocker = bounds;
                     break;
                 }

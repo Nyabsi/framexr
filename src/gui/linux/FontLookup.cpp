@@ -16,18 +16,18 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-#include "Font.hpp"
-
 #include <format>
 
 #include <fontconfig/fontconfig.h>
+
+#include "Font.hpp"
 
 auto FontCache::InitLocator() -> void {
     FcInit();
 }
 
 auto FontCache::Locate(uint32_t codepoint, int size) const -> std::optional<FontFile> {
-    const auto pattern_text = std::format("{}:size={}:charset={:04x}", primary_font_, size, codepoint);
+    const auto pattern_text = std::format("{}:size={}:charset={:04x}", m_primary_font, size, codepoint);
     FcPattern* pattern = FcNameParse(reinterpret_cast<const FcChar8*>(pattern_text.c_str()));
     if (pattern == nullptr) {
         return std::nullopt;

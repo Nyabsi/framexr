@@ -38,7 +38,7 @@ namespace {
 constexpr const char* kAppKey = "nyabsi.framexr";
 
 auto ManifestPath() -> std::filesystem::path {
-    return Config::Root() / "framexr.vrmanifest";
+    return ConfigStore::Root() / "framexr.vrmanifest";
 }
 
 #ifdef _WIN32
@@ -63,7 +63,7 @@ auto OpenVrManifest::Install() -> Result<> {
     ASSIGN_OR_RETURN(const auto executable_path, ExecutablePath());
 
     if (vr::VRApplications()->IsApplicationInstalled(kAppKey)) {
-        if (const auto contents = Config::ReadFile(manifest_path)) {
+        if (const auto contents = ConfigStore::ReadFile(manifest_path)) {
             const auto manifest = nlohmann::json::parse(*contents, nullptr, false);
             if (manifest.is_discarded()) {
                 return Unexpected(std::format("Invalid manifest at {}", manifest_path.string()));

@@ -27,8 +27,8 @@
 #include <chrono>
 #include <cstdlib>
 #include <format>
-#include <limits>
 #include <fstream>
+#include <limits>
 #include <numbers>
 #include <ranges>
 #include <utility>
@@ -38,14 +38,22 @@
 #include <unistd.h>
 #endif
 
+#include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
+#include "DbusNotificationSender.hpp"
 #include "Device.hpp"
 #include "Hid.hpp"
 #include "Image.hpp"
+#include "Input.hpp"
 #include "Logger.hpp"
+#include "OverlayContainer.hpp"
+#include "OverlayRenderer.hpp"
 #include "Pipeline.hpp"
+#include "ScreenInteraction.hpp"
+#include "ScreenRenderer.hpp"
 #include "Shaders.hpp"
+#include "SplitOverlayBackend.hpp"
 #include "Yaml.hpp"
 #include "framexr_config.h"
 
@@ -67,90 +75,18 @@
 
 namespace {
 
-constexpr float kCursorSize = 16.0f / 1440.0f;
-constexpr float kLowpassCutoff = 1.0f;
-constexpr float kLowpassShape = 4.0f;
 constexpr float kScreenDistance = 1.0f;
+
 constexpr float kScreenGap = 0.05f;
+
 constexpr float kScreenTilt = 0.1745f;
-constexpr uint32_t kMaxScreenHeight = 2560;
-
-const auto kStart = std::chrono::steady_clock::now();
-std::atomic<int64_t> next_move_ms{0};
-
-auto ElapsedMs() -> int64_t {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - kStart).count();
-}
-
-auto CanMove() -> bool {
-    return ElapsedMs() > next_move_ms.load(std::memory_order_relaxed);
-}
-
-auto SetNextMove(uint32_t millis_from_now) -> void {
-    next_move_ms.store(ElapsedMs() + millis_from_now, std::memory_order_relaxed);
-}
-
-auto MakeAffine2(const Eigen::Vector2f& x_axis, const Eigen::Vector2f& y_axis, const Eigen::Vector2f& translation)
-    -> Eigen::Affine2f {
-    Eigen::Affine2f result = Eigen::Affine2f::Identity();
-    result.linear().col(0) = x_axis;
-    result.linear().col(1) = y_axis;
-    result.translation() = translation;
-    return result;
-}
-
-auto IsRotated90(FrameTransform transform) -> bool {
-    return transform == FrameTransform::Rotated90 || transform == FrameTransform::Flipped90;
-}
-
-auto IsRotated180(FrameTransform transform) -> bool {
-    return transform == FrameTransform::Rotated180 || transform == FrameTransform::Flipped180;
-}
-
-auto IsRotated270(FrameTransform transform) -> bool {
-    return transform == FrameTransform::Rotated270 || transform == FrameTransform::Flipped270;
-}
-
-auto ExtentFromFormat(const FrameFormat& format, const Config& config) -> VkExtent2D {
-    const uint32_t height_limit = config.screen_render_down ? std::min<uint32_t>(config.screen_max_height, kMaxScreenHeight)
-                                                            : kMaxScreenHeight;
-    const uint32_t height = std::min(format.height, height_limit);
-    const auto width = static_cast<uint32_t>(
-        static_cast<float>(format.width) / static_cast<float>(format.height) * static_cast<float>(height)
-    );
-    return {width, height};
-}
-
-auto AffineFromFormat(const FrameFormat& format) -> Eigen::Affine3f {
-    const auto rotation = [](float angle) -> Eigen::Affine3f {
-        return Eigen::Affine3f(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
-    };
-    Eigen::Affine3f flip_x(Eigen::Scaling(-1.0f, 1.0f, 1.0f));
-    constexpr float kPi = std::numbers::pi_v<float>;
-
-    switch (format.transform) {
-    case FrameTransform::Rotated90: return rotation(-kPi / 2.0f);
-    case FrameTransform::Rotated180: return rotation(kPi);
-    case FrameTransform::Rotated270: return rotation(kPi / 2.0f);
-    case FrameTransform::Flipped: return flip_x;
-    case FrameTransform::Flipped90: return flip_x * rotation(-kPi / 2.0f);
-    case FrameTransform::Flipped180: return flip_x * rotation(kPi);
-    case FrameTransform::Flipped270: return flip_x * rotation(kPi / 2.0f);
-    case FrameTransform::Undefined:
-    case FrameTransform::Normal: break;
-    }
-    return Eigen::Affine3f::Identity();
-}
-
-auto AllowsDmabuf(const std::string& method) -> bool {
-    return method != "pw_fallback" && method != "screencopy";
-}
 
 auto TokenPath() -> std::filesystem::path {
-    return Config::ConfD() / "pw_tokens.yaml";
+    return ConfigStore::ConfD() / "pw_tokens.yaml";
 }
 
 #if FRAMEXR_FEATURE_X11 && FRAMEXR_FEATURE_PIPEWIRE
+
 auto BestMatch(const PipewireStream& stream, const std::vector<std::shared_ptr<XshmScreen>>& screens)
     -> std::shared_ptr<XshmScreen> {
     if (screens.empty()) {
@@ -175,387 +111,20 @@ auto BestMatch(const PipewireStream& stream, const std::vector<std::shared_ptr<X
     LOG_DEBUG("best: {}", best->name);
     return best;
 }
+
 #endif
 
 } // namespace
 
-CapturedFrame::CapturedFrame(std::shared_ptr<Image> captured_image, FrameFormat frame_format, std::optional<MouseMeta> mouse_meta)
-    : image(std::move(captured_image)),
-      format(frame_format),
-      mouse(mouse_meta) {
-}
-
-PendingFrame::PendingFrame(Frame&& source) : frame(std::move(source)) {
-#ifndef _WIN32
-    if (auto* dmabuf = std::get_if<DmabufFrame>(&frame)) {
-        for (auto& plane : dmabuf->planes) {
-            plane.fd = plane.fd >= 0 ? dup(plane.fd) : -1;
-        }
-    } else if (auto* memfd = std::get_if<MemFdFrame>(&frame)) {
-        memfd->plane.fd = memfd->plane.fd >= 0 ? dup(memfd->plane.fd) : -1;
-    } else
-#endif
-        if (auto* memptr = std::get_if<MemPtrFrame>(&frame); memptr != nullptr && memptr->data != nullptr) {
-        bytes.assign(memptr->data, memptr->data + memptr->size);
-        memptr->data = bytes.data();
-    }
-}
-
-PendingFrame::~PendingFrame() {
-#ifndef _WIN32
-    if (const auto* dmabuf = std::get_if<DmabufFrame>(&frame)) {
-        for (const auto& plane : dmabuf->planes) {
-            if (plane.fd >= 0) {
-                close(plane.fd);
-            }
-        }
-    } else if (const auto* memfd = std::get_if<MemFdFrame>(&frame); memfd != nullptr && memfd->plane.fd >= 0) {
-        close(memfd->plane.fd);
-    }
-#endif
-}
-
-FrameUploader::FrameUploader(std::string name, std::shared_ptr<Device> device, Queue& queue)
-    : name_(std::move(name)),
-      device_(std::move(device)),
-      queue_(&queue) {
-}
-
-auto FrameUploader::Upload(const FrameFormat& format, std::span<const std::byte> data, int32_t stride) const
-    -> std::shared_ptr<Image> {
-    const auto vk_format = Device::FourccToFormat(format.fourcc);
-    if (!vk_format) {
-        LOG_ERROR("{}: {}", name_, vk_format.error().Message());
-        return nullptr;
-    }
-    auto command_buffer = device_->CreateCommandBuffer(*queue_);
-    if (!command_buffer) {
-        LOG_ERROR("{}: Could not create vkCommandBuffer: {}", name_, command_buffer.error().Message());
-        return nullptr;
-    }
-    const uint32_t row_length = stride > 0 ? static_cast<uint32_t>(stride) / 4 : 0;
-    auto image = command_buffer->UploadImage(format.width, format.height, *vk_format, data, row_length);
-    if (!image) {
-        LOG_ERROR("{}: Could not create vkImage: {}", name_, image.error().Message());
-        return nullptr;
-    }
-    if (const auto result = command_buffer->SubmitUpload(); !result) {
-        LOG_ERROR("{}: Could not execute upload: {}", name_, result.error().Message());
-        return nullptr;
-    }
-    return std::move(*image);
-}
-
-auto FrameUploader::Process(Frame&& frame) const -> std::unique_ptr<CapturedFrame> {
-    if (const auto* dmabuf = std::get_if<DmabufFrame>(&frame)) {
-        if (!dmabuf->IsValid()) {
-            LOG_ERROR("{}: Invalid frame", name_);
-            return nullptr;
-        }
-        LOG_TRACE("{}: New DMA-buf frame", name_);
-        auto image = device_->ImportDmabuf(*dmabuf);
-        if (!image) {
-            LOG_ERROR("{}: Failed to create DMA-buf vkImage: {}", name_, image.error().Message());
-            return nullptr;
-        }
-        return std::make_unique<CapturedFrame>(std::move(*image), dmabuf->format, std::nullopt);
-    }
-
-#ifdef _WIN32
-    if (std::holds_alternative<MemFdFrame>(frame)) {
-        LOG_ERROR("{}: MemFd frames are not supported on Windows", name_);
-        return nullptr;
-    }
-#else
-    if (const auto* memfd = std::get_if<MemFdFrame>(&frame)) {
-        if (memfd->plane.fd < 0) {
-            LOG_ERROR("{}: No fd in MemFd frame", name_);
-            return nullptr;
-        }
-        const size_t length = static_cast<size_t>(memfd->plane.stride) * memfd->format.height;
-        void* map = mmap(nullptr, length, PROT_READ, MAP_SHARED, memfd->plane.fd, static_cast<off_t>(memfd->plane.offset));
-        if (map == MAP_FAILED) {
-            LOG_ERROR("{}: Could not map MemFd frame", name_);
-            return nullptr;
-        }
-        auto image = Upload(memfd->format, std::span(static_cast<const std::byte*>(map), length), memfd->plane.stride);
-        munmap(map, length);
-        if (!image) {
-            return nullptr;
-        }
-        return std::make_unique<CapturedFrame>(std::move(image), memfd->format, std::nullopt);
-    }
-#endif
-
-    const auto& memptr = std::get<MemPtrFrame>(frame);
-    LOG_TRACE("{}: New MemPtr frame", name_);
-    auto image = Upload(memptr.format, std::span(memptr.data, memptr.size), 0);
-    if (!image) {
-        return nullptr;
-    }
-    return std::make_unique<CapturedFrame>(std::move(image), memptr.format, memptr.mouse);
-}
-
-ScreenPipeline::ScreenPipeline(std::shared_ptr<Pipeline> pipeline, std::shared_ptr<Image> mouse, VkExtent2D extent)
-    : pipeline_(std::move(pipeline)),
-      mouse_(std::move(mouse)),
-      extent_(extent) {
-}
-
-auto ScreenPipeline::Create(AppState& app, VkExtent2D extent) -> Result<ScreenPipeline> {
-    auto& device = *app.device;
-    ASSIGN_OR_RETURN(auto pipeline, device.CreatePipeline(Shaders::Screen(), device.NativeFormat(), Blend::SquareSource));
-
-    constexpr std::array<uint8_t, 64> kMouseBytes{
-        0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff,
-        0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff,
-        0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0xff,
-        0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff,
-    };
-    ASSIGN_OR_RETURN(auto upload, device.CreateCommandBuffer(device.TransferQueue()));
-    ASSIGN_OR_RETURN(auto mouse, upload.UploadImage(4, 4, VK_FORMAT_R8G8B8A8_UNORM, std::as_bytes(std::span(kMouseBytes))));
-    RETURN_IF_ERROR(upload.SubmitUpload());
-
-    return ScreenPipeline(std::move(pipeline), std::move(mouse), extent);
-}
-
-auto ScreenPipeline::Render(
-    AppState& app,
-    const CapturedFrame& frame,
-    const std::shared_ptr<Image>& target,
-    CommandBatch& batch,
-    float alpha,
-    const TexelFootprint& footprint
-) -> Result<> {
-    auto& device = *app.device;
-    const float filtered = app.config.screen_lowpass_filter ? 1.0f : 0.0f;
-    const std::array uniform{
-        footprint.size.x(),
-        footprint.size.y(),
-        footprint.display_pixels_per_radian.x(),
-        footprint.display_pixels_per_radian.y(),
-        footprint.eye.x(),
-        footprint.eye.y(),
-        footprint.eye.z(),
-        kLowpassCutoff,
-        kLowpassShape,
-        alpha,
-        filtered,
-    };
-    const std::array cursor_uniform{1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, kLowpassCutoff, kLowpassShape, alpha, 0.0f};
-
-    ASSIGN_OR_RETURN(auto texture_set, pipeline_->CreateTextureSet(0, frame.image, device.TextureFilter()));
-    ASSIGN_OR_RETURN(auto alpha_set, pipeline_->CreateUniformSet(1, uniform));
-    const auto pass = pipeline_->CreatePassForTarget(*target, {std::move(texture_set), std::move(alpha_set)});
-
-    ASSIGN_OR_RETURN(auto command_buffer, device.CreateCommandBuffer(device.GraphicsQueue()));
-    command_buffer.BeginRendering(target);
-    command_buffer.Draw(pass);
-
-    if (frame.mouse) {
-        const auto width = static_cast<float>(extent_.width);
-        const auto height = static_cast<float>(extent_.height);
-        const float size = kCursorSize * height;
-        const float half_size = size * 0.5f;
-
-        ASSIGN_OR_RETURN(
-            auto vertices,
-            device.UploadVertices(
-                extent_,
-                std::fma(frame.mouse->x, width, -half_size),
-                std::fma(frame.mouse->y, height, -half_size),
-                size,
-                size
-            )
-        );
-        ASSIGN_OR_RETURN(auto mouse_set, pipeline_->CreateTextureSet(0, mouse_, VK_FILTER_NEAREST));
-        ASSIGN_OR_RETURN(auto mouse_alpha_set, pipeline_->CreateUniformSet(1, cursor_uniform));
-        command_buffer.Draw(
-            pipeline_->CreatePass(target->Extent(), std::move(vertices), {std::move(mouse_set), std::move(mouse_alpha_set)})
-        );
-    }
-
-    command_buffer.EndRendering();
-    batch.Push(std::move(command_buffer));
-    return {};
-}
-
-ScreenRenderer::ScreenRenderer(std::string name, std::unique_ptr<Capture> capture)
-    : name_(std::move(name)),
-      capture_(std::move(capture)) {
-}
-
-auto ScreenRenderer::Init(AppState&) -> Result<> {
-    return {};
-}
-
-auto ScreenRenderer::Start(AppState& app) -> void {
-    auto& device = *app.device;
-    const bool supports_dmabuf = device.SupportsDmabuf() && capture_->SupportsDmabuf();
-    const auto& capture_method = app.config.capture_method;
-    const bool allow_dmabuf = AllowsDmabuf(capture_method);
-
-    std::span<const DrmFormat> dmabuf_formats;
-    if (!supports_dmabuf || !allow_dmabuf) {
-        if (!supports_dmabuf) {
-            LOG_INFO("Capture method does not support DMA-buf");
-        } else {
-            LOG_INFO("Not using DMA-buf capture due to {}", capture_method);
-        }
-        if (device.CaptureQueue() == nullptr) {
-            LOG_WARN(
-                "Current GPU does not support multiple queues. Software capture will take place on the main thread. Expect "
-                "degraded performance."
-            );
-        }
-    } else {
-        LOG_WARN("Using DMA-buf capture. If screens are blank for you, switch to SHM using:");
-        LOG_WARN("echo 'capture_method: pw_fallback' > ~/.config/framexr/conf.d/pw_fallback.yaml");
-        dmabuf_formats = device.DrmFormats();
-    }
-
-    auto* capture_queue = device.CaptureQueue();
-    main_thread_ = capture_queue == nullptr;
-    uploader_ = std::make_shared<FrameUploader>(name_, app.device, main_thread_ ? device.TransferQueue() : *capture_queue);
-
-    if (main_thread_) {
-        capture_->Start(dmabuf_formats, [](Frame&& frame) -> std::unique_ptr<ProcessedFrame> {
-            return std::make_unique<PendingFrame>(std::move(frame));
-        });
-    } else {
-        capture_->Start(dmabuf_formats, [uploader = uploader_](Frame&& frame) -> std::unique_ptr<ProcessedFrame> {
-            return uploader->Process(std::move(frame));
-        });
-    }
-    capture_->RequestNewFrame();
-}
-
-auto ScreenRenderer::ShouldRender(AppState& app) -> Result<RenderReadiness> {
-    if (!capture_->IsStarted()) {
-        Start(app);
-        return RenderReadiness::Unable;
-    }
-
-    if (auto received = capture_->Receive()) {
-        if (main_thread_) {
-            auto& pending = static_cast<PendingFrame&>(*received);
-            if (auto processed = uploader_->Process(std::move(pending.frame))) {
-                current_ = std::move(processed);
-            }
-        } else {
-            current_.reset(static_cast<CapturedFrame*>(received.release()));
-        }
-    }
-
-    if (current_ && !meta_) {
-        meta_ = FrameMeta{
-            .extent = ExtentFromFormat(current_->format, app.config),
-            .transform = AffineFromFormat(current_->format),
-            .format = current_->image->Format(),
-        };
-        ASSIGN_OR_RETURN(auto pipeline, ScreenPipeline::Create(app, current_->image->Extent()));
-        pipeline_.emplace(std::move(pipeline));
-    }
-
-    return current_ ? RenderReadiness::Should : RenderReadiness::Unable;
-}
-
-auto ScreenRenderer::Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
-    if (!current_) {
-        return false;
-    }
-    const auto frame = std::move(current_);
-    if (!pipeline_) {
-        FatalError("Screen pipeline missing while a frame is pending");
-    }
-    RETURN_IF_ERROR(pipeline_->Render(app, *frame, target, batch, alpha, footprint_));
-    capture_->RequestNewFrame();
-    return true;
-}
-
-auto ScreenRenderer::Pause(AppState&) -> Result<> {
-    capture_->Pause();
-    return {};
-}
-
-auto ScreenRenderer::Resume(AppState&) -> Result<> {
-    capture_->Resume();
-    return {};
-}
-
-auto ScreenRenderer::Meta() -> std::optional<FrameMeta> {
-    return meta_;
-}
-
-auto ScreenRenderer::SetTexelFootprint(const TexelFootprint& footprint) -> void {
-    footprint_ = footprint;
-}
-
-ScreenInteraction::ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform) {
-    if (IsRotated90(transform)) {
-        mouse_transform_ = MakeAffine2({0.0f, size.y()}, {-size.x(), 0.0f}, {position.x() + size.x(), position.y()});
-    } else if (IsRotated180(transform)) {
-        mouse_transform_ = MakeAffine2({-size.x(), 0.0f}, {0.0f, -size.y()}, position + size);
-    } else if (IsRotated270(transform)) {
-        mouse_transform_ = MakeAffine2({0.0f, -size.y()}, {size.x(), 0.0f}, {position.x(), position.y() + size.y()});
-    } else {
-        mouse_transform_ = MakeAffine2({size.x(), 0.0f}, {0.0f, size.y()}, position);
-    }
-}
-
-auto ScreenInteraction::OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> {
-    LOG_TRACE("Hover: [{}, {}]", hit.uv.x(), hit.uv.y());
-    if (CanMove() && (!app.config.focus_follows_mouse_mode || app.input.pointers[hit.pointer].now.move_mouse)) {
-        app.hid->MouseMove(mouse_transform_ * hit.uv);
-        SetNextMove(app.config.mouse_move_interval_ms);
-    }
-    return std::nullopt;
-}
-
-auto ScreenInteraction::OnLeft(AppState&, size_t) -> void {
-}
-
-auto ScreenInteraction::OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void {
-    uint16_t button = kMouseLeft;
-    if (hit.mode == PointerMode::Right) {
-        button = kMouseRight;
-    } else if (hit.mode == PointerMode::Middle) {
-        button = kMouseMiddle;
-    }
-
-    if (hit.pointer < held_.size()) {
-        if (pressed) {
-            held_[hit.pointer] = button;
-        } else if (const auto held = std::exchange(held_[hit.pointer], std::nullopt)) {
-            button = *held;
-        }
-    }
-
-    if (pressed) {
-        SetNextMove(app.config.click_freeze_time_ms);
-    }
-
-    app.hid->SendButton(button, pressed);
-
-    if (pressed) {
-        app.hid->MouseMove(mouse_transform_ * hit.uv);
-    }
-}
-
-auto ScreenInteraction::OnScroll(AppState& app, const PointerHit&, float delta_y, float delta_x) -> void {
-    app.hid->Wheel(static_cast<int32_t>(delta_y * 64.0f), static_cast<int32_t>(delta_x * 64.0f));
-}
-
-auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, FrameTransform transform, const Config& config)
-    -> OverlayState {
+auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, FrameTransform transform) -> OverlayState {
     constexpr float kPi = std::numbers::pi_v<float>;
     float angle = 0.0f;
-    if (config.upright_screen_fix) {
-        if (IsRotated90(transform)) {
+    if (g_config->upright_screen_fix) {
+        if (FrameTransforms::IsRotated90(transform)) {
             angle = kPi / 2.0f;
-        } else if (IsRotated180(transform)) {
+        } else if (FrameTransforms::IsRotated180(transform)) {
             angle = kPi;
-        } else if (IsRotated270(transform)) {
+        } else if (FrameTransforms::IsRotated270(transform)) {
             angle = -kPi / 2.0f;
         }
     }
@@ -567,28 +136,28 @@ auto Screens::CreateState(std::string name, const Eigen::Vector2i& resolution, F
     const Eigen::Vector2f unit_y = Eigen::Vector2f::UnitY();
 
     Eigen::Affine2f interaction_transform;
-    if (IsRotated90(transform)) {
-        interaction_transform = MakeAffine2(-unit_y * (width / height), -unit_x, center);
-    } else if (IsRotated180(transform)) {
-        interaction_transform = MakeAffine2(-unit_x, -unit_y * (-width / height), center);
-    } else if (IsRotated270(transform)) {
-        interaction_transform = MakeAffine2(unit_y * (width / height), unit_x, center);
+    if (FrameTransforms::IsRotated90(transform)) {
+        interaction_transform = FrameTransforms::Affine(-unit_y * (width / height), -unit_x, center);
+    } else if (FrameTransforms::IsRotated180(transform)) {
+        interaction_transform = FrameTransforms::Affine(-unit_x, -unit_y * (-width / height), center);
+    } else if (FrameTransforms::IsRotated270(transform)) {
+        interaction_transform = FrameTransforms::Affine(unit_y * (width / height), unit_x, center);
     } else if (resolution.y() > resolution.x()) {
-        interaction_transform = MakeAffine2(unit_x * (height / width), -unit_y, center);
+        interaction_transform = FrameTransforms::Affine(unit_x * (height / width), -unit_y, center);
     } else {
-        interaction_transform = MakeAffine2(unit_x, -unit_y * (width / height), center);
+        interaction_transform = FrameTransforms::Affine(unit_x, -unit_y * (width / height), center);
     }
 
     OverlayState state;
-    state.name = std::move(name);
-    state.grabbable = true;
-    state.recenter = true;
-    state.interactable = true;
-    state.spawn_scale = 1.5f * config.desktop_view_scale;
-    state.spawn_point = Eigen::Vector3f(0.0f, 0.0f, -kScreenDistance);
-    state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
-    state.extent_hint = VkExtent2D{.width = static_cast<uint32_t>(resolution.x()), .height = static_cast<uint32_t>(resolution.y())};
-    state.interaction_transform = interaction_transform;
+    state.SetName(std::move(name));
+    state.SetGrabbable(true);
+    state.SetRecenter(true);
+    state.SetInteractable(true);
+    state.SetSpawnScale(1.5f * g_config->desktop_view_scale);
+    state.SetSpawnPoint(Eigen::Vector3f(0.0f, 0.0f, -kScreenDistance));
+    state.SetSpawnRotation(Eigen::Quaternionf(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ())));
+    state.SetExtentHint(VkExtent2D{.width = static_cast<uint32_t>(resolution.x()), .height = static_cast<uint32_t>(resolution.y())});
+    state.SetInteractionTransform(interaction_transform);
     return state;
 }
 
@@ -607,21 +176,25 @@ auto Screens::ArrangeInFrontOfHead(std::vector<ScreenOverlay>& screens) -> void 
     const float middle = (static_cast<float>(ordered.size()) - 1.0f) / 2.0f;
     for (size_t i = 0; i < ordered.size(); ++i) {
         auto& state = ordered[i]->state;
-        const float step = 2.0f * std::atan((state.spawn_scale + kScreenGap) / (2.0f * kScreenDistance));
+        const float step = 2.0f * std::atan((state.SpawnScale() + kScreenGap) / (2.0f * kScreenDistance));
         const float angle = (static_cast<float>(i) - middle) * step;
-        state.spawn_point = kScreenDistance
-                          * Eigen::Vector3f(
-                                std::sin(angle) * std::cos(kScreenTilt),
-                                -std::sin(kScreenTilt),
-                                -std::cos(angle) * std::cos(kScreenTilt)
-                          );
-        state.spawn_rotation = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, Eigen::Vector3f::UnitY()))
-                             * Eigen::Quaternionf(Eigen::AngleAxisf(-kScreenTilt, Eigen::Vector3f::UnitX())) * state.spawn_rotation;
+        state.SetSpawnPoint(
+            kScreenDistance
+            * Eigen::Vector3f(
+                std::sin(angle) * std::cos(kScreenTilt),
+                -std::sin(kScreenTilt),
+                -std::cos(angle) * std::cos(kScreenTilt)
+            )
+        );
+        state.SetSpawnRotation(
+            Eigen::Quaternionf(Eigen::AngleAxisf(-angle, Eigen::Vector3f::UnitY()))
+            * Eigen::Quaternionf(Eigen::AngleAxisf(-kScreenTilt, Eigen::Vector3f::UnitX())) * state.SpawnRotation()
+        );
     }
 }
 
 auto Screens::LoadTokens() -> Result<std::map<std::string, std::string>> {
-    ASSIGN_OR_RETURN(const auto parsed, Config::ParseFile(TokenPath()));
+    ASSIGN_OR_RETURN(const auto parsed, ConfigStore::ParseFile(TokenPath()));
     std::map<std::string, std::string> tokens;
     if (const auto it = parsed.find("pw_tokens"); it != parsed.end() && it->is_object()) {
         for (const auto& [display, token] : it->items()) {
@@ -677,10 +250,9 @@ auto Screens::CreateWaylandRenderer(
     const WaylandOutput& output,
     bool has_wlr_dmabuf,
     bool has_wlr_screencopy,
-    std::map<std::string, std::string>& tokens,
-    const AppState& app
+    std::map<std::string, std::string>& tokens
 ) -> std::unique_ptr<ScreenRenderer> {
-    const auto& capture_method = app.config.capture_method;
+    const auto& capture_method = g_config->capture_method;
     std::unique_ptr<Capture> capture;
     if (capture_method == "wlr-dmabuf" && has_wlr_dmabuf) {
         LOG_INFO("{}: Using Wlr DMA-Buf", output.name);
@@ -714,7 +286,7 @@ auto Screens::CreateWaylandRenderer(
             ),
             {
                 .restore_token = std::move(token),
-                .embed_mouse = !app.config.double_cursor_fix,
+                .embed_mouse = !g_config->double_cursor_fix,
                 .screens_only = true,
                 .persist = true,
                 .multiple = false,
@@ -742,7 +314,7 @@ auto Screens::CreateWaylandRenderer(
     return std::make_unique<ScreenRenderer>(output.name, std::move(capture));
 }
 
-auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector<ScreenOverlay> {
+auto Screens::CreateWayland(WaylandClient& client) -> std::vector<ScreenOverlay> {
     std::vector<ScreenOverlay> screens;
     auto tokens = LoadTokens().value_or(std::map<std::string, std::string>{});
     const auto original_tokens = tokens;
@@ -750,7 +322,9 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
     const bool has_wlr_screencopy = client.ScreencopyManager() != nullptr;
 
     for (const auto& output : client.Outputs()) {
-        if (std::ranges::any_of(app.screens, [&](const ScreenMeta& screen) -> bool { return screen.name == output.name; })) {
+        if (std::ranges::any_of(g_overlays->Screens(), [&](const ScreenMeta& screen) -> bool {
+                return screen.name == output.name;
+            })) {
             continue;
         }
 
@@ -765,7 +339,7 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
             output.logical_position.y()
         );
 
-        auto renderer = CreateWaylandRenderer(output, has_wlr_dmabuf, has_wlr_screencopy, tokens, app);
+        auto renderer = CreateWaylandRenderer(output, has_wlr_dmabuf, has_wlr_screencopy, tokens);
         if (!renderer) {
             continue;
         }
@@ -776,8 +350,8 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
             output.logical_size.cast<float>(),
             transform
         );
-        auto state = CreateState(output.name, output.logical_size, transform, app.config);
-        ScreenMeta meta{.name = output.name, .id = state.id, .native_handle = output.id};
+        auto state = CreateState(output.name, output.logical_size, transform);
+        ScreenMeta meta{.name = output.name, .id = state.Id(), .native_handle = output.id};
         auto backend = std::make_unique<SplitOverlayBackend>(std::move(renderer), std::move(interaction));
         screens.push_back({
             .meta = std::move(meta),
@@ -793,8 +367,8 @@ auto Screens::CreateWayland(WaylandClient& client, AppState& app) -> std::vector
         }
     }
 
-    app.hid->SetDesktopExtent(client.DesktopExtent().cast<float>());
-    app.hid->SetDesktopOrigin(client.DesktopOrigin().cast<float>());
+    g_hid->SetDesktopExtent(client.DesktopExtent().cast<float>());
+    g_hid->SetDesktopOrigin(client.DesktopOrigin().cast<float>());
     return screens;
 }
 
@@ -804,12 +378,12 @@ auto Screens::SelectScreen(std::string_view, const ScreenCastOptions&) -> Result
     return Unexpected("Pipewire support not enabled");
 }
 
-auto Screens::CreateWaylandRenderer(const WaylandOutput&, bool, bool, std::map<std::string, std::string>&, const AppState&)
+auto Screens::CreateWaylandRenderer(const WaylandOutput&, bool, bool, std::map<std::string, std::string>&)
     -> std::unique_ptr<ScreenRenderer> {
     return nullptr;
 }
 
-auto Screens::CreateWayland(WaylandClient&, AppState&) -> std::vector<ScreenOverlay> {
+auto Screens::CreateWayland(WaylandClient&) -> std::vector<ScreenOverlay> {
     return {};
 }
 
@@ -817,7 +391,7 @@ auto Screens::CreateWayland(WaylandClient&, AppState&) -> std::vector<ScreenOver
 
 #if FRAMEXR_FEATURE_X11 && FRAMEXR_FEATURE_PIPEWIRE
 
-auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverlay>> {
+auto Screens::CreateX11Pipewire() -> Result<std::vector<ScreenOverlay>> {
     auto tokens = LoadTokens().value_or(std::map<std::string, std::string>{});
     const auto original_tokens = tokens;
     std::optional<std::string> token;
@@ -831,7 +405,7 @@ auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverl
             "Select ALL screens on the screencast pop-up!",
             {
                 .restore_token = std::move(token),
-                .embed_mouse = !app.config.double_cursor_fix,
+                .embed_mouse = !g_config->double_cursor_fix,
                 .screens_only = true,
                 .persist = true,
                 .multiple = true,
@@ -873,10 +447,9 @@ auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverl
         auto state = CreateState(
             monitor->name,
             {static_cast<int32_t>(monitor->width), static_cast<int32_t>(monitor->height)},
-            FrameTransform::Normal,
-            app.config
+            FrameTransform::Normal
         );
-        ScreenMeta meta{.name = monitor->name, .id = state.id, .native_handle = 0};
+        ScreenMeta meta{.name = monitor->name, .id = state.Id(), .native_handle = 0};
         auto backend = std::make_unique<SplitOverlayBackend>(
             std::make_unique<ScreenRenderer>(monitor->name, std::make_unique<PipewireCapture>(monitor->name, stream.node_id)),
             std::make_unique<ScreenInteraction>(position, size, FrameTransform::Normal)
@@ -889,14 +462,14 @@ auto Screens::CreateX11Pipewire(AppState& app) -> Result<std::vector<ScreenOverl
         });
     }
 
-    app.hid->SetDesktopExtent(extent);
-    app.hid->SetDesktopOrigin(Eigen::Vector2f::Zero());
+    g_hid->SetDesktopExtent(extent);
+    g_hid->SetDesktopOrigin(Eigen::Vector2f::Zero());
     return screens;
 }
 
 #else
 
-auto Screens::CreateX11Pipewire(AppState&) -> Result<std::vector<ScreenOverlay>> {
+auto Screens::CreateX11Pipewire() -> Result<std::vector<ScreenOverlay>> {
     return Unexpected("Pipewire support not enabled");
 }
 
@@ -904,7 +477,7 @@ auto Screens::CreateX11Pipewire(AppState&) -> Result<std::vector<ScreenOverlay>>
 
 #ifdef _WIN32
 
-auto Screens::CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>> {
+auto Screens::CreateWindows() -> Result<std::vector<ScreenOverlay>> {
     ASSIGN_OR_RETURN(auto outputs, DxgiCapture::Outputs());
 
     Eigen::Vector2f origin = Eigen::Vector2f::Constant(std::numeric_limits<float>::max());
@@ -918,8 +491,8 @@ auto Screens::CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>>
 
         LOG_INFO("{}: Init Windows screen of res ({}, {}) at ({}, {})", output.name, output.width, output.height, output.x, output.y);
 
-        auto state = CreateState(output.name, {output.width, output.height}, output.transform, app.config);
-        ScreenMeta meta{.name = output.name, .id = state.id, .native_handle = 0};
+        auto state = CreateState(output.name, {output.width, output.height}, output.transform);
+        ScreenMeta meta{.name = output.name, .id = state.Id(), .native_handle = 0};
         auto backend = std::make_unique<SplitOverlayBackend>(
             std::make_unique<ScreenRenderer>(output.name, std::make_unique<DxgiCapture>(output.name, std::move(output.device))),
             std::make_unique<ScreenInteraction>(position, size, output.transform)
@@ -932,8 +505,8 @@ auto Screens::CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>>
         });
     }
 
-    app.hid->SetDesktopExtent(end - origin);
-    app.hid->SetDesktopOrigin(origin);
+    g_hid->SetDesktopExtent(end - origin);
+    g_hid->SetDesktopOrigin(origin);
     return screens;
 }
 
@@ -941,7 +514,7 @@ auto Screens::CreateWindows(AppState& app) -> Result<std::vector<ScreenOverlay>>
 
 #if FRAMEXR_FEATURE_X11
 
-auto Screens::CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>> {
+auto Screens::CreateXshm() -> Result<std::vector<ScreenOverlay>> {
     ASSIGN_OR_RETURN(auto monitors, Xshm::Monitors());
 
     Eigen::Vector2f extent = Eigen::Vector2f::Zero();
@@ -963,10 +536,9 @@ auto Screens::CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>> {
         auto state = CreateState(
             monitor->name,
             {static_cast<int32_t>(monitor->width), static_cast<int32_t>(monitor->height)},
-            FrameTransform::Normal,
-            app.config
+            FrameTransform::Normal
         );
-        ScreenMeta meta{.name = monitor->name, .id = state.id, .native_handle = 0};
+        ScreenMeta meta{.name = monitor->name, .id = state.Id(), .native_handle = 0};
         const auto name = monitor->name;
         const Eigen::Vector2i desktop_position(monitor->x, monitor->y);
         auto backend = std::make_unique<SplitOverlayBackend>(
@@ -981,14 +553,14 @@ auto Screens::CreateXshm(AppState& app) -> Result<std::vector<ScreenOverlay>> {
         });
     }
 
-    app.hid->SetDesktopExtent(extent);
-    app.hid->SetDesktopOrigin(Eigen::Vector2f::Zero());
+    g_hid->SetDesktopExtent(extent);
+    g_hid->SetDesktopOrigin(Eigen::Vector2f::Zero());
     return screens;
 }
 
 #else
 
-auto Screens::CreateXshm(AppState&) -> Result<std::vector<ScreenOverlay>> {
+auto Screens::CreateXshm() -> Result<std::vector<ScreenOverlay>> {
     return Unexpected("X11 support not enabled");
 }
 

@@ -59,12 +59,16 @@ struct ActionKey {
 
 using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ActionKey>;
 
+struct UsLabel {
+    VirtualKey key;
+    std::string_view lower;
+    std::string_view upper;
+};
+
 struct KeyStyle {
     std::optional<std::string> bg_color;
     std::optional<std::string> fg_color;
     std::optional<float> corner_radius;
-
-    [[nodiscard]] auto Empty() const -> bool { return !bg_color && !fg_color && !corner_radius; }
 };
 
 struct KeyDefinition {
@@ -75,23 +79,35 @@ struct KeyDefinition {
     std::optional<std::vector<std::string>> label;
     std::optional<std::string> shifted_label;
     KeyStyle style;
-
-    [[nodiscard]] auto Right() const -> float { return x + width; }
 };
 
-struct KeyboardLayout {
-    std::string name;
-    float columns = 0.0f;
-    int rows = 0;
-    std::vector<KeyDefinition> keys;
-    AltModifier alt_modifier = AltModifier::None;
-    std::optional<bool> auto_labels;
-    std::optional<std::string> region;
-    std::filesystem::path source;
+class KeyboardLayout {
+  public:
+    [[nodiscard]] auto Name() const -> const std::string& { return m_name; }
+    [[nodiscard]] auto Columns() const -> float { return m_columns; }
+    [[nodiscard]] auto Rows() const -> int { return m_rows; }
+    [[nodiscard]] auto Keys() const -> const std::vector<KeyDefinition>& { return m_keys; }
+    [[nodiscard]] auto Keys() -> std::vector<KeyDefinition>& { return m_keys; }
+    [[nodiscard]] auto AltKey() const -> AltModifier { return m_alt_key; }
+    [[nodiscard]] auto AutoLabels() const -> const std::optional<bool>& { return m_auto_labels; }
+    [[nodiscard]] auto AutoLabels() -> std::optional<bool>& { return m_auto_labels; }
+    [[nodiscard]] auto Region() const -> const std::optional<std::string>& { return m_region; }
+    [[nodiscard]] auto Region() -> std::optional<std::string>& { return m_region; }
+    [[nodiscard]] auto Source() const -> const std::filesystem::path& { return m_source; }
+    [[nodiscard]] auto Source() -> std::filesystem::path& { return m_source; }
+
+    auto SetName(std::string name) -> void { m_name = std::move(name); }
+    auto SetColumns(float columns) -> void { m_columns = columns; }
+    auto SetRows(int rows) -> void { m_rows = rows; }
+    auto SetAltKey(AltModifier alt_key) -> void { m_alt_key = alt_key; }
+    auto SetAutoLabels(std::optional<bool> auto_labels) -> void { m_auto_labels = auto_labels; }
+    auto SetRegion(std::optional<std::string> region) -> void { m_region = std::move(region); }
+    auto SetSource(std::filesystem::path source) -> void { m_source = std::move(source); }
 
     static auto Parse(std::string_view text) -> Result<KeyboardLayout>;
     static auto DefaultLabel(std::string_view key) -> std::vector<std::string>;
     static auto Snap(float units) -> float;
+    static auto RightEdge(const KeyDefinition& key) -> float { return key.x + key.width; }
 
     [[nodiscard]] auto Validate() const -> Result<>;
     [[nodiscard]] auto KeyAt(float x, int row) const -> std::optional<size_t>;
@@ -100,18 +116,16 @@ struct KeyboardLayout {
     [[nodiscard]] auto Labels(const KeyDefinition& key) const -> std::vector<std::string>;
     [[nodiscard]] auto AltModifierMask() const -> uint8_t;
     auto SortKeys() -> void;
-};
 
-class KeyboardProfiles final {
-  public:
-    static auto All() -> const std::vector<KeyboardLayout>&;
-    static auto Find(std::string_view name) -> const KeyboardLayout&;
-    static auto After(std::string_view name) -> const KeyboardLayout&;
-    static auto Reload() -> void;
-    static auto UserDirectory() -> std::filesystem::path;
-    static auto IsBuiltIn(std::string_view name) -> bool;
-    static auto Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
-        -> std::vector<KeyboardLayout>;
+  private:
+    std::string m_name;
+    float m_columns = 0.0f;
+    int m_rows = 0;
+    std::vector<KeyDefinition> m_keys;
+    AltModifier m_alt_key = AltModifier::None;
+    std::optional<bool> m_auto_labels;
+    std::optional<std::string> m_region;
+    std::filesystem::path m_source;
 };
 
 auto from_json(const nlohmann::json& json, AltModifier& value) -> void;

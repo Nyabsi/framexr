@@ -25,51 +25,53 @@
 #include <gtest/gtest.h>
 
 #include "Canvas.hpp"
+#include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
+#include "Config.hpp"
 #include "CustomUi.hpp"
 #include "Device.hpp"
 #include "GpuReadback.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
+#include "OverlayContainer.hpp"
+#include "OverlayRenderer.hpp"
 #include "Png.hpp"
-#include "State.hpp"
 #include "TestApp.hpp"
 #include "Watch.hpp"
 
 namespace {
 
 auto RenderPixels(OverlayBackend& backend, std::vector<unsigned char>& pixels) -> void {
-    auto& app = TestApp::Get();
-    ASSERT_TRUE(backend.Init(app).has_value());
-    const auto readiness = backend.ShouldRender(app);
+    ASSERT_TRUE(backend.Init().has_value());
+    const auto readiness = backend.ShouldRender();
     ASSERT_TRUE(readiness.has_value());
     EXPECT_EQ(*readiness, RenderReadiness::Should);
     const auto meta = backend.Meta();
     ASSERT_TRUE(meta.has_value());
 
-    auto target = app.device->CreateRenderTexture(
+    auto target = g_device->CreateRenderTexture(
         meta->extent.width,
         meta->extent.height,
-        app.device->NativeFormat(),
+        g_device->NativeFormat(),
         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     );
     ASSERT_TRUE(target.has_value());
     CommandBatch batch;
-    const auto rendered = backend.Render(app, *target, batch, 1.0f);
+    const auto rendered = backend.Render(*target, batch, 1.0f);
     ASSERT_TRUE(rendered.has_value());
     EXPECT_TRUE(*rendered);
     ASSERT_TRUE(batch.Submit().has_value());
-    app.device->GraphicsQueue().WaitIdle();
+    g_device->GraphicsQueue().WaitIdle();
 
-    pixels = GpuReadback::Read(*app.device, **target);
+    pixels = GpuReadback::Read(**target);
     ASSERT_FALSE(pixels.empty());
 }
 
 auto RenderOverlay(Overlay& overlay, const std::string& name) -> void {
     std::vector<unsigned char> pixels;
-    RenderPixels(*overlay.backend, pixels);
+    RenderPixels(*overlay.Backend(), pixels);
     EXPECT_GT(GpuReadback::DistinctColors(pixels), 2U);
-    const auto meta = overlay.backend->Meta();
+    const auto meta = overlay.Backend()->Meta();
     ASSERT_TRUE(meta.has_value());
     Png::Write(TestApp::OutputDir() / std::format("{}.png", name), meta->extent.width, meta->extent.height, pixels);
 }
@@ -83,9 +85,10 @@ auto AlphaAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -
 } // namespace
 
 TEST(OverlayRender, Watch) {
-    auto watch = Watch::Create(TestApp::Get());
+    const auto overlays = OverlayContainer::CreateEmpty();
+    auto watch = Watch::Create();
     ASSERT_TRUE(watch.has_value());
-    EXPECT_TRUE((*watch)->state.want_visible);
+    EXPECT_TRUE((*watch)->State().WantVisible());
     RenderOverlay(**watch, "watch");
 }
 
@@ -94,32 +97,31 @@ TEST(OverlayRender, KeyboardWithSessionKeymap) {
     if (auto loaded = Keymap::FromWayland()) {
         keymap = std::make_shared<const Keymap>(std::move(*loaded));
     }
-    auto keyboard = Keyboard::Create(TestApp::Get(), keymap);
+    auto keyboard = Keyboard::Create(keymap);
     ASSERT_TRUE(keyboard.has_value());
     RenderOverlay(**keyboard, "keyboard");
 }
 
 TEST(OverlayRender, KeyboardWithFinnishRegion) {
-    auto& app = TestApp::Get();
-    app.config.keyboard_region = "fi";
-    auto keyboard = Keyboard::Create(app, nullptr);
-    app.config.keyboard_region.clear();
+    g_config->keyboard_region = "fi";
+    auto keyboard = Keyboard::Create(nullptr);
+    g_config->keyboard_region.clear();
     ASSERT_TRUE(keyboard.has_value());
     RenderOverlay(**keyboard, "keyboard-fi");
 }
 
 TEST(OverlayRender, SettingsPanel) {
-    auto settings = CustomUi::Create(TestApp::Get(), "settings");
+    const auto overlays = OverlayContainer::CreateEmpty();
+    auto settings = CustomUi::Create("settings");
     ASSERT_TRUE(settings.has_value());
     Overlay overlay(std::move(settings->first), std::move(settings->second));
     RenderOverlay(overlay, "settings");
 }
 
 TEST(OverlayRender, RoundedCornersUseTheirRadiusAndAreSmooth) {
-    auto& app = TestApp::Get();
-    auto canvas = Canvas::Create(app.device, kCornerCanvasSize, kCornerCanvasSize, app.device->NativeFormat());
+    auto canvas = Canvas::Create(kCornerCanvasSize, kCornerCanvasSize, g_device->NativeFormat());
     ASSERT_TRUE(canvas.has_value());
-    (*canvas)->bg_color = Eigen::Vector4f::Ones();
+    (*canvas)->SetBgColor(Eigen::Vector4f::Ones());
     (*canvas)->Panel(0.0f, 0.0f, kCornerCanvasSize, kCornerCanvasSize, 16.0f);
 
     std::vector<unsigned char> pixels;

@@ -26,48 +26,48 @@
 
 #include "Logger.hpp"
 #include "OpenXrPose.hpp"
-#include "State.hpp"
+#include "Overlay.hpp"
 
-auto OpenXrOverlay::EnsureSwapchain(Overlay& overlay, AppState& app, const OpenXrState& xr) -> Result<bool> {
-    const auto meta = overlay.backend->Meta();
-    if (swapchain && meta) {
-        const auto extent = swapchain->Extent();
+auto OpenXrOverlay::EnsureSwapchain(Overlay& overlay, const OpenXrState& xr) -> Result<bool> {
+    const auto meta = overlay.Backend()->Meta();
+    if (m_swapchain && meta) {
+        const auto extent = m_swapchain->Extent();
         if (extent.width == meta->extent.width && extent.height == meta->extent.height) {
             return true;
         }
-        RETURN_IF_ERROR(swapchain->EnsureImageReleased());
-        swapchain.reset();
+        RETURN_IF_ERROR(m_swapchain->EnsureImageReleased());
+        m_swapchain.reset();
     }
-    if (swapchain) {
+    if (m_swapchain) {
         return true;
     }
     if (!meta) {
-        LOG_WARN("{}: swapchain cannot be created due to missing metadata", overlay.state.name);
+        LOG_WARN("{}: swapchain cannot be created due to missing metadata", overlay.State().Name());
         return false;
     }
-    ASSIGN_OR_RETURN(swapchain, OpenXrSwapchain::Create(*xr.instance, xr.session, *app.device, meta->extent, false));
+    ASSIGN_OR_RETURN(m_swapchain, OpenXrSwapchain::Create(*xr.instance, xr.session, meta->extent, false));
     return true;
 }
 
 auto OpenXrOverlay::Present(Overlay& overlay, const OpenXrState& xr) -> Result<std::optional<OpenXrLayer>> {
-    if (!swapchain) {
-        LOG_WARN("{}: swapchain not ready", overlay.state.name);
+    if (!m_swapchain) {
+        LOG_WARN("{}: swapchain not ready", overlay.State().Name());
         return std::nullopt;
     }
-    if (!swapchain->EverAcquired()) {
-        LOG_WARN("{}: swapchain not rendered", overlay.state.name);
+    if (!m_swapchain->EverAcquired()) {
+        LOG_WARN("{}: swapchain not rendered", overlay.State().Name());
         return std::nullopt;
     }
-    RETURN_IF_ERROR(swapchain->EnsureImageReleased());
+    RETURN_IF_ERROR(m_swapchain->EnsureImageReleased());
 
-    const auto meta = overlay.backend->Meta();
+    const auto meta = overlay.Backend()->Meta();
     if (!meta) {
-        FatalError(std::format("{}: frame meta missing after render", overlay.state.name));
+        FatalError(std::format("{}: frame meta missing after render", overlay.State().Name()));
     }
-    const Eigen::Affine3f transform = overlay.state.transform * meta->transform;
+    const Eigen::Affine3f transform = overlay.State().Transform() * meta->transform;
     const Eigen::Matrix3f linear = transform.linear();
 
-    const auto extent = swapchain->Extent();
+    const auto extent = m_swapchain->Extent();
     const float aspect_ratio = static_cast<float>(extent.height) / static_cast<float>(extent.width);
     float scale_x = 0.0f;
     float scale_y = 0.0f;
@@ -81,7 +81,7 @@ auto OpenXrOverlay::Present(Overlay& overlay, const OpenXrState& xr) -> Result<s
         scale_y = major;
     }
 
-    if (const auto curvature = overlay.state.curvature) {
+    if (const auto curvature = overlay.State().Curvature()) {
         const float radius = scale_x / (2.0f * std::numbers::pi_v<float> * *curvature);
         const Eigen::Quaternionf rotation = OpenXrPose::NormalizedRotation(transform);
         const Eigen::Vector3f center = transform.translation() + rotation * (Eigen::Vector3f::UnitZ() * radius);
@@ -90,7 +90,7 @@ auto OpenXrOverlay::Present(Overlay& overlay, const OpenXrState& xr) -> Result<s
             .layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT,
             .space = xr.stage,
             .eyeVisibility = XR_EYE_VISIBILITY_BOTH,
-            .subImage = swapchain->SubImage(),
+            .subImage = m_swapchain->SubImage(),
             .pose = OpenXrPose::FromTranslationRotation(center, rotation),
             .radius = radius,
             .centralAngle = 2.0f * (scale_x / (2.0f * radius)),
@@ -103,20 +103,20 @@ auto OpenXrOverlay::Present(Overlay& overlay, const OpenXrState& xr) -> Result<s
         .layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT,
         .space = xr.stage,
         .eyeVisibility = XR_EYE_VISIBILITY_BOTH,
-        .subImage = swapchain->SubImage(),
+        .subImage = m_swapchain->SubImage(),
         .pose = OpenXrPose::FromTransform(transform),
         .size = {.width = scale_x, .height = scale_y},
     }};
 }
 
-auto OpenXrOverlay::AfterInput(Overlay& overlay, AppState& app) -> Result<> {
-    if (last_visible != overlay.state.want_visible) {
-        if (overlay.state.want_visible) {
-            RETURN_IF_ERROR(overlay.backend->Resume(app));
+auto OpenXrOverlay::AfterInput(Overlay& overlay) -> Result<> {
+    if (m_last_visible != overlay.State().WantVisible()) {
+        if (overlay.State().WantVisible()) {
+            RETURN_IF_ERROR(overlay.Backend()->Resume());
         } else {
-            RETURN_IF_ERROR(overlay.backend->Pause(app));
+            RETURN_IF_ERROR(overlay.Backend()->Pause());
         }
     }
-    last_visible = overlay.state.want_visible;
+    m_last_visible = overlay.State().WantVisible();
     return {};
 }

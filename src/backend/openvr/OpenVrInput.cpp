@@ -28,9 +28,9 @@
 #include <string_view>
 
 #include "Config.hpp"
+#include "Input.hpp"
 #include "Logger.hpp"
 #include "OpenVrMath.hpp"
-#include "State.hpp"
 
 namespace {
 
@@ -90,7 +90,7 @@ auto SourceHandle(const char* path) -> Result<vr::VRInputValueHandle_t> {
 } // namespace
 
 auto OpenVrInput::SetActionManifest() -> Result<> {
-    const auto action_path = Config::Root() / "actions.json";
+    const auto action_path = ConfigStore::Root() / "actions.json";
     if (auto written = WriteFile(action_path, AsText(kActions)); !written) {
         LOG_WARN("Could not write action manifest: {}", written.error().Message());
     }
@@ -101,7 +101,7 @@ auto OpenVrInput::SetActionManifest() -> Result<> {
         {"actions_binding_oculus.json", AsText(kBindingOculus)},
     });
     for (const auto& [name, contents] : bindings) {
-        const auto path = Config::Root() / name;
+        const auto path = ConfigStore::Root() / name;
         if (!std::filesystem::is_regular_file(path)) {
             RETURN_IF_ERROR(WriteFile(path, contents));
         }
@@ -115,7 +115,7 @@ auto OpenVrInput::SetActionManifest() -> Result<> {
 
 auto OpenVrInput::Create() -> Result<OpenVrInput> {
     OpenVrInput input;
-    auto& actions = input.actions_;
+    auto& actions = input.m_actions;
     if (const auto error = vr::VRInput()->GetActionSetHandle("/actions/default", &actions.set); error != vr::VRInputError_None) {
         return std::unexpected(InputError(error));
     }
@@ -129,21 +129,21 @@ auto OpenVrInput::Create() -> Result<OpenVrInput> {
     ASSIGN_OR_RETURN(actions.click_modifier_middle, ActionHandle("/actions/default/in/ClickModifierMiddle"));
     ASSIGN_OR_RETURN(actions.move_mouse, ActionHandle("/actions/default/in/MoveMouse"));
 
-    for (size_t i = 0; i < input.hands_.size(); ++i) {
-        ASSIGN_OR_RETURN(input.hands_[i].input, SourceHandle(kInputSources[i]));
+    for (size_t i = 0; i < input.m_hands.size(); ++i) {
+        ASSIGN_OR_RETURN(input.m_hands[i].input, SourceHandle(kInputSources[i]));
     }
-    for (size_t i = 0; i < input.hands_.size(); ++i) {
-        ASSIGN_OR_RETURN(input.hands_[i].pose, ActionHandle(kPosePaths[i]));
+    for (size_t i = 0; i < input.m_hands.size(); ++i) {
+        ASSIGN_OR_RETURN(input.m_hands[i].pose, ActionHandle(kPosePaths[i]));
     }
-    for (size_t i = 0; i < input.hands_.size(); ++i) {
-        ASSIGN_OR_RETURN(input.hands_[i].haptics, ActionHandle(kHapticsPaths[i]));
+    for (size_t i = 0; i < input.m_hands.size(); ++i) {
+        ASSIGN_OR_RETURN(input.m_hands[i].haptics, ActionHandle(kHapticsPaths[i]));
     }
     return input;
 }
 
 auto OpenVrInput::TriggerHaptics(size_t hand, const Haptics& haptics) const -> void {
     vr::VRInput()->TriggerHapticVibrationAction(
-        hands_[hand].haptics,
+        m_hands[hand].haptics,
         0.0f,
         haptics.duration,
         haptics.frequency,
@@ -160,45 +160,45 @@ auto OpenVrInput::Digital(vr::VRActionHandle_t action, vr::VRInputValueHandle_t 
     return data.bState;
 }
 
-auto OpenVrInput::Update(vr::ETrackingUniverseOrigin universe, AppState& app) -> void {
-    vr::VRActiveActionSet_t active_set{.ulActionSet = actions_.set};
+auto OpenVrInput::Update(vr::ETrackingUniverseOrigin universe) -> void {
+    vr::VRActiveActionSet_t active_set{.ulActionSet = m_actions.set};
     vr::VRInput()->UpdateActionState(&active_set, sizeof(active_set), 1);
 
     std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> poses;
     vr::VRSystem()->GetDeviceToAbsoluteTrackingPose(universe, 0.005f, poses.data(), static_cast<uint32_t>(poses.size()));
-    app.input.hmd = OpenVrMath::ToAffine(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
+    g_input->SetHmd(OpenVrMath::ToAffine(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking));
 
-    for (size_t i = 0; i < hands_.size(); ++i) {
-        const auto& hand = hands_[i];
-        auto& pointer = app.input.pointers[i];
+    for (size_t i = 0; i < m_hands.size(); ++i) {
+        const auto& hand = m_hands[i];
+        auto& pointer = g_input->Pointers()[i];
 
         if (hand.device) {
-            pointer.raw_pose = OpenVrMath::ToAffine(poses[*hand.device].mDeviceToAbsoluteTracking);
+            pointer.SetRawPose(OpenVrMath::ToAffine(poses[*hand.device].mDeviceToAbsoluteTracking));
         }
 
         vr::InputPoseActionData_t pose;
         if (vr::VRInput()
                 ->GetPoseActionDataRelativeToNow(hand.pose, universe, 0.005f, &pose, sizeof(pose), vr::k_ulInvalidInputValueHandle)
             == vr::VRInputError_None) {
-            pointer.pose = OpenVrMath::ToAffine(pose.pose.mDeviceToAbsoluteTracking);
+            pointer.SetPose(OpenVrMath::ToAffine(pose.pose.mDeviceToAbsoluteTracking));
         }
 
-        pointer.now.click = Digital(actions_.click, hand.input);
-        pointer.now.grab = Digital(actions_.grab, hand.input);
-        pointer.now.alt_click = Digital(actions_.alt_click, hand.input);
-        pointer.now.space_drag = Digital(actions_.space_drag, hand.input);
-        pointer.now.space_rotate = Digital(actions_.space_rotate, hand.input);
-        pointer.now.click_modifier_right = Digital(actions_.click_modifier_right, hand.input);
-        pointer.now.click_modifier_middle = Digital(actions_.click_modifier_middle, hand.input);
-        pointer.now.move_mouse = Digital(actions_.move_mouse, hand.input);
+        pointer.Now().click = Digital(m_actions.click, hand.input);
+        pointer.Now().grab = Digital(m_actions.grab, hand.input);
+        pointer.Now().alt_click = Digital(m_actions.alt_click, hand.input);
+        pointer.Now().space_drag = Digital(m_actions.space_drag, hand.input);
+        pointer.Now().space_rotate = Digital(m_actions.space_rotate, hand.input);
+        pointer.Now().click_modifier_right = Digital(m_actions.click_modifier_right, hand.input);
+        pointer.Now().click_modifier_middle = Digital(m_actions.click_modifier_middle, hand.input);
+        pointer.Now().move_mouse = Digital(m_actions.move_mouse, hand.input);
 
         vr::InputAnalogActionData_t scroll{};
-        if (vr::VRInput()->GetAnalogActionData(actions_.scroll, &scroll, sizeof(scroll), hand.input) != vr::VRInputError_None) {
+        if (vr::VRInput()->GetAnalogActionData(m_actions.scroll, &scroll, sizeof(scroll), hand.input) != vr::VRInputError_None) {
             scroll.x = 0.0f;
             scroll.y = 0.0f;
         }
-        pointer.now.scroll_x = scroll.x;
-        pointer.now.scroll_y = scroll.y;
+        pointer.Now().scroll_x = scroll.x;
+        pointer.Now().scroll_y = scroll.y;
     }
 }
 
@@ -228,9 +228,9 @@ auto OpenVrInput::ReadTrackedDevice(vr::TrackedDeviceIndex_t index, TrackedDevic
     return device;
 }
 
-auto OpenVrInput::UpdateDevices(AppState& app) -> void {
+auto OpenVrInput::UpdateDevices() -> void {
     auto* system = vr::VRSystem();
-    app.input.devices.clear();
+    g_input->Devices().clear();
     for (vr::TrackedDeviceIndex_t index = 0; index < vr::k_unMaxTrackedDeviceCount; ++index) {
         if (!system->IsTrackedDeviceConnected(index)) {
             continue;
@@ -242,11 +242,11 @@ auto OpenVrInput::UpdateDevices(AppState& app) -> void {
         case vr::TrackedDeviceClass_Controller:
             switch (system->GetControllerRoleForTrackedDeviceIndex(index)) {
             case vr::TrackedControllerRole_LeftHand:
-                hands_[0].device = index;
+                m_hands[0].device = index;
                 role = TrackedDeviceRole::LeftHand;
                 break;
             case vr::TrackedControllerRole_RightHand:
-                hands_[1].device = index;
+                m_hands[1].device = index;
                 role = TrackedDeviceRole::RightHand;
                 break;
             default: continue;
@@ -257,8 +257,8 @@ auto OpenVrInput::UpdateDevices(AppState& app) -> void {
         }
 
         if (auto device = ReadTrackedDevice(index, role)) {
-            app.input.devices.push_back(*device);
+            g_input->Devices().push_back(*device);
         }
     }
-    app.input.SortDevices();
+    g_input->SortDevices();
 }

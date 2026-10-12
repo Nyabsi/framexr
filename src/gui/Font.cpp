@@ -21,17 +21,18 @@
 
 #include "Font.hpp"
 
-#include <cmath>
-
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <format>
-#include <numeric>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "Device.hpp"
 #include "Logger.hpp"
+
+FontCache* g_fonts = nullptr;
 
 auto FontCache::Create(std::string primary_font) -> Result<std::unique_ptr<FontCache>> {
     FT_Library library = nullptr;
@@ -43,17 +44,17 @@ auto FontCache::Create(std::string primary_font) -> Result<std::unique_ptr<FontC
 }
 
 FontCache::FontCache(std::string primary_font, FT_LibraryRec_* library)
-    : primary_font_(std::move(primary_font)),
-      library_(library) {
+    : m_primary_font(std::move(primary_font)),
+      m_library(library) {
 }
 
 FontCache::~FontCache() {
-    for (auto& [size, collection] : collections_) {
+    for (auto& [size, collection] : m_collections) {
         for (auto& font : collection.fonts) {
             FT_Done_Face(font.face);
         }
     }
-    FT_Done_FreeType(library_);
+    FT_Done_FreeType(m_library);
 }
 
 auto FontCache::SplitLines(std::string_view text) -> std::vector<std::string_view> {
@@ -109,7 +110,7 @@ auto FontCache::DecodeUtf8(std::string_view text) -> std::vector<uint32_t> {
 }
 
 auto FontCache::Collection(int size) -> FontCollection& {
-    auto [it, inserted] = collections_.try_emplace(size);
+    auto [it, inserted] = m_collections.try_emplace(size);
     if (inserted) {
         it->second.zero_glyph = std::make_shared<Glyph>(Glyph{.advance = static_cast<float>(size) / 3.0f});
     }
@@ -132,7 +133,7 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
     LOG_DEBUG("Loading font: {} {}pt", name, size);
 
     FT_Face face = nullptr;
-    if (const auto error = FT_New_Face(library_, path.c_str(), face_index, &face); error != 0) {
+    if (const auto error = FT_New_Face(m_library, path.c_str(), face_index, &face); error != 0) {
         LOG_WARN("Failed to load font at {}: {}", path, error);
         collection.codepoint_fonts.emplace(codepoint, 0);
         return 0;
@@ -162,7 +163,7 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
     return font_index;
 }
 
-auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, Device& device, std::optional<CommandBuffer>& uploads)
+auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, std::optional<CommandBuffer>& uploads)
     -> Result<std::shared_ptr<Glyph>> {
     const auto font_index = FontForCodepoint(codepoint, size);
     auto& collection = Collection(size);
@@ -199,7 +200,7 @@ auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, Device& device, 
     }
 
     if (!uploads) {
-        ASSIGN_OR_RETURN(auto command_buffer, device.CreateCommandBuffer(device.TransferQueue()));
+        ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->TransferQueue()));
         uploads.emplace(std::move(command_buffer));
     }
 
@@ -219,7 +220,7 @@ auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, Device& device, 
     return glyph;
 }
 
-auto FontCache::MeasureText(std::string_view text, int size, Device& device) -> Result<TextSize> {
+auto FontCache::MeasureText(std::string_view text, int size) -> Result<TextSize> {
     const auto lines = SplitLines(text);
     const auto size_f = static_cast<float>(size);
     TextSize result{
@@ -231,7 +232,7 @@ auto FontCache::MeasureText(std::string_view text, int size, Device& device) -> 
     for (const auto line : lines) {
         float width = 0.0f;
         for (const auto codepoint : DecodeUtf8(line)) {
-            if (const auto glyph = GlyphForCodepoint(codepoint, size, device, uploads)) {
+            if (const auto glyph = GlyphForCodepoint(codepoint, size, uploads)) {
                 width += (*glyph)->advance;
             }
         }
@@ -243,12 +244,12 @@ auto FontCache::MeasureText(std::string_view text, int size, Device& device) -> 
     return result;
 }
 
-auto FontCache::Glyphs(std::string_view text, int size, Device& device) -> Result<std::vector<std::shared_ptr<Glyph>>> {
+auto FontCache::Glyphs(std::string_view text, int size) -> Result<std::vector<std::shared_ptr<Glyph>>> {
     std::vector<std::shared_ptr<Glyph>> glyphs;
     std::optional<CommandBuffer> uploads;
     for (const auto line : SplitLines(text)) {
         for (const auto codepoint : DecodeUtf8(line)) {
-            ASSIGN_OR_RETURN(auto glyph, GlyphForCodepoint(codepoint, size, device, uploads));
+            ASSIGN_OR_RETURN(auto glyph, GlyphForCodepoint(codepoint, size, uploads));
             glyphs.push_back(std::move(glyph));
         }
     }

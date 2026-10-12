@@ -21,7 +21,7 @@ if get_option('wayland').allowed()
 endif
 
 if get_option('x11').allowed()
-  capture_sources += files('x11/XshmCapture.cpp')
+  capture_sources += files('x11/Xshm.cpp', 'x11/XshmCapture.cpp')
   capture_deps += [
     dependency('x11', include_type: 'system'),
     dependency('xext', include_type: 'system'),

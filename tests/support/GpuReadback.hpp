@@ -22,12 +22,11 @@
 #include <span>
 #include <vector>
 
-class Device;
 class Image;
 
 class GpuReadback final {
   public:
-    static auto Read(Device& device, Image& image) -> std::vector<unsigned char>;
+    static auto Read(Image& image) -> std::vector<unsigned char>;
     static auto DistinctColors(std::span<const unsigned char> rgba) -> size_t;
     static auto IsOpaque(std::span<const unsigned char> rgba) -> bool;
 };

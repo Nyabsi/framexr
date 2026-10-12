@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdlib>
 #include <format>
 #include <fstream>
 #include <sstream>
@@ -33,6 +32,8 @@
 #include "Logger.hpp"
 #include "Platform.hpp"
 #include "Yaml.hpp"
+
+Config* g_config = nullptr;
 
 namespace {
 
@@ -70,33 +71,33 @@ auto ToFloatPairs(const std::vector<std::pair<std::string, float>>& values) -> n
 
 } // namespace
 
-auto Config::Root() -> const std::filesystem::path& {
+auto ConfigStore::Root() -> const std::filesystem::path& {
     static const auto root = ResolveRoot();
     return root;
 }
 
-auto Config::ConfD() -> std::filesystem::path {
+auto ConfigStore::ConfD() -> std::filesystem::path {
     return Root() / "conf.d";
 }
 
-auto Config::EnsureDirectories() -> std::filesystem::path {
+auto ConfigStore::EnsureDirectories() -> std::filesystem::path {
     std::error_code error;
     std::filesystem::create_directory(Root(), error);
     std::filesystem::create_directory(ConfD(), error);
     return Root();
 }
 
-auto Config::File(std::string_view filename) -> std::filesystem::path {
+auto ConfigStore::File(std::string_view filename) -> std::filesystem::path {
     return Root() / filename;
 }
 
-auto Config::LoadText(std::string_view filename) -> std::optional<std::string> {
+auto ConfigStore::LoadText(std::string_view filename) -> std::optional<std::string> {
     const auto path = File(filename);
     LOG_INFO("Loading config: {}", path.string());
     return ReadFile(path);
 }
 
-auto Config::ReadFile(const std::filesystem::path& path) -> std::optional<std::string> {
+auto ConfigStore::ReadFile(const std::filesystem::path& path) -> std::optional<std::string> {
     std::ifstream stream(path, std::ios::binary);
     if (!stream) {
         return std::nullopt;
@@ -106,7 +107,7 @@ auto Config::ReadFile(const std::filesystem::path& path) -> std::optional<std::s
     return contents.str();
 }
 
-auto Config::ParseFile(const std::filesystem::path& path) -> Result<nlohmann::json> {
+auto ConfigStore::ParseFile(const std::filesystem::path& path) -> Result<nlohmann::json> {
     const auto contents = ReadFile(path);
     if (!contents) {
         return Unexpected(std::format("Failed to read {}", path.string()));
@@ -127,7 +128,7 @@ auto Config::ParseFile(const std::filesystem::path& path) -> Result<nlohmann::js
     return Unexpected(std::format("Unsupported config file format: {}", path.string()));
 }
 
-auto Config::Merge(nlohmann::json& target, const nlohmann::json& source) -> void {
+auto ConfigStore::Merge(nlohmann::json& target, const nlohmann::json& source) -> void {
     if (!source.is_object()) {
         target = source;
         return;
@@ -140,7 +141,7 @@ auto Config::Merge(nlohmann::json& target, const nlohmann::json& source) -> void
     }
 }
 
-auto Config::LoadWithConfD(std::string_view root_filename) -> nlohmann::json {
+auto ConfigStore::LoadWithConfD(std::string_view root_filename) -> nlohmann::json {
     const auto conf_d = ConfD();
 
     std::vector<std::filesystem::path> sources;
@@ -208,7 +209,7 @@ auto nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>>::to_json(
     }
 }
 
-auto Config::DefaultTimezones() -> std::vector<std::string> {
+auto ConfigStore::DefaultTimezones() -> std::vector<std::string> {
     constexpr std::chrono::seconds kEmea{-60 * 60};
     constexpr std::chrono::seconds kApac{5 * 60 * 60};
 
@@ -222,8 +223,8 @@ auto Config::DefaultTimezones() -> std::vector<std::string> {
     return {"Europe/Paris", "America/New_York"};
 }
 
-auto Config::Load() -> Config {
-    const auto tree = Config::LoadWithConfD("config.yaml");
+auto ConfigStore::Load() -> Config {
+    const auto tree = ConfigStore::LoadWithConfD("config.yaml");
     Config config;
     try {
         tree.get_to(config);
@@ -235,28 +236,30 @@ auto Config::Load() -> Config {
     return config;
 }
 
-auto Config::SaveSettings() const -> Result<> {
+auto ConfigStore::SaveSettings() -> Result<> {
+    const auto& config = *g_config;
     nlohmann::json settings;
-    settings["watch_pos"] = watch_pos;
-    settings["watch_rot"] = watch_rot;
-    settings["watch_hand"] = watch_hand;
-    settings["watch_view_angle_min"] = Json::ShortestFloat(watch_view_angle_min);
-    settings["watch_view_angle_max"] = Json::ShortestFloat(watch_view_angle_max);
-    settings["notifications_enabled"] = notifications_enabled;
-    settings["notifications_sound_enabled"] = notifications_sound_enabled;
-    settings["allow_sliding"] = allow_sliding;
-    settings["keyboard_profile"] = keyboard_profile;
-    settings["keyboard_region"] = keyboard_region;
-    settings["theme"] = theme;
-    settings["watch_profile"] = watch_profile;
-    settings["space_drag_multiplier"] = Json::ShortestFloat(space_drag_multiplier);
-    return WriteJson(Config::ConfD() / "zz-saved-config.json", settings);
+    settings["watch_pos"] = config.watch_pos;
+    settings["watch_rot"] = config.watch_rot;
+    settings["watch_hand"] = config.watch_hand;
+    settings["watch_view_angle_min"] = Json::ShortestFloat(config.watch_view_angle_min);
+    settings["watch_view_angle_max"] = Json::ShortestFloat(config.watch_view_angle_max);
+    settings["notifications_enabled"] = config.notifications_enabled;
+    settings["notifications_sound_enabled"] = config.notifications_sound_enabled;
+    settings["allow_sliding"] = config.allow_sliding;
+    settings["keyboard_profile"] = config.keyboard_profile;
+    settings["keyboard_region"] = config.keyboard_region;
+    settings["theme"] = config.theme;
+    settings["watch_profile"] = config.watch_profile;
+    settings["space_drag_multiplier"] = Json::ShortestFloat(config.space_drag_multiplier);
+    return WriteJson(ConfigStore::ConfD() / "zz-saved-config.json", settings);
 }
 
-auto Config::SaveLayout() const -> Result<> {
+auto ConfigStore::SaveLayout() -> Result<> {
+    const auto& config = *g_config;
     nlohmann::json state;
-    state["show_screens"] = show_screens;
-    state["curve_values"] = ToFloatPairs(curve_values);
-    state["transform_values"] = transform_values;
-    return WriteJson(Config::ConfD() / "zz-saved-state.json", state);
+    state["show_screens"] = config.show_screens;
+    state["curve_values"] = ToFloatPairs(config.curve_values);
+    state["transform_values"] = config.transform_values;
+    return WriteJson(ConfigStore::ConfD() / "zz-saved-state.json", state);
 }

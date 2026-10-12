@@ -24,18 +24,32 @@
 #include <optional>
 #include <span>
 #include <string>
-#include <variant>
+#include <string_view>
 
-struct CommandLine {
-    bool openvr = false;
-    bool openxr = false;
-    bool show = false;
-    bool uninstall = false;
-    bool replace = false;
-    bool multi = false;
-    std::optional<std::string> log_to;
+class CommandLine final {
+  public:
+    auto Parse(std::span<char*> arguments) -> std::optional<int>;
 
-    static auto Parse(std::span<char*> arguments) -> std::variant<CommandLine, int>;
+    [[nodiscard]] auto OpenVr() const -> bool { return m_openvr; }
+    [[nodiscard]] auto OpenXr() const -> bool { return m_openxr; }
+    [[nodiscard]] auto Show() const -> bool { return m_show; }
+    [[nodiscard]] auto Uninstall() const -> bool { return m_uninstall; }
+    [[nodiscard]] auto Replace() const -> bool { return m_replace; }
+    [[nodiscard]] auto Multi() const -> bool { return m_multi; }
+    [[nodiscard]] auto LogTo() const -> const std::optional<std::string>& { return m_log_to; }
+
+  private:
     static auto Usage() -> std::string;
     static auto Help() -> std::string;
+    static auto PrintError(std::string_view message) -> int;
+
+    bool m_openvr = false;
+    bool m_openxr = false;
+    bool m_show = false;
+    bool m_uninstall = false;
+    bool m_replace = false;
+    bool m_multi = false;
+    std::optional<std::string> m_log_to;
 };
+
+extern CommandLine* g_command_line;

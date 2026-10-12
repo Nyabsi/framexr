@@ -30,8 +30,8 @@ class Queue final {
   public:
     Queue(VkQueue queue, uint32_t family);
 
-    [[nodiscard]] auto Handle() const -> VkQueue { return queue_; }
-    [[nodiscard]] auto Family() const -> uint32_t { return family_; }
+    [[nodiscard]] auto Handle() const -> VkQueue { return m_queue; }
+    [[nodiscard]] auto Family() const -> uint32_t { return m_family; }
 
     auto Submit(std::span<const VkCommandBuffer> command_buffers, VkFence fence) -> Result<>;
     auto WaitIdle() -> void;
@@ -40,7 +40,7 @@ class Queue final {
     auto operator=(const Queue&) -> Queue& = delete;
 
   private:
-    VkQueue queue_;
-    uint32_t family_;
-    std::mutex mutex_;
+    VkQueue m_queue;
+    uint32_t m_family;
+    std::mutex m_mutex;
 };

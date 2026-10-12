@@ -24,11 +24,11 @@
 
 #include "Logger.hpp"
 
-Error::Error(std::string message) : message_(std::move(message)) {
+Error::Error(std::string message) : m_message(std::move(message)) {
 }
 
 auto Error::WithContext(std::string_view context) const -> Error {
-    return Error(std::format("{}: {}", context, message_));
+    return Error(std::format("{}: {}", context, m_message));
 }
 
 auto Unexpected(std::string message) -> std::unexpected<Error> {

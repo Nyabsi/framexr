@@ -29,10 +29,7 @@
 
 #include "Error.hpp"
 
-class AppState;
-class InputState;
 class Monado;
-class OverlayContainer;
 
 struct OpenXrPlayspaceDrag {
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
@@ -50,20 +47,20 @@ class OpenXrPlayspace final {
   public:
     static auto Create(Monado& monado) -> Result<OpenXrPlayspace>;
 
-    auto Update(OverlayContainer& overlays, const AppState& app, Monado& monado) -> void;
+    auto Update(Monado& monado) -> void;
     auto ResetOffset(Monado& monado) -> void;
-    auto FixFloor(const InputState& input, Monado& monado) -> void;
+    auto FixFloor(Monado& monado) -> void;
 
   private:
     explicit OpenXrPlayspace(const Eigen::Affine3f& last_transform);
 
-    auto UpdateRotate(const AppState& app, Monado& monado) -> bool;
-    auto UpdateDrag(OverlayContainer& overlays, const AppState& app, Monado& monado) -> void;
+    auto UpdateRotate(Monado& monado) -> bool;
+    auto UpdateDrag(Monado& monado) -> void;
     auto InterruptMoves(std::string_view reason) -> void;
 
     static auto ApplyOffset(const Eigen::Affine3f& transform, Monado& monado) -> void;
 
-    Eigen::Affine3f last_transform_;
-    std::optional<OpenXrPlayspaceDrag> drag_;
-    std::optional<OpenXrPlayspaceRotate> rotate_;
+    Eigen::Affine3f m_last_transform;
+    std::optional<OpenXrPlayspaceDrag> m_drag;
+    std::optional<OpenXrPlayspaceRotate> m_rotate;
 };

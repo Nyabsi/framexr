@@ -21,18 +21,16 @@
 
 #include "WlrScreencopyCapture.hpp"
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
 #include <atomic>
 #include <chrono>
 #include <format>
 #include <optional>
 #include <utility>
 
-#include <wayland-client.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "Error.hpp"
 #include "Logger.hpp"
@@ -58,26 +56,26 @@ auto NextShmName() -> std::string {
 } // namespace
 
 WlrScreencopyCapture::WlrScreencopyCapture(std::unique_ptr<WaylandClient> client, uint32_t output_id)
-    : output_id_(output_id),
-      client_(std::move(client)) {
+    : m_output_id(output_id),
+      m_client(std::move(client)) {
 }
 
 WlrScreencopyCapture::~WlrScreencopyCapture() {
-    if (worker_.valid()) {
-        worker_.wait();
+    if (m_worker.valid()) {
+        m_worker.wait();
     }
 }
 
 auto WlrScreencopyCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
-    channel_ = std::make_shared<ProcessedFrameChannel>(2);
-    processor_ = std::move(processor);
+    m_channel = std::make_shared<ProcessedFrameChannel>(2);
+    m_processor = std::move(processor);
 }
 
 auto WlrScreencopyCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!channel_) {
+    if (!m_channel) {
         return nullptr;
     }
-    auto frames = channel_->TakeAll();
+    auto frames = m_channel->TakeAll();
     if (frames.empty()) {
         return nullptr;
     }
@@ -85,7 +83,7 @@ auto WlrScreencopyCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
 }
 
 auto WlrScreencopyCapture::Resume() -> void {
-    if (!channel_) {
+    if (!m_channel) {
         return;
     }
     Receive();
@@ -94,26 +92,26 @@ auto WlrScreencopyCapture::Resume() -> void {
 
 auto WlrScreencopyCapture::RequestNewFrame() -> void {
     bool wait_for_damage = false;
-    if (worker_.valid()) {
-        if (worker_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+    if (m_worker.valid()) {
+        if (m_worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
             return;
         }
         wait_for_damage = true;
-        client_ = worker_.get();
+        m_client = m_worker.get();
     }
-    if (!client_) {
+    if (!m_client) {
         return;
     }
-    if (!channel_) {
+    if (!m_channel) {
         FatalError("must call Start once before RequestNewFrame");
     }
-    worker_ = std::async(
+    m_worker = std::async(
         std::launch::async,
         &WlrScreencopyCapture::CaptureFrame,
-        std::move(client_),
-        output_id_,
-        channel_,
-        processor_,
+        std::move(m_client),
+        m_output_id,
+        m_channel,
+        m_processor,
         wait_for_damage
     );
 }

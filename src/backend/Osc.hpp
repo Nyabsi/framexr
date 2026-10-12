@@ -32,8 +32,6 @@
 #include "Input.hpp"
 #include "UdpSocket.hpp"
 
-class OverlayContainer;
-
 using OscValue = std::variant<int32_t, float, std::string, bool>;
 
 class OscSender final {
@@ -45,12 +43,14 @@ class OscSender final {
     auto operator=(const OscSender&) -> OscSender& = delete;
 
     [[nodiscard]] auto SendMessage(const std::string& address, const std::vector<OscValue>& values) const -> Result<>;
-    auto SendParams(const OverlayContainer& overlays, const std::vector<TrackedDevice>& devices) -> Result<>;
+    auto SendParams(const std::vector<TrackedDevice>& devices) -> Result<>;
 
   private:
     explicit OscSender(UdpSocket socket);
 
-    UdpSocket socket_;
-    std::chrono::steady_clock::time_point last_sent_overlay_;
-    std::chrono::steady_clock::time_point last_sent_battery_;
+    UdpSocket m_socket;
+    std::chrono::steady_clock::time_point m_last_sent_overlay;
+    std::chrono::steady_clock::time_point m_last_sent_battery;
 };
+
+extern OscSender* g_osc;

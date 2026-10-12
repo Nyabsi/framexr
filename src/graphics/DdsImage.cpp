@@ -113,8 +113,8 @@ auto DdsImage::Parse(std::span<const std::byte> file) -> Result<DdsImage> {
     }
 
     DdsImage image;
-    image.height = ReadU32(file, 12);
-    image.width = ReadU32(file, 16);
+    image.m_height = ReadU32(file, 12);
+    image.m_width = ReadU32(file, 16);
     const auto depth = ReadU32(file, 24);
     const auto pixel_flags = ReadU32(file, 80);
     const auto fourcc = ReadU32(file, 84);
@@ -128,18 +128,18 @@ auto DdsImage::Parse(std::span<const std::byte> file) -> Result<DdsImage> {
         if (file.size() < kHeaderSize + kDx10HeaderSize) {
             return Unexpected("Truncated DDS DX10 header.");
         }
-        image.format = FormatFromDxgi(ReadU32(file, kHeaderSize));
+        image.m_format = FormatFromDxgi(ReadU32(file, kHeaderSize));
         data_offset += kDx10HeaderSize;
     } else if ((pixel_flags & kPixelFormatFourcc) != 0) {
-        image.format = FormatFromFourcc(fourcc);
+        image.m_format = FormatFromFourcc(fourcc);
     } else {
-        image.format = FormatFromMasks(pixel_flags, ReadU32(file, 88), ReadU32(file, 92), ReadU32(file, 100));
+        image.m_format = FormatFromMasks(pixel_flags, ReadU32(file, 88), ReadU32(file, 92), ReadU32(file, 100));
     }
 
-    if (image.format == VK_FORMAT_UNDEFINED) {
+    if (image.m_format == VK_FORMAT_UNDEFINED) {
         return Unexpected(std::format("Unsupported DDS format (fourcc {:#x})", fourcc));
     }
 
-    image.data = file.subspan(data_offset);
+    image.m_data = file.subspan(data_offset);
     return image;
 }

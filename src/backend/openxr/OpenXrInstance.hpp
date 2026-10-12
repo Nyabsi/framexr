@@ -23,16 +23,14 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <vulkan/vulkan.h>
-
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
 #include "Error.hpp"
-
-class Device;
 
 class OpenXrInstance final {
   public:
@@ -42,9 +40,9 @@ class OpenXrInstance final {
     OpenXrInstance(const OpenXrInstance&) = delete;
     auto operator=(const OpenXrInstance&) -> OpenXrInstance& = delete;
 
-    [[nodiscard]] auto Handle() const -> XrInstance { return instance_; }
-    [[nodiscard]] auto System() const -> XrSystemId { return system_; }
-    [[nodiscard]] auto HasEquirect2() const -> bool { return has_equirect2_; }
+    [[nodiscard]] auto Handle() const -> XrInstance { return m_instance; }
+    [[nodiscard]] auto System() const -> XrSystemId { return m_system; }
+    [[nodiscard]] auto HasEquirect2() const -> bool { return m_has_equirect2; }
 
     [[nodiscard]] auto ResultName(XrResult result) const -> std::string;
     [[nodiscard]] auto Check(XrResult result) const -> Result<>;
@@ -53,7 +51,13 @@ class OpenXrInstance final {
     [[nodiscard]] auto VulkanGraphicsDevice(VkInstance instance) const -> Result<VkPhysicalDevice>;
     [[nodiscard]] auto CreateVulkanDevice(VkPhysicalDevice physical_device, const VkDeviceCreateInfo& create_info) const
         -> Result<VkDevice>;
-    [[nodiscard]] auto CreateOverlaySession(Device& device) const -> Result<XrSession>;
+    [[nodiscard]] auto CreateOverlaySession() const -> Result<XrSession>;
+    [[nodiscard]] auto CreateAction(
+        XrActionSet action_set,
+        std::string_view name,
+        std::string_view localized_name,
+        XrActionType type
+    ) const -> Result<XrAction>;
     [[nodiscard]] auto EnvironmentBlendModes() const -> Result<std::vector<XrEnvironmentBlendMode>>;
 
   private:
@@ -62,11 +66,11 @@ class OpenXrInstance final {
     auto Initialize() -> Result<>;
     auto LoadFunction(const char* name, PFN_xrVoidFunction* function) const -> Result<>;
 
-    XrInstance instance_ = XR_NULL_HANDLE;
-    XrSystemId system_ = XR_NULL_SYSTEM_ID;
-    bool has_equirect2_ = false;
-    PFN_xrGetVulkanGraphicsRequirements2KHR get_graphics_requirements_ = nullptr;
-    PFN_xrCreateVulkanInstanceKHR create_vulkan_instance_ = nullptr;
-    PFN_xrGetVulkanGraphicsDevice2KHR get_vulkan_graphics_device_ = nullptr;
-    PFN_xrCreateVulkanDeviceKHR create_vulkan_device_ = nullptr;
+    XrInstance m_instance = XR_NULL_HANDLE;
+    XrSystemId m_system = XR_NULL_SYSTEM_ID;
+    bool m_has_equirect2 = false;
+    PFN_xrGetVulkanGraphicsRequirements2KHR m_get_graphics_requirements = nullptr;
+    PFN_xrCreateVulkanInstanceKHR m_create_vulkan_instance = nullptr;
+    PFN_xrGetVulkanGraphicsDevice2KHR m_get_vulkan_graphics_device = nullptr;
+    PFN_xrCreateVulkanDeviceKHR m_create_vulkan_device = nullptr;
 };

@@ -29,47 +29,44 @@
 #include "Device.hpp"
 #include "Logger.hpp"
 
-CommandBuffer::CommandBuffer(std::shared_ptr<Device> device, Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer)
-    : device_(std::move(device)),
-      queue_(&queue),
-      pool_(pool),
-      command_buffer_(command_buffer) {
+CommandBuffer::CommandBuffer(Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer)
+    : m_queue(&queue),
+      m_pool(pool),
+      m_command_buffer(command_buffer) {
 }
 
 CommandBuffer::~CommandBuffer() {
-    if (pool_ != VK_NULL_HANDLE) {
-        device_->ReleaseCommandPool(queue_->Family(), pool_);
+    if (m_pool != VK_NULL_HANDLE) {
+        g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
     }
 }
 
 CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
-    : device_(std::move(other.device_)),
-      queue_(other.queue_),
-      pool_(std::exchange(other.pool_, VK_NULL_HANDLE)),
-      command_buffer_(std::exchange(other.command_buffer_, VK_NULL_HANDLE)),
-      retained_(std::move(other.retained_)),
-      render_target_(std::move(other.render_target_)),
-      pending_passes_(std::move(other.pending_passes_)) {
+    : m_queue(other.m_queue),
+      m_pool(std::exchange(other.m_pool, VK_NULL_HANDLE)),
+      m_command_buffer(std::exchange(other.m_command_buffer, VK_NULL_HANDLE)),
+      m_retained(std::move(other.m_retained)),
+      m_render_target(std::move(other.m_render_target)),
+      m_pending_passes(std::move(other.m_pending_passes)) {
 }
 
 auto CommandBuffer::operator=(CommandBuffer&& other) noexcept -> CommandBuffer& {
     if (this != &other) {
-        if (pool_ != VK_NULL_HANDLE) {
-            device_->ReleaseCommandPool(queue_->Family(), pool_);
+        if (m_pool != VK_NULL_HANDLE) {
+            g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
         }
-        device_ = std::move(other.device_);
-        queue_ = other.queue_;
-        pool_ = std::exchange(other.pool_, VK_NULL_HANDLE);
-        command_buffer_ = std::exchange(other.command_buffer_, VK_NULL_HANDLE);
-        retained_ = std::move(other.retained_);
-        render_target_ = std::move(other.render_target_);
-        pending_passes_ = std::move(other.pending_passes_);
+        m_queue = other.m_queue;
+        m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
+        m_command_buffer = std::exchange(other.m_command_buffer, VK_NULL_HANDLE);
+        m_retained = std::move(other.m_retained);
+        m_render_target = std::move(other.m_render_target);
+        m_pending_passes = std::move(other.m_pending_passes);
     }
     return *this;
 }
 
 auto CommandBuffer::Retain(std::shared_ptr<void> resource) -> void {
-    retained_.push_back(std::move(resource));
+    m_retained.push_back(std::move(resource));
 }
 
 auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void {
@@ -95,7 +92,7 @@ auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void {
         },
     };
     vkCmdPipelineBarrier(
-        command_buffer_,
+        m_command_buffer,
         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
         0,
@@ -110,22 +107,22 @@ auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void {
 }
 
 auto CommandBuffer::BeginRendering(std::shared_ptr<Image> target) -> void {
-    render_target_ = std::move(target);
-    pending_passes_.clear();
+    m_render_target = std::move(target);
+    m_pending_passes.clear();
 }
 
 auto CommandBuffer::Draw(const Pass& pass) -> void {
-    pending_passes_.push_back(pass);
+    m_pending_passes.push_back(pass);
 }
 
 auto CommandBuffer::EndRendering() -> void {
-    auto target = std::exchange(render_target_, nullptr);
+    auto target = std::exchange(m_render_target, nullptr);
     if (!target) {
         LOG_ERROR("EndRendering called without a render target");
         return;
     }
 
-    for (const auto& pass : pending_passes_) {
+    for (const auto& pass : m_pending_passes) {
         for (const auto& descriptor_set : pass.descriptor_sets) {
             if (const auto& texture = descriptor_set->Texture()) {
                 Barrier(*texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -149,10 +146,10 @@ auto CommandBuffer::EndRendering() -> void {
         .colorAttachmentCount = 1,
         .pColorAttachments = &color_attachment,
     };
-    vkCmdBeginRendering(command_buffer_, &rendering_info);
+    vkCmdBeginRendering(m_command_buffer, &rendering_info);
 
-    const auto& indices = device_->QuadIndices();
-    for (auto& pass : pending_passes_) {
+    const auto& indices = g_device->QuadIndices();
+    for (auto& pass : m_pending_passes) {
         const VkViewport viewport{
             .x = 0.0f,
             .y = 0.0f,
@@ -161,8 +158,8 @@ auto CommandBuffer::EndRendering() -> void {
             .minDepth = 0.0f,
             .maxDepth = 1.0f,
         };
-        vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
-        vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.pipeline->Handle());
+        vkCmdSetViewport(m_command_buffer, 0, 1, &viewport);
+        vkCmdBindPipeline(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pass.pipeline->Handle());
 
         std::vector<VkDescriptorSet> sets;
         sets.reserve(pass.descriptor_sets.size());
@@ -172,7 +169,7 @@ auto CommandBuffer::EndRendering() -> void {
         }
         if (!sets.empty()) {
             vkCmdBindDescriptorSets(
-                command_buffer_,
+                m_command_buffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                 pass.pipeline->Layout(),
                 0,
@@ -185,20 +182,20 @@ auto CommandBuffer::EndRendering() -> void {
 
         const VkBuffer vertex_buffer = pass.vertices->Handle();
         const VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(command_buffer_, 0, 1, &vertex_buffer, &offset);
-        vkCmdBindIndexBuffer(command_buffer_, indices->Handle(), 0, VK_INDEX_TYPE_UINT16);
-        vkCmdDrawIndexed(command_buffer_, 6, 1, 0, 0, 0);
+        vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer, &offset);
+        vkCmdBindIndexBuffer(m_command_buffer, indices->Handle(), 0, VK_INDEX_TYPE_UINT16);
+        vkCmdDrawIndexed(m_command_buffer, 6, 1, 0, 0, 0);
 
         Retain(pass.pipeline);
         Retain(pass.vertices);
     }
 
-    vkCmdEndRendering(command_buffer_);
+    vkCmdEndRendering(m_command_buffer);
     Barrier(*target, target->FinalLayout());
 
     Retain(indices);
     Retain(target);
-    pending_passes_.clear();
+    m_pending_passes.clear();
 }
 
 auto CommandBuffer::UploadImage(
@@ -212,7 +209,7 @@ auto CommandBuffer::UploadImage(
 
     ASSIGN_OR_RETURN(
         auto image,
-        device_->CreateImage(
+        g_device->CreateImage(
             width,
             height,
             format,
@@ -220,7 +217,7 @@ auto CommandBuffer::UploadImage(
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         )
     );
-    ASSIGN_OR_RETURN(auto staging, Buffer::Create(device_, data.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT));
+    ASSIGN_OR_RETURN(auto staging, Buffer::Create(data.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT));
     staging->Write(data);
 
     Barrier(*image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -238,7 +235,7 @@ auto CommandBuffer::UploadImage(
         .imageOffset = {0, 0, 0},
         .imageExtent = {width, height, 1},
     };
-    vkCmdCopyBufferToImage(command_buffer_, staging->Handle(), image->Handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(m_command_buffer, staging->Handle(), image->Handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     Barrier(*image, image->FinalLayout());
 
     Retain(staging);
@@ -248,7 +245,7 @@ auto CommandBuffer::UploadImage(
 
 auto CommandBuffer::UploadDds(std::span<const std::byte> data) -> Result<std::shared_ptr<Image>> {
     ASSIGN_OR_RETURN(const auto dds, DdsImage::Parse(data));
-    return UploadImage(dds.width, dds.height, dds.format, dds.data);
+    return UploadImage(dds.Width(), dds.Height(), dds.Format(), dds.Data());
 }
 
 auto CommandBuffer::TransitionLayout(const std::shared_ptr<Image>& image, VkImageLayout layout) -> void {
@@ -257,7 +254,7 @@ auto CommandBuffer::TransitionLayout(const std::shared_ptr<Image>& image, VkImag
 }
 
 auto CommandBuffer::Finish() -> Result<> {
-    if (const auto result = vkEndCommandBuffer(command_buffer_); result != VK_SUCCESS) {
+    if (const auto result = vkEndCommandBuffer(m_command_buffer); result != VK_SUCCESS) {
         return Unexpected(std::format("vkEndCommandBuffer failed: {}", static_cast<int>(result)));
     }
     return {};
@@ -266,49 +263,24 @@ auto CommandBuffer::Finish() -> Result<> {
 auto CommandBuffer::Submit() -> Result<> {
     RETURN_IF_ERROR(Finish());
     Submission submission{
-        .pools = {{queue_->Family(), std::exchange(pool_, VK_NULL_HANDLE)}},
-        .retained = std::move(retained_),
+        .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
+        .retained = std::move(m_retained),
     };
-    return device_->Submit(*queue_, {&command_buffer_, 1}, std::move(submission), false);
+    return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), false);
 }
 
 auto CommandBuffer::SubmitAndWait() -> Result<> {
     RETURN_IF_ERROR(Finish());
     Submission submission{
-        .pools = {{queue_->Family(), std::exchange(pool_, VK_NULL_HANDLE)}},
-        .retained = std::move(retained_),
+        .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
+        .retained = std::move(m_retained),
     };
-    return device_->Submit(*queue_, {&command_buffer_, 1}, std::move(submission), true);
+    return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), true);
 }
 
 auto CommandBuffer::SubmitUpload() -> Result<> {
-    if (queue_ == &device_->GraphicsQueue()) {
+    if (m_queue == &g_device->GraphicsQueue()) {
         return Submit();
     }
     return SubmitAndWait();
-}
-
-auto CommandBatch::Push(CommandBuffer command_buffer) -> void {
-    command_buffers_.push_back(std::move(command_buffer));
-}
-
-auto CommandBatch::Submit() -> Result<> {
-    if (command_buffers_.empty()) {
-        return {};
-    }
-    auto& queue = command_buffers_.front().SubmitQueue();
-    auto device = command_buffers_.front().device_;
-
-    std::vector<VkCommandBuffer> handles;
-    Submission submission;
-    for (auto& command_buffer : command_buffers_) {
-        RETURN_IF_ERROR(command_buffer.Finish());
-        handles.push_back(command_buffer.command_buffer_);
-        submission.pools.emplace_back(command_buffer.queue_->Family(), std::exchange(command_buffer.pool_, VK_NULL_HANDLE));
-        for (auto& resource : command_buffer.retained_) {
-            submission.retained.push_back(std::move(resource));
-        }
-    }
-    command_buffers_.clear();
-    return device->Submit(queue, handles, std::move(submission), false);
 }

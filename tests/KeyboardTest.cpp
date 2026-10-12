@@ -17,8 +17,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 #include <array>
-#include <format>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -27,14 +27,14 @@
 
 #include <gtest/gtest.h>
 
-#include "Keyboard.hpp"
 #include "KeyboardLayout.hpp"
+#include "KeyboardProfiles.hpp"
 #include "Yaml.hpp"
 
 namespace {
 
 auto KeyNamed(const KeyboardLayout& layout, VirtualKey wanted) -> const KeyDefinition* {
-    for (const auto& key : layout.keys) {
+    for (const auto& key : layout.Keys()) {
         if (const auto* typed = std::get_if<TypeKey>(&key.action); typed != nullptr && typed->key == wanted) {
             return &key;
         }
@@ -51,16 +51,16 @@ constexpr std::string_view kBase = "name: base\ncolumns: 1\nrows: 1\nkeys:\n  - 
 } // namespace
 
 TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
-    const auto& layout = KeyboardProfiles::Find("keychron-v1-ansi");
-    EXPECT_FALSE(layout.keys.empty());
-    EXPECT_FLOAT_EQ(layout.columns, 16.0f);
-    EXPECT_EQ(layout.rows, 6);
+    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
+    EXPECT_FALSE(layout.Keys().empty());
+    EXPECT_FLOAT_EQ(layout.Columns(), 16.0f);
+    EXPECT_EQ(layout.Rows(), 6);
     EXPECT_TRUE(layout.Validate().has_value());
 }
 
 TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
-    const auto& layout = KeyboardProfiles::Find("keychron-v1-ansi");
-    EXPECT_EQ(layout.name, "keychron-v1-ansi");
+    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
+    EXPECT_EQ(layout.Name(), "keychron-v1-ansi");
     const auto* caps = KeyNamed(layout, VirtualKey::Caps);
     ASSERT_NE(caps, nullptr);
     EXPECT_EQ(caps->row, 3);
@@ -74,10 +74,10 @@ TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
     ASSERT_NE(up, nullptr);
     EXPECT_EQ(up->row, 4);
     EXPECT_FLOAT_EQ(up->x, 14.0f);
-    const auto profile = std::ranges::find_if(layout.keys, [](const KeyDefinition& key) -> bool {
+    const auto profile = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
         return std::holds_alternative<ProfileKey>(key.action);
     });
-    ASSERT_NE(profile, layout.keys.end());
+    ASSERT_NE(profile, layout.Keys().end());
     EXPECT_EQ(layout.Labels(*profile), std::vector<std::string>{"Layout"});
 }
 
@@ -88,7 +88,7 @@ TEST(KeyboardLayout, LabelsFollowOriginalRules) {
     EXPECT_EQ(KeyboardLayout::DefaultLabel("BACKSPACE_X"), std::vector<std::string>{"Backspace"});
     EXPECT_TRUE(KeyboardLayout::DefaultLabel("").empty());
 
-    const auto& layout = KeyboardProfiles::Find("keychron-v1-ansi");
+    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
     const auto* caps = KeyNamed(layout, VirtualKey::Caps);
     const auto* space = KeyNamed(layout, VirtualKey::Space);
     const auto* one = KeyNamed(layout, VirtualKey::N1);
@@ -102,9 +102,9 @@ TEST(KeyboardLayout, LabelsFollowOriginalRules) {
 }
 
 TEST(KeyboardLayout, ActionKeysRunShortcutsAndCommands) {
-    const auto& layout = KeyboardProfiles::Find("full-size");
+    const auto& layout = g_keyboard_profiles->Find("full-size");
     const auto action_key = [&layout](std::string_view label) -> const ActionKey* {
-        for (const auto& key : layout.keys) {
+        for (const auto& key : layout.Keys()) {
             if (key.label && key.label->size() == 1 && key.label->front() == label) {
                 return std::get_if<ActionKey>(&key.action);
             }
@@ -132,20 +132,20 @@ keys:
   - { at: [1, 0], press: [{ type: Exec, command: [run] }] }
 )");
     ASSERT_TRUE(parsed.has_value()) << parsed.error().Message();
-    const auto& talk = std::get<ActionKey>(parsed->keys[0].action);
+    const auto& talk = std::get<ActionKey>(parsed->Keys()[0].action);
     EXPECT_EQ(std::get<ExecButtonAction>(talk.press.front()).command, (std::vector<std::string>{"stt", "--on"}));
     EXPECT_EQ(std::get<ExecButtonAction>(talk.release.front()).command, (std::vector<std::string>{"stt", "--off"}));
-    EXPECT_TRUE(std::get<ActionKey>(parsed->keys[1].action).release.empty());
-    EXPECT_EQ(parsed->Labels(parsed->keys[0]), std::vector<std::string>{"Talk"});
+    EXPECT_TRUE(std::get<ActionKey>(parsed->Keys()[1].action).release.empty());
+    EXPECT_EQ(parsed->Labels(parsed->Keys()[0]), std::vector<std::string>{"Talk"});
 }
 
 TEST(KeyboardLayout, SavedProfilesLoadBackTheSameKeyboard) {
-    for (const auto& profile : KeyboardProfiles::All()) {
+    for (const auto& profile : g_keyboard_profiles->All()) {
         const auto saved = Emit(profile);
         const auto reloaded = KeyboardLayout::Parse(saved);
-        ASSERT_TRUE(reloaded.has_value()) << profile.name << ": " << reloaded.error().Message();
-        EXPECT_EQ(Emit(*reloaded), saved) << profile.name;
-        EXPECT_EQ(reloaded->keys.size(), profile.keys.size());
+        ASSERT_TRUE(reloaded.has_value()) << profile.Name() << ": " << reloaded.error().Message();
+        EXPECT_EQ(Emit(*reloaded), saved) << profile.Name();
+        EXPECT_EQ(reloaded->Keys().size(), profile.Keys().size());
     }
 }
 
@@ -170,16 +170,16 @@ keys:
 }
 
 TEST(KeyboardProfiles, BuiltInProfilesKeepTheOriginalLayout) {
-    const auto& profiles = KeyboardProfiles::All();
+    const auto& profiles = g_keyboard_profiles->All();
     ASSERT_GE(profiles.size(), 2U);
-    EXPECT_EQ(profiles[0].name, "keychron-v1-ansi");
-    EXPECT_EQ(profiles[1].name, "full-size");
-    EXPECT_FLOAT_EQ(profiles[1].columns, 23.0f);
+    EXPECT_EQ(profiles[0].Name(), "keychron-v1-ansi");
+    EXPECT_EQ(profiles[1].Name(), "full-size");
+    EXPECT_FLOAT_EQ(profiles[1].Columns(), 23.0f);
     EXPECT_TRUE(KeyboardProfiles::IsBuiltIn("full-size"));
     EXPECT_FALSE(KeyboardProfiles::IsBuiltIn("mine"));
-    EXPECT_EQ(KeyboardProfiles::After("keychron-v1-ansi").name, "full-size");
-    EXPECT_EQ(KeyboardProfiles::After(profiles.back().name).name, "keychron-v1-ansi");
-    EXPECT_EQ(KeyboardProfiles::Find("no-such-profile").name, "keychron-v1-ansi");
+    EXPECT_EQ(g_keyboard_profiles->After("keychron-v1-ansi").Name(), "full-size");
+    EXPECT_EQ(g_keyboard_profiles->After(profiles.back().Name()).Name(), "keychron-v1-ansi");
+    EXPECT_EQ(g_keyboard_profiles->Find("no-such-profile").Name(), "keychron-v1-ansi");
 }
 
 TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
@@ -196,11 +196,11 @@ TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
     std::filesystem::remove_all(directory);
 
     ASSERT_EQ(profiles.size(), 2U);
-    EXPECT_EQ(profiles[0].name, "base");
-    EXPECT_FLOAT_EQ(profiles[0].columns, 2.0f);
-    EXPECT_EQ(profiles[0].source.filename(), "a-override.yaml");
-    EXPECT_EQ(profiles[1].name, "mine");
-    EXPECT_FLOAT_EQ(profiles[1].columns, 3.0f);
+    EXPECT_EQ(profiles[0].Name(), "base");
+    EXPECT_FLOAT_EQ(profiles[0].Columns(), 2.0f);
+    EXPECT_EQ(profiles[0].Source().filename(), "a-override.yaml");
+    EXPECT_EQ(profiles[1].Name(), "mine");
+    EXPECT_FLOAT_EQ(profiles[1].Columns(), 3.0f);
 }
 
 TEST(KeyboardProfiles, OverlappingOrOutOfGridKeysAreRejected) {

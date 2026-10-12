@@ -25,23 +25,18 @@
 #include <vector>
 
 #ifndef _WIN32
+
 #include <sys/types.h>
+
 #endif
 
 #include "Error.hpp"
+#include "ExitStatus.hpp"
 
 struct ProcessOptions {
     std::vector<std::pair<std::string, std::string>> set_env;
     std::vector<std::string> unset_env;
     bool capture_stdout = false;
-};
-
-struct ExitStatus {
-    int code = 0;
-    std::optional<int> signal;
-
-    [[nodiscard]] auto Success() const -> bool { return !signal && code == 0; }
-    [[nodiscard]] auto Describe() const -> std::string;
 };
 
 class Process final {
@@ -64,13 +59,13 @@ class Process final {
 #ifdef _WIN32
     Process(void* process, void* stdout_pipe);
 
-    void* process_ = nullptr;
-    void* stdout_pipe_ = nullptr;
+    void* m_process = nullptr;
+    void* m_stdout_pipe = nullptr;
 #else
     Process(pid_t pid, int stdout_fd);
 
-    pid_t pid_ = -1;
-    int stdout_fd_ = -1;
+    pid_t m_pid = -1;
+    int m_stdout_fd = -1;
 #endif
-    std::optional<ExitStatus> exit_status_;
+    std::optional<ExitStatus> m_exit_status;
 };

@@ -33,155 +33,28 @@
 #include "Error.hpp"
 #include "Image.hpp"
 #include "Input.hpp"
-
-class AppState;
-
-constexpr uint32_t kZOrderToast = 70;
-constexpr uint32_t kZOrderLines = 69;
-constexpr uint32_t kZOrderWatch = 68;
-constexpr uint32_t kZOrderDefault = 0;
-
-enum class RelativeTo : uint8_t {
-    None,
-    Head,
-    LeftHand,
-    RightHand,
-    Stage,
-};
-
-enum class RenderReadiness : uint8_t {
-    Should,
-    Can,
-    Unable,
-};
-
-struct TexelFootprint {
-    Eigen::Vector3f eye = Eigen::Vector3f::UnitZ();
-    Eigen::Vector2f size = Eigen::Vector2f::Ones();
-    Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
-};
-
-struct FrameMeta {
-    VkExtent2D extent{};
-    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    VkFormat format = VK_FORMAT_UNDEFINED;
-};
-
-class OverlayRenderer {
-  public:
-    virtual ~OverlayRenderer() = default;
-
-    virtual auto Init(AppState& app) -> Result<> = 0;
-    virtual auto Pause(AppState& app) -> Result<> = 0;
-    virtual auto Resume(AppState& app) -> Result<> = 0;
-    virtual auto ShouldRender(AppState& app) -> Result<RenderReadiness> = 0;
-    virtual auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> = 0;
-    virtual auto Meta() -> std::optional<FrameMeta> = 0;
-    virtual auto SetTexelFootprint(const TexelFootprint& footprint) -> void;
-};
-
-class InteractionHandler {
-  public:
-    virtual ~InteractionHandler() = default;
-
-    virtual auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> = 0;
-    virtual auto OnLeft(AppState& app, size_t pointer) -> void = 0;
-    virtual auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void = 0;
-    virtual auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void = 0;
-    [[nodiscard]] virtual auto Accepts(const Eigen::Vector2f& uv) const -> bool;
-};
-
-class OverlayBackend : public OverlayRenderer, public InteractionHandler {
-  public:
-    virtual auto SetRenderer(std::unique_ptr<OverlayRenderer> renderer) -> void = 0;
-    virtual auto SetInteraction(std::unique_ptr<InteractionHandler> interaction) -> void = 0;
-};
-
-class NullRenderer final : public OverlayRenderer {
-  public:
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
-    auto Meta() -> std::optional<FrameMeta> override;
-};
-
-class NullInteraction final : public InteractionHandler {
-  public:
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
-};
-
-class SplitOverlayBackend final : public OverlayBackend {
-  public:
-    SplitOverlayBackend();
-    SplitOverlayBackend(std::unique_ptr<OverlayRenderer> renderer, std::unique_ptr<InteractionHandler> interaction);
-
-    auto SetRenderer(std::unique_ptr<OverlayRenderer> renderer) -> void override;
-    auto SetInteraction(std::unique_ptr<InteractionHandler> interaction) -> void override;
-
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
-    auto Meta() -> std::optional<FrameMeta> override;
-    auto SetTexelFootprint(const TexelFootprint& footprint) -> void override;
-
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
-    [[nodiscard]] auto Accepts(const Eigen::Vector2f& uv) const -> bool override;
-
-  private:
-    std::unique_ptr<OverlayRenderer> renderer_;
-    std::unique_ptr<InteractionHandler> interaction_;
-};
-
-struct OverlayState {
-    OverlayId id = NextId();
-    std::string name;
-    bool want_visible = false;
-    bool show_hide = false;
-    bool grabbable = false;
-    bool interactable = false;
-    bool recenter = false;
-    bool dirty = true;
-    float alpha = 1.0f;
-    uint32_t z_order = kZOrderDefault;
-    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    float spawn_scale = 1.0f;
-    Eigen::Vector3f spawn_point = -Eigen::Vector3f::UnitZ();
-    Eigen::Quaternionf spawn_rotation = Eigen::Quaternionf::Identity();
-    std::optional<Eigen::Affine3f> saved_transform;
-    RelativeTo relative_to = RelativeTo::None;
-    std::optional<float> curvature;
-    Eigen::Affine2f interaction_transform = Eigen::Affine2f::Identity();
-    VkExtent2D extent_hint{};
-    size_t birth_frame = 0;
-
-    static auto NextId() -> OverlayId;
-    static auto UiTransform(VkExtent2D extent) -> Eigen::Affine2f;
-
-    [[nodiscard]] auto ParentTransform(const AppState& app) const -> std::optional<Eigen::Affine3f>;
-    [[nodiscard]] auto LocalTransform() const -> Eigen::Affine3f;
-
-    auto AutoMovement(const AppState& app) -> void;
-    auto Reset(const AppState& app, bool hard_reset) -> void;
-    auto RememberRelativeToHead(const AppState& app) -> Eigen::Affine3f;
-};
+#include "OverlayBackend.hpp"
+#include "OverlayState.hpp"
 
 class Overlay {
   public:
     Overlay(OverlayState state, std::unique_ptr<OverlayBackend> backend);
 
-    OverlayState state;
-    std::unique_ptr<OverlayBackend> backend;
-    std::optional<size_t> primary_pointer;
+    [[nodiscard]] auto State() const -> const OverlayState& { return m_state; }
+    [[nodiscard]] auto State() -> OverlayState& { return m_state; }
+    [[nodiscard]] auto Backend() const -> OverlayBackend* { return m_backend.get(); }
+    [[nodiscard]] auto TakeBackend() -> std::unique_ptr<OverlayBackend> { return std::move(m_backend); }
 
-    auto Init(AppState& app) -> Result<>;
+    auto SetBackend(std::unique_ptr<OverlayBackend> backend) -> void { m_backend = std::move(backend); }
+    [[nodiscard]] auto PrimaryPointer() const -> const std::optional<size_t>& { return m_primary_pointer; }
+    [[nodiscard]] auto PrimaryPointer() -> std::optional<size_t>& { return m_primary_pointer; }
+
+    auto SetPrimaryPointer(std::optional<size_t> primary_pointer) -> void { m_primary_pointer = primary_pointer; }
+
+    auto Init() -> Result<>;
+
+  private:
+    OverlayState m_state;
+    std::unique_ptr<OverlayBackend> m_backend;
+    std::optional<size_t> m_primary_pointer;
 };

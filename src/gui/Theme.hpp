@@ -53,10 +53,6 @@ struct ThemeDefinition {
     Rounding rounding = Rounding::Round;
     std::vector<ThemeColor> colors;
     std::filesystem::path source;
-
-    static auto Parse(std::string_view text) -> Result<ThemeDefinition>;
-
-    [[nodiscard]] auto Lookup(std::string_view color) const -> std::optional<std::string>;
 };
 
 class Theme final {
@@ -67,19 +63,28 @@ class Theme final {
     static auto Resolve(std::optional<float> custom, Rounding rounding, Shape shape) -> float;
     static auto Name(Rounding rounding) -> std::string_view;
     static auto Next(Rounding rounding) -> Rounding;
-    static auto Color(std::string_view color) -> std::string;
     static auto Token(std::string_view name) -> std::string;
+    static auto Parse(std::string_view text) -> Result<ThemeDefinition>;
+    static auto Lookup(const ThemeDefinition& theme, std::string_view color) -> std::optional<std::string>;
 
-    static auto Active() -> const ThemeDefinition&;
-    static auto SetActive(ThemeDefinition theme) -> void;
-    static auto All() -> const std::vector<ThemeDefinition>&;
-    static auto Find(std::string_view name) -> const ThemeDefinition&;
-    static auto Reload() -> void;
     static auto UserDirectory() -> std::filesystem::path;
     static auto IsBuiltIn(std::string_view name) -> bool;
     static auto Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
         -> std::vector<ThemeDefinition>;
+
+    [[nodiscard]] auto Color(std::string_view color) -> std::string;
+    [[nodiscard]] auto Active() -> const ThemeDefinition&;
+    [[nodiscard]] auto All() -> const std::vector<ThemeDefinition>&;
+    [[nodiscard]] auto Find(std::string_view name) -> const ThemeDefinition&;
+    auto SetActive(ThemeDefinition theme) -> void;
+    auto Reload() -> void;
+
+  private:
+    std::optional<std::vector<ThemeDefinition>> m_themes;
+    std::optional<ThemeDefinition> m_active;
 };
+
+extern Theme* g_themes;
 
 auto from_json(const nlohmann::json& json, Rounding& value) -> void;
 auto to_json(nlohmann::json& json, const Rounding& value) -> void;

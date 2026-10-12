@@ -27,8 +27,11 @@
 #include <Eigen/Core>
 #include <vulkan/vulkan.h>
 
+#include "CommandBatch.hpp"
 #include "Input.hpp"
+#include "InteractionHandler.hpp"
 #include "Overlay.hpp"
+#include "OverlayRenderer.hpp"
 
 enum class RecordedKind : uint8_t {
     Hover,
@@ -55,19 +58,19 @@ class RecordingBackend final : public OverlayBackend {
     auto SetRenderer(std::unique_ptr<OverlayRenderer> renderer) -> void override;
     auto SetInteraction(std::unique_ptr<InteractionHandler> interaction) -> void override;
 
-    auto Init(AppState& app) -> Result<> override;
-    auto Pause(AppState& app) -> Result<> override;
-    auto Resume(AppState& app) -> Result<> override;
-    auto ShouldRender(AppState& app) -> Result<RenderReadiness> override;
-    auto Render(AppState& app, const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
+    auto Init() -> Result<> override;
+    auto Pause() -> Result<> override;
+    auto Resume() -> Result<> override;
+    auto ShouldRender() -> Result<RenderReadiness> override;
+    auto Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> override;
     auto Meta() -> std::optional<FrameMeta> override;
 
-    auto OnHover(AppState& app, const PointerHit& hit) -> std::optional<Haptics> override;
-    auto OnLeft(AppState& app, size_t pointer) -> void override;
-    auto OnPointer(AppState& app, const PointerHit& hit, bool pressed) -> void override;
-    auto OnScroll(AppState& app, const PointerHit& hit, float delta_y, float delta_x) -> void override;
+    auto OnHover(const PointerHit& hit) -> std::optional<Haptics> override;
+    auto OnLeft(size_t pointer) -> void override;
+    auto OnPointer(const PointerHit& hit, bool pressed) -> void override;
+    auto OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void override;
 
   private:
-    VkExtent2D extent_;
-    std::shared_ptr<std::vector<RecordedEvent>> events_;
+    VkExtent2D m_extent;
+    std::shared_ptr<std::vector<RecordedEvent>> m_events;
 };

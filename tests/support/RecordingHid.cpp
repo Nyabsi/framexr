@@ -18,24 +18,22 @@
 
 #include "RecordingHid.hpp"
 
-#include "State.hpp"
-
 auto RecordingHid::MouseMove(const Eigen::Vector2f&) -> void {
 }
 
 auto RecordingHid::SendButton(uint16_t button, bool down) -> void {
-    buttons.push_back({.button = button, .down = down});
+    m_buttons.push_back({.button = button, .down = down});
 }
 
 auto RecordingHid::Wheel(int32_t, int32_t) -> void {
 }
 
 auto RecordingHid::SetModifiers(uint8_t value) -> void {
-    modifiers = value;
+    m_modifiers = value;
 }
 
 auto RecordingHid::SendKey(VirtualKey key, bool down) -> void {
-    events.push_back({.key = key, .down = down, .modifiers = modifiers});
+    m_events.push_back({.key = key, .down = down, .modifiers = m_modifiers});
 }
 
 auto RecordingHid::SetDesktopExtent(const Eigen::Vector2f&) -> void {
@@ -47,12 +45,6 @@ auto RecordingHid::SetDesktopOrigin(const Eigen::Vector2f&) -> void {
 auto RecordingHid::Commit() -> void {
 }
 
-ScopedRecordingHid::ScopedRecordingHid(AppState& app) : app_(app) {
-    auto recording = std::make_unique<RecordingHid>();
-    recording_ = recording.get();
-    previous_ = std::exchange(app_.hid, std::move(recording));
-}
-
-ScopedRecordingHid::~ScopedRecordingHid() {
-    app_.hid = std::move(previous_);
+auto RecordingHid::Clear() -> void {
+    m_events.clear();
 }

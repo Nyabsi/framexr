@@ -26,23 +26,20 @@
 
 #include "Platform.hpp"
 
-auto Logger::Instance() -> Logger& {
-    static Logger logger;
-    return logger;
-}
+Logger* g_logger = nullptr;
 
-Logger::Logger() : colored_(Platform::IsTerminal(stderr)) {
+Logger::Logger() : m_colored(Platform::IsTerminal(stderr)) {
     if (const char* spec = std::getenv("FRAMEXR_LOG")) {
         ParseFilters(spec);
     }
 }
 
 auto Logger::SetOutputFile(FILE* file) -> void {
-    std::scoped_lock lock(mutex_);
-    if (file_ != nullptr) {
-        std::fclose(file_);
+    std::scoped_lock lock(m_mutex);
+    if (m_file != nullptr) {
+        std::fclose(m_file);
     }
-    file_ = file;
+    m_file = file;
 }
 
 auto Logger::IsEnabled(LogLevel level, std::string_view source_file) const -> bool {
@@ -54,8 +51,8 @@ auto Logger::Write(LogLevel level, std::string_view source_file, std::string_vie
     const auto timestamp = CurrentTimestamp();
     const auto plain = std::format("{} {} {}: {}\n", timestamp, LevelName(level), module, message);
 
-    std::scoped_lock lock(mutex_);
-    if (colored_) {
+    std::scoped_lock lock(m_mutex);
+    if (m_colored) {
         const auto colored = std::format(
             "\x1b[2m{}\x1b[0m {}{}\x1b[0m \x1b[1m{}\x1b[0m: {}\n",
             timestamp,
@@ -68,9 +65,9 @@ auto Logger::Write(LogLevel level, std::string_view source_file, std::string_vie
     } else {
         std::fputs(plain.c_str(), stderr);
     }
-    if (file_ != nullptr) {
-        std::fputs(plain.c_str(), file_);
-        std::fflush(file_);
+    if (m_file != nullptr) {
+        std::fputs(plain.c_str(), m_file);
+        std::fflush(m_file);
     }
 }
 
@@ -80,24 +77,24 @@ auto Logger::ParseFilters(std::string_view spec) -> void {
         const auto separator = entry.find('=');
         if (separator == std::string_view::npos) {
             if (const auto level = ParseLevel(entry)) {
-                default_level_ = *level;
+                m_default_level = *level;
             }
         } else if (const auto level = ParseLevel(entry.substr(separator + 1))) {
-            filters_.push_back({std::string(entry.substr(0, separator)), *level});
+            m_filters.push_back({std::string(entry.substr(0, separator)), *level});
         }
     }
 }
 
 auto Logger::LevelFor(std::string_view module) const -> LogLevel {
     const LogModuleFilter* best = nullptr;
-    for (const auto& filter : filters_) {
+    for (const auto& filter : m_filters) {
         const bool matches = module.starts_with(filter.module)
                           && (module.size() == filter.module.size() || module[filter.module.size()] == '/');
         if (matches && (best == nullptr || filter.module.size() > best->module.size())) {
             best = &filter;
         }
     }
-    return best != nullptr ? best->level : default_level_;
+    return best != nullptr ? best->level : m_default_level;
 }
 
 auto Logger::ModuleOf(std::string_view source_file) -> std::string_view {

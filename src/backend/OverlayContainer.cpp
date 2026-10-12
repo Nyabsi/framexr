@@ -28,14 +28,16 @@
 #include <set>
 #include <utility>
 
+#include "Config.hpp"
 #include "Editor.hpp"
 #include "Hid.hpp"
+#include "Input.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
 #include "Logger.hpp"
 #include "OverlayLayout.hpp"
 #include "Screen.hpp"
-#include "State.hpp"
+#include "ScreenInteraction.hpp"
 #include "Watch.hpp"
 #include "framexr_config.h"
 
@@ -55,62 +57,69 @@ auto LoadKeymap(Result<Keymap> loaded) -> std::optional<Keymap> {
 
 } // namespace
 
-OverlayContainer::OverlayContainer() = default;
+OverlayContainer* g_overlays = nullptr;
 
-OverlayContainer::~OverlayContainer() = default;
+OverlayContainer::OverlayContainer() {
+    g_overlays = this;
+}
 
-auto OverlayContainer::CreateScreens(AppState& app, std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>> {
+OverlayContainer::~OverlayContainer() {
+    if (g_overlays == this) {
+        g_overlays = nullptr;
+    }
+}
+
+auto OverlayContainer::CreateScreens(std::optional<Keymap>& keymap) -> Result<std::vector<ScreenOverlay>> {
 #ifdef _WIN32
     keymap = LoadKeymap(Keymap::FromWindows());
-    return Screens::CreateWindows(app);
+    return Screens::CreateWindows();
 #else
 #if FRAMEXR_FEATURE_WAYLAND
-    wayland_ = WaylandClient::Connect();
-    if (wayland_) {
+    m_wayland = WaylandClient::Connect();
+    if (m_wayland) {
         keymap = LoadKeymap(Keymap::FromWayland());
-        return Screens::CreateWayland(*wayland_, app);
+        return Screens::CreateWayland(*m_wayland);
     }
 #endif
     keymap = LoadKeymap(Keymap::FromX11());
-    if (auto created = Screens::CreateX11Pipewire(app)) {
+    if (auto created = Screens::CreateX11Pipewire()) {
         return std::move(*created);
     } else {
         LOG_INFO("Will not use PipeWire capture: {}", created.error().Message());
     }
-    return Screens::CreateXshm(app);
+    return Screens::CreateXshm();
 #endif
 }
 
-auto OverlayContainer::Create(AppState& app) -> Result<std::unique_ptr<OverlayContainer>> {
+auto OverlayContainer::Create() -> Result<std::unique_ptr<OverlayContainer>> {
     std::unique_ptr<OverlayContainer> container(new OverlayContainer());
-    app.screens.clear();
     std::optional<Keymap> keymap;
-    ASSIGN_OR_RETURN(auto screens, container->CreateScreens(app, keymap));
+    ASSIGN_OR_RETURN(auto screens, container->CreateScreens(keymap));
     Screens::ArrangeInFrontOfHead(screens);
 
-    auto show_screens = app.config.show_screens;
+    auto show_screens = g_config->show_screens;
     if (show_screens.empty() && !screens.empty()) {
-        show_screens.push_back(screens.front().state.name);
+        show_screens.push_back(screens.front().state.Name());
     }
 
     for (auto& screen : screens) {
-        if (std::ranges::contains(show_screens, screen.state.name)) {
-            screen.state.show_hide = true;
+        if (std::ranges::contains(show_screens, screen.state.Name())) {
+            screen.state.SetShowHide(true);
         }
         container->Add(std::make_unique<Overlay>(std::move(screen.state), std::move(screen.backend)));
-        app.screens.push_back(std::move(screen.meta));
+        container->m_screens.push_back(std::move(screen.meta));
     }
 
-    ASSIGN_OR_RETURN(auto watch, Watch::Create(app));
-    watch->state.want_visible = true;
+    ASSIGN_OR_RETURN(auto watch, Watch::Create());
+    watch->State().SetWantVisible(true);
     container->Add(std::move(watch));
 
     if (keymap) {
-        app.keymap = std::make_shared<const Keymap>(std::move(*keymap));
+        g_input->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*keymap)));
     }
-    ASSIGN_OR_RETURN(auto keyboard, Keyboard::Create(app, app.keymap));
-    keyboard->state.show_hide = std::ranges::contains(show_screens, kKeyboardName);
-    keyboard->state.want_visible = false;
+    ASSIGN_OR_RETURN(auto keyboard, Keyboard::Create(g_input->TypingKeymap()));
+    keyboard->State().SetShowHide(std::ranges::contains(show_screens, kKeyboardName));
+    keyboard->State().SetWantVisible(false);
     container->Add(std::move(keyboard));
 
     return container;
@@ -121,13 +130,15 @@ auto OverlayContainer::CreateEmpty() -> std::unique_ptr<OverlayContainer> {
 }
 
 auto OverlayContainer::ById(OverlayId id) -> Overlay* {
-    const auto it = std::ranges::find_if(overlays_, [id](const auto& overlay) -> bool { return overlay->state.id == id; });
-    return it == overlays_.end() ? nullptr : it->get();
+    const auto it = std::ranges::find_if(m_overlays, [id](const auto& overlay) -> bool { return overlay->State().Id() == id; });
+    return it == m_overlays.end() ? nullptr : it->get();
 }
 
 auto OverlayContainer::ByName(std::string_view name) -> Overlay* {
-    const auto it = std::ranges::find_if(overlays_, [name](const auto& overlay) -> bool { return overlay->state.name == name; });
-    return it == overlays_.end() ? nullptr : it->get();
+    const auto it = std::ranges::find_if(m_overlays, [name](const auto& overlay) -> bool {
+        return overlay->State().Name() == name;
+    });
+    return it == m_overlays.end() ? nullptr : it->get();
 }
 
 auto OverlayContainer::BySelector(const OverlaySelector& selector) -> Overlay* {
@@ -138,18 +149,20 @@ auto OverlayContainer::BySelector(const OverlaySelector& selector) -> Overlay* {
 }
 
 auto OverlayContainer::Add(std::unique_ptr<Overlay> overlay) -> void {
-    const auto id = overlay->state.id;
-    const auto position = std::ranges::lower_bound(overlays_, id, {}, [](const auto& item) -> OverlayId { return item->state.id; });
-    if (position != overlays_.end() && (*position)->state.id == id) {
+    const auto id = overlay->State().Id();
+    const auto position = std::ranges::lower_bound(m_overlays, id, {}, [](const auto& item) -> OverlayId {
+        return item->State().Id();
+    });
+    if (position != m_overlays.end() && (*position)->State().Id() == id) {
         *position = std::move(overlay);
     } else {
-        overlays_.insert(position, std::move(overlay));
+        m_overlays.insert(position, std::move(overlay));
     }
 }
 
 auto OverlayContainer::RemoveAt(size_t index) -> std::unique_ptr<Overlay> {
-    auto removed = std::move(overlays_[index]);
-    overlays_.erase(overlays_.begin() + static_cast<std::ptrdiff_t>(index));
+    auto removed = std::move(m_overlays[index]);
+    m_overlays.erase(m_overlays.begin() + static_cast<std::ptrdiff_t>(index));
     return removed;
 }
 
@@ -158,17 +171,17 @@ auto OverlayContainer::Remove(const OverlaySelector& selector) -> std::unique_pt
     if (overlay == nullptr) {
         return nullptr;
     }
-    const auto it = std::ranges::find_if(overlays_, [overlay](const auto& item) -> bool { return item.get() == overlay; });
-    return RemoveAt(static_cast<size_t>(it - overlays_.begin()));
+    const auto it = std::ranges::find_if(m_overlays, [overlay](const auto& item) -> bool { return item.get() == overlay; });
+    return RemoveAt(static_cast<size_t>(it - m_overlays.begin()));
 }
 
-auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_ptr<Overlay>>> {
+auto OverlayContainer::Update() -> Result<std::vector<std::unique_ptr<Overlay>>> {
     std::vector<std::unique_ptr<Overlay>> removed;
 #if FRAMEXR_FEATURE_WAYLAND
-    if (!wayland_) {
+    if (!m_wayland) {
         return removed;
     }
-    auto& wayland = *wayland_;
+    auto& wayland = *m_wayland;
     wayland.DispatchPending();
 
     bool create_ran = false;
@@ -176,8 +189,8 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
     bool watch_dirty = false;
     std::optional<std::map<std::string, std::string>> token_store;
 
-    const auto find_screen = [&app](uint32_t handle) -> std::vector<ScreenMeta>::iterator {
-        return std::ranges::find_if(app.screens, [handle](const ScreenMeta& screen) -> bool {
+    const auto find_screen = [this](uint32_t handle) -> std::vector<ScreenMeta>::iterator {
+        return std::ranges::find_if(m_screens, [handle](const ScreenMeta& screen) -> bool {
             return screen.native_handle == handle;
         });
     };
@@ -188,18 +201,18 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
             if (create_ran) {
                 break;
             }
-            auto screens = Screens::CreateWayland(wayland, app);
+            auto screens = Screens::CreateWayland(wayland);
             create_ran = true;
             for (auto& screen : screens) {
                 Add(std::make_unique<Overlay>(std::move(screen.state), std::move(screen.backend)));
-                app.screens.push_back(std::move(screen.meta));
+                m_screens.push_back(std::move(screen.meta));
                 watch_dirty = true;
             }
             break;
         }
         case OutputChange::Destroy: {
             const auto screen = find_screen(event.id);
-            if (screen == app.screens.end()) {
+            if (screen == m_screens.end()) {
                 break;
             }
             auto overlay = Remove(screen->id);
@@ -208,14 +221,14 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
             }
             removed.push_back(std::move(overlay));
             LOG_INFO("{}: Destroyed", screen->name);
-            app.screens.erase(screen);
+            m_screens.erase(screen);
             watch_dirty = true;
             extent_dirty = true;
             break;
         }
         case OutputChange::Logical: {
             const auto screen = find_screen(event.id);
-            if (screen == app.screens.end()) {
+            if (screen == m_screens.end()) {
                 break;
             }
             const auto* output = wayland.FindOutput(event.id);
@@ -223,7 +236,7 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
             if (output == nullptr || overlay == nullptr) {
                 break;
             }
-            overlay->backend->SetInteraction(
+            overlay->Backend()->SetInteraction(
                 std::make_unique<ScreenInteraction>(
                     output->logical_position.cast<float>(),
                     output->logical_size.cast<float>(),
@@ -235,7 +248,7 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
         }
         case OutputChange::Physical: {
             const auto screen = find_screen(event.id);
-            if (screen == app.screens.end()) {
+            if (screen == m_screens.end()) {
                 break;
             }
             const auto* output = wayland.FindOutput(event.id);
@@ -254,10 +267,9 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
                     *output,
                     wayland.DmabufManager() != nullptr,
                     wayland.ScreencopyManager() != nullptr,
-                    *token_store,
-                    app
+                    *token_store
                 )) {
-                overlay->backend->SetRenderer(std::move(renderer));
+                overlay->Backend()->SetRenderer(std::move(renderer));
             }
             extent_dirty = true;
             break;
@@ -266,8 +278,8 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
     }
 
     if (extent_dirty && !create_ran) {
-        app.hid->SetDesktopExtent(wayland.DesktopExtent().cast<float>());
-        app.hid->SetDesktopOrigin(wayland.DesktopOrigin().cast<float>());
+        g_hid->SetDesktopExtent(wayland.DesktopExtent().cast<float>());
+        g_hid->SetDesktopOrigin(wayland.DesktopOrigin().cast<float>());
     }
 
     if (watch_dirty) {
@@ -275,97 +287,95 @@ auto OverlayContainer::Update(AppState& app) -> Result<std::vector<std::unique_p
         if (watch == nullptr) {
             FatalError("Watch overlay missing");
         }
-        if (const auto result = Watch::RebuildCanvas(app, *watch); !result) {
+        if (const auto result = Watch::RebuildCanvas(*watch); !result) {
             LOG_ERROR("Failed to create watch canvas: {}", result.error().Message());
         }
     }
-#else
-    static_cast<void>(app);
 #endif
     return removed;
 }
 
-auto OverlayContainer::ShowHide(AppState& app) -> void {
+auto OverlayContainer::ShowHide() -> void {
     const auto hideable = [](const OverlayState& state) -> bool {
-        return state.show_hide || (state.recenter && state.relative_to == RelativeTo::None);
+        return state.ShowHide() || (state.Recenter() && state.AttachedTo() == RelativeTo::None);
     };
-    const bool editor_shown = editor_ && !editor_->Closing() && !editor_->Hidden();
-    const bool any_shown = editor_shown || std::ranges::any_of(overlays_, [&](const auto& overlay) -> bool {
-                               return hideable(overlay->state) && overlay->state.want_visible;
+    const bool editor_shown = m_editor && !m_editor->Closing() && !m_editor->Hidden();
+    const bool any_shown = editor_shown || std::ranges::any_of(m_overlays, [&](const auto& overlay) -> bool {
+                               return hideable(overlay->State()) && overlay->State().WantVisible();
                            });
 
     if (any_shown) {
-        if (editor_) {
-            editor_->SetHidden(true);
+        if (m_editor) {
+            m_editor->SetHidden(true);
         }
-        hidden_by_show_hide_.clear();
-        for (auto& overlay : overlays_) {
-            auto& state = overlay->state;
-            if (hideable(state) && state.want_visible) {
-                hidden_by_show_hide_.push_back(state.id);
-                state.want_visible = false;
+        m_hidden_by_show_hide.clear();
+        for (auto& overlay : m_overlays) {
+            auto& state = overlay->State();
+            if (hideable(state) && state.WantVisible()) {
+                m_hidden_by_show_hide.push_back(state.Id());
+                state.SetWantVisible(false);
             }
         }
         return;
     }
 
     const auto restore = [&](const OverlayState& state) -> bool {
-        return hidden_by_show_hide_.empty() ? state.show_hide : std::ranges::contains(hidden_by_show_hide_, state.id);
+        return m_hidden_by_show_hide.empty() ? state.ShowHide() : std::ranges::contains(m_hidden_by_show_hide, state.Id());
     };
-    for (auto& overlay : overlays_) {
-        auto& state = overlay->state;
+    for (auto& overlay : m_overlays) {
+        auto& state = overlay->State();
         if (restore(state)) {
-            state.want_visible = true;
-            if (state.recenter) {
-                state.Reset(app, false);
+            state.SetWantVisible(true);
+            if (state.Recenter()) {
+                state.Reset(false);
             }
         }
-        if (state.name == kWatchName) {
-            state.Reset(app, true);
+        if (state.Name() == kWatchName) {
+            state.Reset(true);
         }
     }
-    hidden_by_show_hide_.clear();
-    if (editor_ && editor_->Hidden()) {
-        editor_->SetHidden(false);
-        editor_->Recenter(app);
+    m_hidden_by_show_hide.clear();
+    if (m_editor && m_editor->Hidden()) {
+        m_editor->SetHidden(false);
+        m_editor->Recenter();
     }
-    ArrangeVisible(app);
+    ArrangeVisible();
 }
 
-auto OverlayContainer::Recenter(AppState& app) -> void {
-    if (editor_) {
-        editor_->Recenter(app);
+auto OverlayContainer::Recenter() -> void {
+    if (m_editor) {
+        m_editor->Recenter();
     }
-    for (auto& overlay : overlays_) {
-        auto& state = overlay->state;
-        if (state.want_visible && state.recenter && state.relative_to == RelativeTo::None) {
-            state.Reset(app, false);
+    for (auto& overlay : m_overlays) {
+        auto& state = overlay->State();
+        if (state.WantVisible() && state.Recenter() && state.AttachedTo() == RelativeTo::None) {
+            state.Reset(false);
         }
     }
-    ArrangeVisible(app);
+    ArrangeVisible();
 }
 
 auto OverlayContainer::LockedVisible() -> std::vector<Overlay*> {
     std::vector<Overlay*> locked;
-    for (auto& overlay : overlays_) {
-        if (overlay->state.want_visible && !overlay->state.recenter && overlay->state.relative_to == RelativeTo::None) {
+    for (auto& overlay : m_overlays) {
+        if (overlay->State().WantVisible() && !overlay->State().Recenter() && overlay->State().AttachedTo() == RelativeTo::None) {
             locked.push_back(overlay.get());
         }
     }
     return locked;
 }
 
-auto OverlayContainer::FreeVisible(const AppState& app) -> std::vector<Overlay*> {
-    const auto rank = [&app](const Overlay& overlay) -> int {
-        if (std::ranges::any_of(app.screens, [&](const ScreenMeta& screen) -> bool { return screen.id == overlay.state.id; })) {
+auto OverlayContainer::FreeVisible() -> std::vector<Overlay*> {
+    const auto rank = [this](const Overlay& overlay) -> int {
+        if (std::ranges::any_of(m_screens, [&](const ScreenMeta& screen) -> bool { return screen.id == overlay.State().Id(); })) {
             return 0;
         }
-        return overlay.state.name == kKeyboardName ? 1 : 2;
+        return overlay.State().Name() == kKeyboardName ? 1 : 2;
     };
 
     std::vector<Overlay*> visible;
-    for (auto& overlay : overlays_) {
-        if (overlay->state.want_visible && overlay->state.recenter && overlay->state.relative_to == RelativeTo::None) {
+    for (auto& overlay : m_overlays) {
+        if (overlay->State().WantVisible() && overlay->State().Recenter() && overlay->State().AttachedTo() == RelativeTo::None) {
             visible.push_back(overlay.get());
         }
     }
@@ -373,86 +383,86 @@ auto OverlayContainer::FreeVisible(const AppState& app) -> std::vector<Overlay*>
     return visible;
 }
 
-auto OverlayContainer::RememberUserPlacement(const AppState& app, Overlay& placed) -> void {
-    std::erase_if(user_overlaps_, [&](const OverlayPair& pair) -> bool {
-        return pair.first == placed.state.id || pair.second == placed.state.id;
+auto OverlayContainer::RememberUserPlacement(Overlay& placed) -> void {
+    std::erase_if(m_user_overlaps, [&](const OverlayPair& pair) -> bool {
+        return pair.first == placed.State().Id() || pair.second == placed.State().Id();
     });
     const auto corners = OverlayLayout::Corners(placed);
     if (!corners) {
         return;
     }
-    const ViewRect bounds = OverlayLayout::ViewBounds(*corners, app.input.hmd);
+    const ViewRect bounds = OverlayLayout::ViewBounds(*corners, g_input->Hmd());
 
     auto others = LockedVisible();
-    std::ranges::copy(FreeVisible(app), std::back_inserter(others));
+    std::ranges::copy(FreeVisible(), std::back_inserter(others));
     for (auto* other : others) {
         if (other == &placed) {
             continue;
         }
         if (const auto other_corners = OverlayLayout::Corners(*other);
-            other_corners && bounds.Overlaps(OverlayLayout::ViewBounds(*other_corners, app.input.hmd), 0.0f)) {
-            user_overlaps_.insert(std::minmax(placed.state.id, other->state.id));
+            other_corners && OverlayLayout::Overlaps(bounds, OverlayLayout::ViewBounds(*other_corners, g_input->Hmd()), 0.0f)) {
+            m_user_overlaps.insert(std::minmax(placed.State().Id(), other->State().Id()));
         }
     }
 }
 
-auto OverlayContainer::PlaceShown(const AppState& app, Overlay& shown) -> void {
-    if (!shown.state.recenter || shown.state.relative_to != RelativeTo::None) {
+auto OverlayContainer::PlaceShown(Overlay& shown) -> void {
+    if (!shown.State().Recenter() || shown.State().AttachedTo() != RelativeTo::None) {
         return;
     }
     auto others = LockedVisible();
-    std::ranges::copy(FreeVisible(app), std::back_inserter(others));
+    std::ranges::copy(FreeVisible(), std::back_inserter(others));
     std::erase_if(others, [&](const Overlay* other) -> bool {
-        return other == &shown || user_overlaps_.contains(std::minmax(shown.state.id, other->state.id));
+        return other == &shown || m_user_overlaps.contains(std::minmax(shown.State().Id(), other->State().Id()));
     });
-    OverlayLayout::NudgeClear(shown, others, app.input.hmd);
+    OverlayLayout::NudgeClear(shown, others, g_input->Hmd());
 }
 
-auto OverlayContainer::UpdateTexelFootprints(const AppState& app) -> void {
-    if (app.display_pixels_per_radian.minCoeff() <= 0.0f) {
+auto OverlayContainer::UpdateTexelFootprints() -> void {
+    if (g_input->DisplayPixelsPerRadian().minCoeff() <= 0.0f) {
         return;
     }
-    for (auto& overlay : overlays_) {
-        if (!overlay->state.want_visible) {
+    for (auto& overlay : m_overlays) {
+        if (!overlay->State().WantVisible()) {
             continue;
         }
-        if (const auto footprint = OverlayLayout::MeasureFootprint(*overlay, app.input.hmd, app.display_pixels_per_radian)) {
-            overlay->backend->SetTexelFootprint(*footprint);
+        if (const auto footprint = OverlayLayout::MeasureFootprint(*overlay, g_input->Hmd(), g_input->DisplayPixelsPerRadian())) {
+            overlay->Backend()->SetTexelFootprint(*footprint);
         }
     }
 }
 
-auto OverlayContainer::OpenEditor(AppState& app) -> void {
-    if (editor_ && !editor_->Closing()) {
-        editor_->Suspend(app);
+auto OverlayContainer::OpenEditor() -> void {
+    if (m_editor && !m_editor->Closing()) {
+        m_editor->Suspend();
         return;
     }
-    editor_ = Editor::Create(app);
-    editor_->Open(app);
+    m_editor = Editor::Create();
+    m_editor->Open();
 }
 
-auto OverlayContainer::UpdateEditor(AppState& app) -> void {
-    if (!editor_) {
+auto OverlayContainer::UpdateEditor() -> void {
+    if (!m_editor) {
         return;
     }
-    editor_->Update(app, *this);
-    if (editor_->Finished()) {
-        editor_.reset();
+    m_editor->Update();
+    if (m_editor->Finished()) {
+        m_editor.reset();
     }
 }
 
 auto OverlayContainer::EditorLines() -> std::vector<EditorLine> {
-    return editor_ ? editor_->Lines(*this) : std::vector<EditorLine>{};
+    return m_editor ? m_editor->Lines() : std::vector<EditorLine>{};
 }
 
-auto OverlayContainer::ArrangeVisible(const AppState& app) -> void {
+auto OverlayContainer::ArrangeVisible() -> void {
     auto placed = LockedVisible();
-    for (auto* overlay : FreeVisible(app)) {
+    for (auto* overlay : FreeVisible()) {
         std::vector<Overlay*> obstacles;
         std::ranges::copy_if(placed, std::back_inserter(obstacles), [&](const Overlay* other) -> bool {
-            return !user_overlaps_.contains(std::minmax(overlay->state.id, other->state.id));
+            return !m_user_overlaps.contains(std::minmax(overlay->State().Id(), other->State().Id()));
         });
-        OverlayLayout::NudgeClear(*overlay, obstacles, app.input.hmd);
+        OverlayLayout::NudgeClear(*overlay, obstacles, g_input->Hmd());
         placed.push_back(overlay);
     }
 }

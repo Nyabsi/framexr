@@ -26,45 +26,28 @@
 
 #include "Device.hpp"
 
-DescriptorSet::DescriptorSet(std::shared_ptr<Device> device, VkDescriptorPool pool, VkDescriptorSet set)
-    : device_(std::move(device)),
-      pool_(pool),
-      set_(set) {
-}
-
-DescriptorSet::~DescriptorSet() {
-    device_->FreeDescriptorSet(pool_, set_);
-}
-
-Pipeline::Pipeline(
-    std::shared_ptr<Device> device,
-    VkPipeline pipeline,
-    VkPipelineLayout layout,
-    std::vector<VkDescriptorSetLayout> set_layouts,
-    VkFormat format
-)
-    : device_(std::move(device)),
-      pipeline_(pipeline),
-      layout_(layout),
-      set_layouts_(std::move(set_layouts)),
-      format_(format) {
+Pipeline::Pipeline(VkPipeline pipeline, VkPipelineLayout layout, std::vector<VkDescriptorSetLayout> set_layouts, VkFormat format)
+    : m_pipeline(pipeline),
+      m_layout(layout),
+      m_set_layouts(std::move(set_layouts)),
+      m_format(format) {
 }
 
 Pipeline::~Pipeline() {
-    const auto device = device_->Handle();
-    vkDestroyPipeline(device, pipeline_, nullptr);
-    vkDestroyPipelineLayout(device, layout_, nullptr);
-    for (const auto set_layout : set_layouts_) {
+    const auto device = g_device->Handle();
+    vkDestroyPipeline(device, m_pipeline, nullptr);
+    vkDestroyPipelineLayout(device, m_layout, nullptr);
+    for (const auto set_layout : m_set_layouts) {
         vkDestroyDescriptorSetLayout(device, set_layout, nullptr);
     }
 }
 
 auto Pipeline::AllocateSet(uint32_t set) -> Result<std::shared_ptr<DescriptorSet>> {
-    if (set >= set_layouts_.size()) {
+    if (set >= m_set_layouts.size()) {
         return Unexpected(std::format("Pipeline has no descriptor set {}", set));
     }
-    ASSIGN_OR_RETURN(const auto allocation, device_->AllocateDescriptorSet(set_layouts_[set]));
-    return std::make_shared<DescriptorSet>(device_, allocation.first, allocation.second);
+    ASSIGN_OR_RETURN(const auto allocation, g_device->AllocateDescriptorSet(m_set_layouts[set]));
+    return std::make_shared<DescriptorSet>(allocation.first, allocation.second);
 }
 
 auto Pipeline::CreateTextureSet(uint32_t set, std::shared_ptr<Image> texture, VkFilter filter)
@@ -76,7 +59,7 @@ auto Pipeline::CreateTextureSet(uint32_t set, std::shared_ptr<Image> texture, Vk
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
     const VkDescriptorImageInfo sampler_info{
-        .sampler = device_->Sampler(filter),
+        .sampler = g_device->Sampler(filter),
     };
     const std::array writes{
         VkWriteDescriptorSet{
@@ -96,7 +79,7 @@ auto Pipeline::CreateTextureSet(uint32_t set, std::shared_ptr<Image> texture, Vk
             .pImageInfo = &sampler_info,
         },
     };
-    vkUpdateDescriptorSets(device_->Handle(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(g_device->Handle(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 
     descriptor_set->BindTexture(std::move(texture));
     return descriptor_set;
@@ -104,7 +87,7 @@ auto Pipeline::CreateTextureSet(uint32_t set, std::shared_ptr<Image> texture, Vk
 
 auto Pipeline::CreateUniformSet(uint32_t set, std::span<const float> data) -> Result<std::shared_ptr<DescriptorSet>> {
     ASSIGN_OR_RETURN(auto descriptor_set, AllocateSet(set));
-    ASSIGN_OR_RETURN(auto buffer, Buffer::Create(device_, data.size_bytes(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT));
+    ASSIGN_OR_RETURN(auto buffer, Buffer::Create(data.size_bytes(), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT));
     buffer->Write(std::as_bytes(data));
 
     const VkDescriptorBufferInfo buffer_info{
@@ -120,7 +103,7 @@ auto Pipeline::CreateUniformSet(uint32_t set, std::span<const float> data) -> Re
         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         .pBufferInfo = &buffer_info,
     };
-    vkUpdateDescriptorSets(device_->Handle(), 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(g_device->Handle(), 1, &write, 0, nullptr);
 
     descriptor_set->BindBuffer(std::move(buffer));
     return descriptor_set;
@@ -140,5 +123,5 @@ auto Pipeline::CreatePass(
 }
 
 auto Pipeline::CreatePassForTarget(const Image& target, std::vector<std::shared_ptr<DescriptorSet>> descriptor_sets) -> Pass {
-    return CreatePass(target.Extent(), device_->QuadVertices(), std::move(descriptor_sets));
+    return CreatePass(target.Extent(), g_device->QuadVertices(), std::move(descriptor_sets));
 }
