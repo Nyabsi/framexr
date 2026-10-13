@@ -55,6 +55,7 @@ class Container final {
   public:
     static auto Create() -> Result<std::unique_ptr<Container>>;
     static auto CreateEmpty() -> std::unique_ptr<Container>;
+    static auto ArcPerChord(const std::optional<float>& curvature) -> float;
     static auto Corners(View& view) -> std::optional<std::array<Eigen::Vector3f, 4>>;
     static auto ViewBounds(const std::array<Eigen::Vector3f, 4>& corners, const Eigen::Affine3f& head) -> ViewRect;
     static auto Overlaps(const ViewRect& a, const ViewRect& b, float gap) -> bool;

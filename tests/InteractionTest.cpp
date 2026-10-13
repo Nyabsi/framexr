@@ -743,6 +743,23 @@ TEST_F(LaserInteraction, ShowHideIncludesOverlaysOpenedOutsideTheSet) {
     EXPECT_TRUE(m_overlays->ById(extra)->WantVisible());
 }
 
+TEST_F(LaserInteraction, CurvedScreensCoverTheirRealViewAngle) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
+    auto* overlay = m_overlays->ById(screen);
+    const auto head = Eigen::Affine3f::Identity();
+    const auto flat = Container::ViewBounds(*Container::Corners(*overlay), head);
+    overlay->SetCurvature(0.25f);
+    const auto curved = Container::ViewBounds(*Container::Corners(*overlay), head);
+    EXPECT_GT(curved.max_azimuth - curved.min_azimuth, flat.max_azimuth - flat.min_azimuth);
+    EXPECT_GT(curved.max_elevation - curved.min_elevation, flat.max_elevation - flat.min_elevation);
+    EXPECT_NEAR(
+        Container::ArcPerChord(0.25f),
+        (std::numbers::pi_v<float> / 4.0f) / std::sin(std::numbers::pi_v<float> / 4.0f),
+        1e-5f
+    );
+}
+
 TEST_F(LaserInteraction, ShowHideKeepsOverlapsTheUserMade) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);

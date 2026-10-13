@@ -470,15 +470,24 @@ auto Container::Corners(View& overlay) -> std::optional<std::array<Eigen::Vector
     const float half_width = std::min(aspect, 1.0f) / 2.0f;
     const float half_height = half_width / aspect;
 
+    float edge = half_width;
+    float bulge = 0.0f;
+    if (const auto curvature = overlay.Curvature(); curvature && *curvature > 0.0f) {
+        const float angle = std::numbers::pi_v<float> * *curvature;
+        const float radius = half_width / angle;
+        edge = radius * std::sin(angle);
+        bulge = radius * (1.0f - std::cos(angle));
+    }
+
     std::array<Eigen::Vector3f, 4> corners;
     const std::array<Eigen::Vector2f, 4> local{{
-        {-half_width, -half_height},
-        {half_width, -half_height},
-        {half_width, half_height},
-        {-half_width, half_height},
+        {-edge, -half_height},
+        {edge, -half_height},
+        {edge, half_height},
+        {-edge, half_height},
     }};
     for (size_t i = 0; i < corners.size(); ++i) {
-        const Eigen::Vector4f point = effective * Eigen::Vector4f(local[i].x(), local[i].y(), 0.0f, 1.0f);
+        const Eigen::Vector4f point = effective * Eigen::Vector4f(local[i].x(), local[i].y(), bulge, 1.0f);
         corners[i] = point.head<3>();
     }
     return corners;
@@ -510,6 +519,14 @@ auto Container::Overlaps(const ViewRect& a, const ViewRect& b, float gap) -> boo
         && b.min_elevation < a.max_elevation + gap;
 }
 
+auto Container::ArcPerChord(const std::optional<float>& curvature) -> float {
+    if (!curvature || *curvature <= 0.0f) {
+        return 1.0f;
+    }
+    const float angle = std::numbers::pi_v<float> * *curvature;
+    return angle / std::sin(angle);
+}
+
 auto Container::MeasureFootprint(View& overlay, const Eigen::Affine3f& head, const Eigen::Vector2f& display_pixels_per_radian)
     -> std::optional<TexelFootprint> {
     const auto corners = Corners(overlay);
@@ -528,7 +545,7 @@ auto Container::MeasureFootprint(View& overlay, const Eigen::Affine3f& head, con
     const Eigen::Vector3f eye = head.translation() - center;
     return TexelFootprint{
         .eye = Eigen::Vector3f(eye.dot(across_unit), eye.dot(up_unit), eye.dot(normal)),
-        .size = Eigen::Vector2f(across.norm(), up.norm()),
+        .size = Eigen::Vector2f(across.norm() * ArcPerChord(overlay.Curvature()), up.norm()),
         .display_pixels_per_radian = display_pixels_per_radian,
     };
 }
