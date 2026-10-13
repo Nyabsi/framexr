@@ -1071,7 +1071,7 @@ auto Device::CollectFinished() -> void {
     {
         std::scoped_lock lock(m_submission_mutex);
         const auto done = std::ranges::partition(m_in_flight, [&](const Submission& submission) -> bool {
-            return vkGetFenceStatus(m_device, submission.fence) != VK_SUCCESS;
+            return vkGetFenceStatus(m_device, submission.fence) == VK_NOT_READY;
         });
         std::ranges::move(done, std::back_inserter(finished));
         m_in_flight.erase(done.begin(), done.end());
