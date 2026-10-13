@@ -110,6 +110,16 @@ TEST(OverlayRender, KeyboardWithFinnishRegion) {
     RenderOverlay(**keyboard, "keyboard-fi");
 }
 
+TEST(OverlayRender, ImeKeyboards) {
+    for (const auto* name : {"jis-full-size", "jis-tkl", "korean-full-size", "korean-tkl", "chinese-full-size", "chinese-tkl"}) {
+        g_config->keyboard_profile = name;
+        auto keyboard = Keyboard::Create(nullptr);
+        ASSERT_TRUE(keyboard.has_value()) << name;
+        RenderOverlay(**keyboard, std::format("keyboard-{}", name));
+    }
+    g_config->keyboard_profile = "keychron-v1-ansi";
+}
+
 TEST(OverlayRender, SettingsPanel) {
     const auto overlays = Container::CreateEmpty();
     auto settings = Settings::Create("settings");

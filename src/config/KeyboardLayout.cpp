@@ -44,6 +44,30 @@ constexpr unsigned char kFullSizeYaml[] = {
 #embed "keyboards/full-size.yaml"
 };
 
+constexpr unsigned char kJisFullSizeYaml[] = {
+#embed "keyboards/jis-full-size.yaml"
+};
+
+constexpr unsigned char kJisTklYaml[] = {
+#embed "keyboards/jis-tkl.yaml"
+};
+
+constexpr unsigned char kKoreanFullSizeYaml[] = {
+#embed "keyboards/korean-full-size.yaml"
+};
+
+constexpr unsigned char kKoreanTklYaml[] = {
+#embed "keyboards/korean-tkl.yaml"
+};
+
+constexpr unsigned char kChineseFullSizeYaml[] = {
+#embed "keyboards/chinese-full-size.yaml"
+};
+
+constexpr unsigned char kChineseTklYaml[] = {
+#embed "keyboards/chinese-tkl.yaml"
+};
+
 auto Text(std::span<const unsigned char> bytes) -> std::string_view {
     return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
 }
@@ -52,6 +76,12 @@ auto BuiltInProfiles() -> std::span<const std::string_view> {
     static const auto profiles = std::to_array<std::string_view>({
         Text(kKeychronV1Yaml),
         Text(kFullSizeYaml),
+        Text(kJisFullSizeYaml),
+        Text(kJisTklYaml),
+        Text(kKoreanFullSizeYaml),
+        Text(kKoreanTklYaml),
+        Text(kChineseFullSizeYaml),
+        Text(kChineseTklYaml),
     });
     return profiles;
 }

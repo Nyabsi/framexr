@@ -127,6 +127,7 @@ overlay_sources = files(
   'overlay/views/Desktop.cpp',
   'overlay/views/EditorPanel.cpp',
   'overlay/views/Keyboard.cpp',
+  'overlay/views/KeyboardPicker.cpp',
   'overlay/views/Settings.cpp',
   'overlay/views/Toast.cpp',
   'overlay/views/Watch.cpp',

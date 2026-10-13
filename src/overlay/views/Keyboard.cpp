@@ -33,6 +33,7 @@
 #include <locale.h>
 
 #include "ActionRunner.hpp"
+#include "KeyboardPicker.hpp"
 #include "AudioPlayback.hpp"
 #include "Compose.hpp"
 #include "Config.hpp"
@@ -283,7 +284,7 @@ auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const st
     if (std::holds_alternative<ProfileKey>(definition.action)) {
         key.SetOnPress([keymap](PointerMode) -> void {
             Click();
-            SwitchProfile(keymap, KeyboardLayout::After(g_config->keyboard_profile).Name());
+            KeyboardPicker::Open(keymap);
         });
     } else if (const auto* action = std::get_if<ActionKey>(&definition.action)) {
         auto runner = std::make_shared<ActionRunner>();

@@ -1,0 +1,133 @@
+# looking to make changes?
+# edit it in the headset with the watch's Edit button, or drop a copy in ~/.config/framexr/keyboards/
+# a file with the same name replaces this profile, any other name adds a new one
+
+# The keyboard is a grid of 1-unit rows and quarter-unit columns.
+# Every key sits at [x, row] and is `width` units wide (default 1); keys may not overlap.
+# What a key does:
+# - key: <VirtualKey>      types it, modifiers are single use and Caps Lock latches
+# - action: Profile        switches to the next keyboard profile
+# - press / release: [..]  runs actions, like a Shortcut or an Exec command
+# Optional per key: label: [lower, upper], shifted_label, style: { bg_color, fg_color, corner_radius }
+# Labels follow the keyboard region unless the key sets its own.
+
+name: "chinese-full-size"
+columns: 23
+rows: 6
+# When using the purple pointer: None, Shift (same as orange), Ctrl, Alt, Super or Meta (AltGr) is held for the key
+alt_modifier: None
+
+# Region of this keyboard, as an xkb layout like fi, de or fi(classic).
+# Leave it out to follow keyboard_region from the config, or the desktop layout.
+region: cn
+
+keys:
+    - { at: [0, 0], width: 1.5, key: Escape, label: ["Esc"] }
+    - { at: [2, 0], key: F1 }
+    - { at: [3, 0], key: F2 }
+    - { at: [4, 0], key: F3 }
+    - { at: [5, 0], key: F4 }
+    - { at: [6.5, 0], key: F5 }
+    - { at: [7.5, 0], key: F6 }
+    - { at: [8.5, 0], key: F7 }
+    - { at: [9.5, 0], key: F8 }
+    - { at: [11, 0], key: F9 }
+    - { at: [12, 0], key: F10 }
+    - { at: [13, 0], key: F11 }
+    - { at: [14, 0], key: F12 }
+    - { at: [15.5, 0], key: Print, label: ["Prn"] }
+    - { at: [16.5, 0], key: Scroll, label: ["Scr"] }
+    - { at: [17.5, 0], key: Pause, label: ["Brk"] }
+    - { at: [19, 0], press: [{ type: Shortcut, keys: [LCtrl, C] }], label: ["Copy"] }
+    - { at: [20, 0], press: [{ type: Shortcut, keys: [LCtrl, V] }], label: ["Paste"] }
+    - { at: [21, 0], action: Profile, label: ["Layout"] }
+    - { at: [22, 0], press: [{ type: Shortcut, keys: [LSuper, LCtrl, Escape] }], label: ["Kill"] }
+    - { at: [0, 1], key: Oem3 }
+    - { at: [1, 1], key: N1 }
+    - { at: [2, 1], key: N2 }
+    - { at: [3, 1], key: N3 }
+    - { at: [4, 1], key: N4 }
+    - { at: [5, 1], key: N5 }
+    - { at: [6, 1], key: N6 }
+    - { at: [7, 1], key: N7 }
+    - { at: [8, 1], key: N8 }
+    - { at: [9, 1], key: N9 }
+    - { at: [10, 1], key: N0 }
+    - { at: [11, 1], key: Minus }
+    - { at: [12, 1], key: Plus }
+    - { at: [13, 1], width: 2, key: BackSpace, label: ["<<"] }
+    - { at: [0, 2], width: 1.5, key: Tab }
+    - { at: [1.5, 2], key: Q }
+    - { at: [2.5, 2], key: W }
+    - { at: [3.5, 2], key: E }
+    - { at: [4.5, 2], key: R }
+    - { at: [5.5, 2], key: T }
+    - { at: [6.5, 2], key: Y }
+    - { at: [7.5, 2], key: U }
+    - { at: [8.5, 2], key: I }
+    - { at: [9.5, 2], key: O }
+    - { at: [10.5, 2], key: P }
+    - { at: [11.5, 2], key: Oem4 }
+    - { at: [12.5, 2], key: Oem6 }
+    - { at: [13.5, 2], width: 1.5, key: Oem5 }
+    - { at: [0, 3], width: 1.75, key: Caps }
+    - { at: [1.75, 3], key: A }
+    - { at: [2.75, 3], key: S }
+    - { at: [3.75, 3], key: D }
+    - { at: [4.75, 3], key: F }
+    - { at: [5.75, 3], key: G }
+    - { at: [6.75, 3], key: H }
+    - { at: [7.75, 3], key: J }
+    - { at: [8.75, 3], key: K }
+    - { at: [9.75, 3], key: L }
+    - { at: [10.75, 3], key: Oem1 }
+    - { at: [11.75, 3], key: Oem7 }
+    - { at: [12.75, 3], width: 2.25, key: Return }
+    - { at: [0, 4], width: 2.25, key: LShift, label: ["Shift"] }
+    - { at: [2.25, 4], key: Z }
+    - { at: [3.25, 4], key: X }
+    - { at: [4.25, 4], key: C }
+    - { at: [5.25, 4], key: V }
+    - { at: [6.25, 4], key: B }
+    - { at: [7.25, 4], key: N }
+    - { at: [8.25, 4], key: M }
+    - { at: [9.25, 4], key: Comma }
+    - { at: [10.25, 4], key: Period }
+    - { at: [11.25, 4], key: Oem2 }
+    - { at: [12.25, 4], width: 2.75, key: RShift, label: ["Shift"] }
+    - { at: [0, 5], width: 1.25, key: LCtrl, label: ["Ctrl"] }
+    - { at: [1.25, 5], width: 1.25, key: LSuper, label: ["Super"] }
+    - { at: [2.5, 5], width: 1.25, key: LAlt, label: ["Alt"] }
+    - { at: [3.75, 5], width: 1.25, press: [{ type: Shortcut, keys: [LCtrl, Space] }], label: ["中/英"] }
+    - { at: [5, 5], width: 5, key: Space, label: [] }
+    - { at: [10, 5], width: 1.25, key: Meta, label: ["Alt"] }
+    - { at: [11.25, 5], width: 1.25, key: RSuper, label: ["Super"] }
+    - { at: [12.5, 5], width: 1.25, key: Menu }
+    - { at: [13.75, 5], width: 1.25, key: RCtrl, label: ["Ctrl"] }
+    - { at: [15.5, 1], key: Insert, label: ["Ins"] }
+    - { at: [16.5, 1], key: Home }
+    - { at: [17.5, 1], key: Prior, label: ["PgUp"] }
+    - { at: [15.5, 2], key: Delete, label: ["Del"] }
+    - { at: [16.5, 2], key: End }
+    - { at: [17.5, 2], key: Next, label: ["PgDn"] }
+    - { at: [16.5, 4], key: Up }
+    - { at: [15.5, 5], key: Left }
+    - { at: [16.5, 5], key: Down }
+    - { at: [17.5, 5], key: Right }
+    - { at: [19, 1], key: NumLock, label: ["Num"] }
+    - { at: [20, 1], key: KP_Divide, label: [" /"] }
+    - { at: [21, 1], key: KP_Multiply, label: [" *"] }
+    - { at: [22, 1], key: KP_Subtract, label: [" -"] }
+    - { at: [19, 2], key: KP_7 }
+    - { at: [20, 2], key: KP_8 }
+    - { at: [21, 2], key: KP_9 }
+    - { at: [22, 2], key: KP_Add, label: [" +"] }
+    - { at: [19, 3], key: KP_4 }
+    - { at: [20, 3], key: KP_5 }
+    - { at: [21, 3], key: KP_6 }
+    - { at: [19, 4], key: KP_1 }
+    - { at: [20, 4], key: KP_2 }
+    - { at: [21, 4], key: KP_3 }
+    - { at: [22, 4], key: KP_Enter, label: ["Ent"] }
+    - { at: [19, 5], width: 2, key: KP_0 }
+    - { at: [21, 5], key: KP_Decimal }

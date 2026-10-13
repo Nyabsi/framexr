@@ -142,6 +142,7 @@ constexpr auto kVirtualKeyNames = std::to_array<std::pair<VirtualKey, std::strin
     {VirtualKey::AbntC2, "AbntC2"},
     {VirtualKey::Hangul, "Hangul"},
     {VirtualKey::Hanja, "Hanja"},
+    {VirtualKey::Yen, "Yen"},
     {VirtualKey::LSuper, "LSuper"},
     {VirtualKey::RSuper, "RSuper"},
     {VirtualKey::Menu, "Menu"},
@@ -229,7 +230,7 @@ auto VirtualKeys::Name(VirtualKey key) -> std::string_view {
 auto VirtualKeys::Type(VirtualKey key) -> KeyType {
     if (Between(key, VirtualKey::N1, VirtualKey::Plus) || Between(key, VirtualKey::Q, VirtualKey::Oem6)
         || Between(key, VirtualKey::A, VirtualKey::Oem3) || Between(key, VirtualKey::Oem5, VirtualKey::Oem2)
-        || key == VirtualKey::Oem102) {
+        || key == VirtualKey::Oem102 || key == VirtualKey::AbntC1 || key == VirtualKey::Yen) {
         return KeyType::Symbol;
     }
     if (Between(key, VirtualKey::Kp7, VirtualKey::Kp0) && key != VirtualKey::KpSubtract && key != VirtualKey::KpAdd) {

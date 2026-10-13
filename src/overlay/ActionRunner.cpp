@@ -36,6 +36,7 @@
 #include "HidProvider.hpp"
 #include "Json.hpp"
 #include "Keyboard.hpp"
+#include "KeyboardPicker.hpp"
 #include "KeyboardLayout.hpp"
 #include "Keymap.hpp"
 #include "Logger.hpp"
@@ -168,8 +169,11 @@ auto ActionRunner::Run(const ButtonAction& action) -> void {
 }
 
 auto ActionRunner::RunProfile(const std::optional<std::string>& profile) -> void {
-    const auto& next = profile ? KeyboardLayout::Find(*profile) : KeyboardLayout::After(g_config->keyboard_profile);
-    Keyboard::SwitchProfile(g_interaction->TypingKeymap(), next.Name());
+    if (!profile) {
+        KeyboardPicker::Open(g_interaction->TypingKeymap());
+        return;
+    }
+    Keyboard::SwitchProfile(g_interaction->TypingKeymap(), KeyboardLayout::Find(*profile).Name());
 }
 
 auto ActionRunner::RunExec(const ExecButtonAction& action) -> void {

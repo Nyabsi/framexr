@@ -142,6 +142,7 @@ enum class VirtualKey : uint8_t {
     AbntC2 = 129,
     Hangul = 130,
     Hanja = 131,
+    Yen = 132,
     LSuper = 133,
     RSuper = 134,
     Menu = 135,

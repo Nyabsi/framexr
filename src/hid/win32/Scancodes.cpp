@@ -58,6 +58,7 @@ constexpr auto kScancodes = std::to_array<std::pair<VirtualKey, uint16_t>>({
     {VirtualKey::AbntC2, 0x7E},
     {VirtualKey::Hangul, 0x72},
     {VirtualKey::Hanja, 0x71},
+    {VirtualKey::Yen, 0x7D},
     {VirtualKey::LSuper, kScancodeExtended | 0x5B},
     {VirtualKey::RSuper, kScancodeExtended | 0x5C},
     {VirtualKey::Menu, kScancodeExtended | 0x5D},

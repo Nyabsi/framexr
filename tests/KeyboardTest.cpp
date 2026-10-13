@@ -21,8 +21,10 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -216,4 +218,36 @@ TEST(KeyboardProfiles, OverlappingOrOutOfGridKeysAreRejected) {
     EXPECT_FALSE(KeyboardLayout::Parse("name: bad\ncolumns: 2\nrows: 1\nkeys:\n  - { at: [0, 1], key: A }\n").has_value());
     EXPECT_FALSE(KeyboardLayout::Parse("name: bad\ncolumns: 2\nrows: 1\nkeys:\n  - { at: [0.1, 0], key: A }\n").has_value());
     EXPECT_TRUE(KeyboardLayout::Parse("name: gaps\ncolumns: 4\nrows: 2\nkeys:\n  - { at: [1, 1], key: A }\n").has_value());
+}
+
+TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
+    const auto has = [](const KeyboardLayout& layout, VirtualKey wanted) -> bool {
+        return std::ranges::any_of(layout.Keys(), [wanted](const KeyDefinition& key) -> bool {
+            const auto* typed = std::get_if<TypeKey>(&key.action);
+            return typed != nullptr && typed->key == wanted;
+        });
+    };
+    const auto ime = std::to_array<std::tuple<std::string_view, std::string_view, VirtualKey>>({
+        {"jis", "jp", VirtualKey::Henkan},
+        {"korean", "kr", VirtualKey::Hangul},
+        {"chinese", "cn", VirtualKey::Space},
+    });
+    for (const auto& [family, region, special] : ime) {
+        for (const auto* variant : {"full-size", "tkl"}) {
+            const auto name = std::format("{}-{}", family, variant);
+            ASSERT_TRUE(KeyboardLayout::IsBuiltIn(name)) << name;
+            const auto& layout = KeyboardLayout::Find(name);
+            EXPECT_EQ(layout.Name(), name);
+            EXPECT_TRUE(layout.Validate().has_value()) << name;
+            EXPECT_EQ(layout.Region(), std::optional<std::string>(region)) << name;
+            EXPECT_TRUE(has(layout, special)) << name;
+            EXPECT_EQ(has(layout, VirtualKey::Kp5), std::string_view(variant) == "full-size") << name;
+            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
+                return std::holds_alternative<ProfileKey>(key.action);
+            })) << name;
+        }
+    }
+    EXPECT_TRUE(has(KeyboardLayout::Find("jis-tkl"), VirtualKey::Yen));
+    EXPECT_TRUE(has(KeyboardLayout::Find("jis-tkl"), VirtualKey::AbntC1));
+    EXPECT_TRUE(has(KeyboardLayout::Find("korean-tkl"), VirtualKey::Hanja));
 }

@@ -33,6 +33,7 @@
 #include "Config.hpp"
 #include "Interaction.hpp"
 #include "Keyboard.hpp"
+#include "KeyboardPicker.hpp"
 #include "ActionBinding.hpp"
 #include "Compose.hpp"
 #include "Form.hpp"
@@ -636,6 +637,32 @@ TEST_F(LaserInteraction, KeyboardUsesTheConfiguredProfile) {
     auto compact = Keyboard::Create(nullptr);
     ASSERT_TRUE(compact.has_value());
     EXPECT_NEAR((*compact)->SpawnScale() * 23.35f, (*keyboard)->SpawnScale() * 16.35f, 1e-4f);
+}
+
+TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards) {
+    auto created = Keyboard::Create(nullptr);
+    ASSERT_TRUE(created.has_value());
+    (*created)->SetWantVisible(true);
+    m_overlays->Add(std::move(*created));
+    auto* keyboard = m_overlays->ByName(kKeyboardName);
+    ASSERT_TRUE(keyboard->Composer()->ShouldRender().has_value());
+    auto* legend = keyboard->Composer()->FindText("Layout");
+    ASSERT_NE(legend, nullptr);
+    ASSERT_NE(legend->Parent(), nullptr);
+
+    legend->Parent()->OnPress(PointerMode::Left);
+    RunTasks();
+    auto* picker = m_overlays->ByName(kKeyboardPickerName);
+    ASSERT_NE(picker, nullptr);
+    EXPECT_EQ(g_config->keyboard_profile, "keychron-v1-ansi");
+
+    auto* choice = picker->Composer()->Root()->Find("jis-tkl");
+    ASSERT_NE(choice, nullptr);
+    choice->OnRelease();
+    RunTasks();
+    EXPECT_EQ(g_config->keyboard_profile, "jis-tkl");
+    EXPECT_EQ(m_overlays->ByName(kKeyboardPickerName), nullptr);
+    g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
 TEST_F(LaserInteraction, ProfileKeySwapsTheKeyboardInPlace) {
