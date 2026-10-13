@@ -915,6 +915,35 @@ TEST_F(LaserInteraction, HandAttachedOverlaysIgnorePointerSmoothing) {
     g_config->pointer_smoothing = false;
 }
 
+TEST_F(LaserInteraction, GrabAndTriggerBendsByPullingTheHand) {
+    auto events = std::make_shared<std::vector<RecordedEvent>>();
+    const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
+    auto* overlay = m_overlays->ById(id);
+    Aim(0, {0.0f, 0.0f, -0.4f});
+    Frame({.grab = true});
+    ASSERT_TRUE(Pointer(0).Interaction().grabbed.has_value());
+    const Eigen::Vector3f placed = overlay->Transform().translation();
+
+    Frame({.click = true, .grab = true});
+    Aim(0, {0.0f, 0.0f, -0.2f});
+    Frame({.click = true, .grab = true});
+    ASSERT_TRUE(overlay->Curvature().has_value());
+    EXPECT_NEAR(*overlay->Curvature(), 0.3f, 1e-4f);
+    EXPECT_TRUE(overlay->Transform().translation().isApprox(placed, 1e-5f));
+    EXPECT_TRUE(Events(events, RecordedKind::Press).empty());
+
+    Aim(0, {0.0f, 0.0f, -0.6f});
+    Frame({.click = true, .grab = true});
+    EXPECT_FALSE(overlay->Curvature().has_value());
+
+    Aim(0, {0.0f, 0.0f, -0.2f});
+    Frame({.click = true, .grab = true});
+    Frame({.grab = true});
+    Frame({});
+    EXPECT_TRUE(std::ranges::any_of(g_config->curve_values, [](const auto& entry) -> bool { return entry.first == "panel"; }));
+    std::erase_if(g_config->curve_values, [](const auto& entry) -> bool { return entry.first == "panel"; });
+}
+
 TEST_F(LaserInteraction, ScrollWithOtherHandWhileGrabbedCurves) {
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);

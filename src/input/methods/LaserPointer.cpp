@@ -34,6 +34,10 @@ namespace {
 
 constexpr float kGrabSlideRate = 4.0f;
 
+constexpr float kMaxCurvature = 0.5f;
+
+constexpr float kBendPerMeter = 1.5f;
+
 constexpr OneEuroSettings kGrabPositionSmoothing{.min_cutoff = 1.5f, .beta = 10.0f, .derivative_cutoff = 1.0f};
 
 constexpr OneEuroSettings kGrabRotationSmoothing{.min_cutoff = 1.5f, .beta = 3.0f, .derivative_cutoff = 1.0f};
@@ -64,6 +68,16 @@ template <typename Value>
 auto SetNamed(std::vector<std::pair<std::string, Value>>& entries, const std::string& name, Value value) -> void {
     std::erase_if(entries, [&](const auto& entry) -> bool { return entry.first == name; });
     entries.emplace_back(name, std::move(value));
+}
+
+auto Curvable(View& overlay) -> bool {
+    const auto meta = overlay.Composer()->Meta();
+    return meta && meta->extent.width >= meta->extent.height;
+}
+
+auto Bend(View& overlay, float curvature) -> void {
+    const float clamped = std::min(curvature, kMaxCurvature);
+    overlay.SetCurvature(clamped <= std::numeric_limits<float>::epsilon() ? std::nullopt : std::optional<float>(clamped));
 }
 
 } // namespace
@@ -176,7 +190,20 @@ auto LaserPointer::HandleGrabbed(View& overlay) -> void {
         auto& offset = m_interaction.grabbed->offset;
         const Eigen::Affine3f hand = g_config->grab_smoothing ? m_grab_filter.Filter(m_tracked_pose, g_interaction->DeltaSeconds())
                                                               : m_pose;
+        auto& grabbed = *m_interaction.grabbed;
         const float slide = g_config->allow_sliding ? SlideAmount(m_now.scroll_y) : 0.0f;
+        if (m_now.click && slide == 0.0f && Curvable(state)) {
+            const float distance = (hand.translation() - g_interaction->Hmd().translation()).norm();
+            if (!grabbed.bend_from) {
+                grabbed.bend_from = distance;
+                grabbed.bend_curvature = state.Curvature().value_or(0.0f);
+            }
+            Bend(state, std::fma(*grabbed.bend_from - distance, kBendPerMeter, grabbed.bend_curvature));
+            offset = Eigen::Affine3f(hand.matrix().inverse()) * state.Transform();
+            state.SetDirty(true);
+            return;
+        }
+        grabbed.bend_from.reset();
         if (slide != 0.0f) {
             const float distance = offset.translation().norm();
             const Eigen::Matrix3f linear = offset.linear();
@@ -295,12 +322,8 @@ auto LaserPointer::Interact() -> InteractionResult {
     if (std::abs(m_now.scroll_x) > 0.1f || std::abs(m_now.scroll_y) > 0.1f) {
         const auto& other = g_interaction->Pointers()[1 - m_index];
         if (other.Interaction().grabbed && other.Interaction().grabbed->grabbed_id == hit->overlay) {
-            const auto meta = hovered->Composer()->Meta();
-            if (meta && meta->extent.width >= meta->extent.height) {
-                const float curvature = std::min(std::fma(m_now.scroll_y, -0.01f, hovered->Curvature().value_or(0.0f)), 0.5f);
-                hovered->SetCurvature(
-                    curvature <= std::numeric_limits<float>::epsilon() ? std::nullopt : std::optional<float>(curvature)
-                );
+            if (Curvable(*hovered)) {
+                Bend(*hovered, std::fma(m_now.scroll_y, -0.01f, hovered->Curvature().value_or(0.0f)));
             } else {
                 hovered->Curvature().reset();
             }

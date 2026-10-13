@@ -80,6 +80,8 @@ struct GrabData {
     Eigen::Vector3f grab_point = Eigen::Vector3f::Zero();
     std::optional<float> old_curvature;
     bool grab_all = false;
+    std::optional<float> bend_from;
+    float bend_curvature = 0.0f;
 };
 
 struct RayHit {
