@@ -23,7 +23,9 @@
 #include <array>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <string>
+#include <vector>
 #include <string_view>
 #include <system_error>
 
@@ -59,13 +61,55 @@ auto Covers(FT_Library library, const std::filesystem::path& path, uint32_t code
     return covered;
 }
 
+auto FamilyFiles(FT_Library library) -> const std::map<std::string, std::filesystem::path>& {
+    static const auto files = [library]() -> std::map<std::string, std::filesystem::path> {
+        std::map<std::string, std::filesystem::path> found;
+        std::error_code error;
+        for (const auto& entry : std::filesystem::directory_iterator(FontsDirectory(), error)) {
+            const auto extension = entry.path().extension().string();
+            if (extension != ".ttf" && extension != ".otf" && extension != ".ttc" && extension != ".TTF" && extension != ".OTF"
+                && extension != ".TTC") {
+                continue;
+            }
+            FT_Face face = nullptr;
+            if (FT_New_Face(library, entry.path().string().c_str(), 0, &face) != 0) {
+                continue;
+            }
+            if (face->family_name != nullptr) {
+                const std::string family(face->family_name);
+                const bool bold = (face->style_flags & FT_STYLE_FLAG_BOLD) != 0 && (face->style_flags & FT_STYLE_FLAG_ITALIC) == 0;
+                if (bold || !found.contains(family)) {
+                    found[family] = entry.path();
+                }
+            }
+            FT_Done_Face(face);
+        }
+        return found;
+    }();
+    return files;
+}
+
 } // namespace
+
+auto FontLookup::Families(FT_LibraryRec_* library) -> std::vector<std::string> {
+    std::vector<std::string> families;
+    for (const auto& [family, path] : FamilyFiles(library)) {
+        families.push_back(family);
+    }
+    return families;
+}
 
 FontLookup::FontLookup(std::string primary_font) : m_primary_font(std::move(primary_font)) {
 }
 
 auto FontLookup::Locate(FT_LibraryRec_* library, uint32_t codepoint, int) const -> std::optional<FontFile> {
     std::error_code error;
+    if (m_family) {
+        const auto& files = FamilyFiles(library);
+        if (const auto it = files.find(*m_family); it != files.end() && Covers(library, it->second, codepoint)) {
+            return FontFile{.path = it->second.string(), .name = it->first};
+        }
+    }
     if (const std::filesystem::path primary(m_primary_font);
         std::filesystem::is_regular_file(primary, error) && Covers(library, primary, codepoint)) {
         return FontFile{.path = primary.string(), .name = primary.filename().string()};

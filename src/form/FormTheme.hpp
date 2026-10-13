@@ -52,6 +52,7 @@ struct ThemeColor {
 struct ThemeDefinition {
     std::string name;
     Rounding rounding = Rounding::Round;
+    std::optional<std::string> font;
     std::vector<ThemeColor> colors;
     std::filesystem::path source;
 };

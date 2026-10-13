@@ -419,6 +419,9 @@ auto Editor::ApplyWatch() -> void {
 
 auto Editor::ApplyTheme() -> void {
     g_themes->SetActive(m_theme_history.Current());
+    if (g_fonts != nullptr) {
+        g_fonts->SetFamily(m_theme_history.Current().font);
+    }
     m_watch_apply = true;
     m_restyle_keyboard = true;
 }
@@ -799,6 +802,12 @@ auto Editor::OpenTimezones(size_t element) -> void {
     m_timezone_element = element;
     m_timezone_query.clear();
     m_dialog = DialogKind::Timezone;
+    Touch();
+}
+
+auto Editor::OpenFonts() -> void {
+    m_font_query.clear();
+    m_dialog = DialogKind::Font;
     Touch();
 }
 

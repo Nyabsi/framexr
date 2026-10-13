@@ -286,6 +286,10 @@ auto from_json(const nlohmann::json& json, ThemeDefinition& value) -> void {
     if (const auto it = json.find("rounding"); it != json.end() && !it->is_null()) {
         value.rounding = it->get<Rounding>();
     }
+    value.font.reset();
+    if (const auto it = json.find("font"); it != json.end() && it->is_string()) {
+        value.font = it->get<std::string>();
+    }
     value.colors.clear();
     for (const auto& [name, hex] : json.at("colors").items()) {
         value.colors.push_back({.name = name, .hex = hex.get<std::string>()});
@@ -296,6 +300,9 @@ auto to_json(nlohmann::ordered_json& json, const ThemeDefinition& value) -> void
     json = nlohmann::ordered_json::object();
     json["name"] = value.name;
     json["rounding"] = FormTheme::Name(value.rounding);
+    if (value.font) {
+        json["font"] = *value.font;
+    }
     auto colors = nlohmann::ordered_json::object();
     for (const auto& color : value.colors) {
         colors[color.name] = color.hex;

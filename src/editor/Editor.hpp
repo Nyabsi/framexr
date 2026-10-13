@@ -53,6 +53,7 @@ enum class DialogKind : uint8_t {
     Actions,
     KeyPicker,
     Timezone,
+    Font,
 };
 
 enum class ButtonTrigger : uint8_t {
@@ -95,6 +96,7 @@ class Editor final : public std::enable_shared_from_this<Editor> {
     [[nodiscard]] auto KeyCategory() const -> size_t { return m_key_category; }
     [[nodiscard]] auto TimezoneElement() const -> size_t { return m_timezone_element; }
     [[nodiscard]] auto TimezoneQuery() const -> const std::string& { return m_timezone_query; }
+    [[nodiscard]] auto FontQuery() const -> const std::string& { return m_font_query; }
     [[nodiscard]] auto Dialog() const -> DialogKind { return m_dialog; }
     [[nodiscard]] auto Carrying() const -> const std::optional<PaletteItem>& { return m_carrying; }
     [[nodiscard]] auto CarryPointer() const -> size_t { return m_carry_pointer; }
@@ -141,6 +143,7 @@ class Editor final : public std::enable_shared_from_this<Editor> {
     auto SetKeyboardFile(std::string name) -> void { m_keyboard_file = std::move(name); }
     auto SetKeyCategory(size_t category) -> void;
     auto SetTimezoneQuery(std::string query) -> void { m_timezone_query = std::move(query); }
+    auto SetFontQuery(std::string query) -> void { m_font_query = std::move(query); }
 
     auto SelectWatch(const std::string& name) -> void;
     auto NewWatch() -> void;
@@ -167,6 +170,7 @@ class Editor final : public std::enable_shared_from_this<Editor> {
     auto OpenActions(ButtonTrigger trigger) -> void;
     auto OpenKeyPicker() -> void;
     auto OpenTimezones(size_t element) -> void;
+    auto OpenFonts() -> void;
     auto CloseDialog() -> void;
 
     auto Touch() -> void;
@@ -192,6 +196,7 @@ class Editor final : public std::enable_shared_from_this<Editor> {
     size_t m_key_category = 0;
     size_t m_timezone_element = 0;
     std::string m_timezone_query;
+    std::string m_font_query;
     std::optional<PaletteItem> m_carrying;
     size_t m_carry_pointer = 1;
     std::optional<size_t> m_owner;

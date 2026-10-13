@@ -80,10 +80,13 @@ class FontCache final {
 
     auto MeasureText(std::string_view text, int size) -> Result<TextSize>;
     auto Glyphs(std::string_view text, int size) -> Result<std::vector<std::shared_ptr<Glyph>>>;
+    auto Families() -> const std::vector<std::string>&;
+    auto SetFamily(std::optional<std::string> family) -> void;
 
   private:
     FontCache(std::string primary_font, FT_LibraryRec_* library);
 
+    auto ReleaseFaces() -> void;
     auto Collection(int size) -> FontCollection&;
     auto FontForCodepoint(uint32_t codepoint, int size) -> size_t;
     auto GlyphForCodepoint(uint32_t codepoint, int size, std::optional<CommandBuffer>& uploads) -> Result<std::shared_ptr<Glyph>>;
@@ -91,6 +94,7 @@ class FontCache final {
     FT_LibraryRec_* m_library;
     FontLookup m_lookup;
     std::map<int, FontCollection> m_collections;
+    std::optional<std::vector<std::string>> m_families;
 };
 
 extern FontCache* g_fonts;

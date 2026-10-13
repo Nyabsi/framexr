@@ -20,6 +20,9 @@
 
 #include "FontLookup.hpp"
 
+#include <algorithm>
+#include <format>
+
 #include <fontconfig/fontconfig.h>
 
 FontLookup::FontLookup(std::string primary_font) : m_primary_font(std::move(primary_font)) {
@@ -27,7 +30,8 @@ FontLookup::FontLookup(std::string primary_font) : m_primary_font(std::move(prim
 }
 
 auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> std::optional<FontFile> {
-    const auto pattern_text = std::format("{}:size={}:charset={:04x}", m_primary_font, size, codepoint);
+    const auto primary = m_family ? std::format("{}:weight=bold", *m_family) : m_primary_font;
+    const auto pattern_text = std::format("{}:size={}:charset={:04x}", primary, size, codepoint);
     FcPattern* pattern = FcNameParse(reinterpret_cast<const FcChar8*>(pattern_text.c_str()));
     if (pattern == nullptr) {
         return std::nullopt;
@@ -54,4 +58,27 @@ auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> 
     FcPatternGetInteger(match, FC_INDEX, 0, &located.index);
     FcPatternDestroy(match);
     return located;
+}
+
+auto FontLookup::Families(FT_LibraryRec_*) -> std::vector<std::string> {
+    FcInit();
+    FcPattern* pattern = FcPatternCreate();
+    FcObjectSet* objects = FcObjectSetBuild(FC_FAMILY, nullptr);
+    FcFontSet* fonts = FcFontList(nullptr, pattern, objects);
+    std::vector<std::string> families;
+    if (fonts != nullptr) {
+        for (int i = 0; i < fonts->nfont; ++i) {
+            FcChar8* family = nullptr;
+            if (FcPatternGetString(fonts->fonts[i], FC_FAMILY, 0, &family) == FcResultMatch) {
+                families.emplace_back(reinterpret_cast<const char*>(family));
+            }
+        }
+        FcFontSetDestroy(fonts);
+    }
+    FcObjectSetDestroy(objects);
+    FcPatternDestroy(pattern);
+    std::ranges::sort(families);
+    const auto [first, last] = std::ranges::unique(families);
+    families.erase(first, last);
+    return families;
 }

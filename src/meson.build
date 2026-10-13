@@ -182,6 +182,7 @@ editor_sources = files(
   'editor/panels/ActionsPanel.cpp',
   'editor/panels/CapturePanel.cpp',
   'editor/panels/ColorPanel.cpp',
+  'editor/panels/FontPanel.cpp',
   'editor/panels/GhostPanel.cpp',
   'editor/panels/KeyPickerPanel.cpp',
   'editor/panels/KeyboardProperties.cpp',

@@ -46,11 +46,7 @@ FontCache::FontCache(std::string primary_font, FT_LibraryRec_* library) : m_libr
 }
 
 FontCache::~FontCache() {
-    for (auto& [size, collection] : m_collections) {
-        for (auto& font : collection.fonts) {
-            FT_Done_Face(font.face);
-        }
-    }
+    ReleaseFaces();
     FT_Done_FreeType(m_library);
 }
 
@@ -151,6 +147,27 @@ auto FontCache::Ellipsize(std::string_view text, int size, float width) -> std::
         }
     }
     return "...";
+}
+
+auto FontCache::Families() -> const std::vector<std::string>& {
+    if (!m_families) {
+        m_families = FontLookup::Families(m_library);
+    }
+    return *m_families;
+}
+
+auto FontCache::SetFamily(std::optional<std::string> family) -> void {
+    m_lookup.SetFamily(std::move(family));
+    ReleaseFaces();
+}
+
+auto FontCache::ReleaseFaces() -> void {
+    for (auto& [size, collection] : m_collections) {
+        for (auto& font : collection.fonts) {
+            FT_Done_Face(font.face);
+        }
+    }
+    m_collections.clear();
 }
 
 auto FontCache::Collection(int size) -> FontCollection& {

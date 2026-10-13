@@ -33,6 +33,7 @@ class ThemeProperties final : public FormComponent {
   private:
     auto AddThemes(Editor& editor) -> void;
     auto AddCorners(Editor& editor) -> void;
+    auto AddFont(Editor& editor) -> void;
     auto AddColours(Editor& editor) -> void;
 
     StackComponent& m_stack;

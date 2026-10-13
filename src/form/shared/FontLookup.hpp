@@ -20,7 +20,9 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <string>
+#include <vector>
 
 struct FT_LibraryRec_;
 
@@ -34,8 +36,12 @@ class FontLookup final {
   public:
     explicit FontLookup(std::string primary_font);
 
+    [[nodiscard]] static auto Families(FT_LibraryRec_* library) -> std::vector<std::string>;
+
     [[nodiscard]] auto Locate(FT_LibraryRec_* library, uint32_t codepoint, int size) const -> std::optional<FontFile>;
+    auto SetFamily(std::optional<std::string> family) -> void { m_family = std::move(family); }
 
   private:
     std::string m_primary_font;
+    std::optional<std::string> m_family;
 };

@@ -84,6 +84,7 @@ auto AppState::Create() -> Result<std::unique_ptr<AppState>> {
     app->m_audio = std::make_unique<AudioPlayback>(g_config->notification_sound);
     g_audio = app->m_audio.get();
     ASSIGN_OR_RETURN(app->m_fonts, FontCache::Create(g_config->primary_font));
+    app->m_fonts->SetFamily(g_themes->Active().font);
     g_fonts = app->m_fonts.get();
     app->m_hid = HidProvider::Create();
     g_hid = app->m_hid.get();

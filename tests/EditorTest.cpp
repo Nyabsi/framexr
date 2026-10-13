@@ -573,6 +573,29 @@ TEST_F(EditorWorkspace, RecenterAndShowHideIncludeTheWorkspace) {
     EXPECT_TRUE(Panel(PanelKind::Toolbar)->WantVisible());
 }
 
+TEST_F(EditorWorkspace, PickingAFontChangesTheTheme) {
+    auto& editor = Open();
+    editor.SwitchTarget(EditTarget::Theme);
+    editor.OpenFonts();
+    Step();
+    const auto& families = g_fonts->Families();
+    ASSERT_FALSE(families.empty());
+    const auto preferred = std::ranges::find(families, std::string("DejaVu Serif"));
+    const auto family = preferred != families.end() ? *preferred : families.front();
+    auto* row = Panel(PanelKind::Dialog)->Composer()->Root()->Find(family);
+    ASSERT_NE(row, nullptr);
+    row->OnRelease();
+    EXPECT_EQ(editor.ThemeHistory().Current().font, family);
+    EXPECT_EQ(editor.Dialog(), DialogKind::None);
+    Step();
+    RenderPanel(PanelKind::Properties, "editor-theme-font");
+    editor.OpenFonts();
+    Step();
+    Panel(PanelKind::Dialog)->Composer()->Root()->Find("default")->OnRelease();
+    EXPECT_FALSE(editor.ThemeHistory().Current().font.has_value());
+    g_fonts->SetFamily(std::nullopt);
+}
+
 TEST_F(EditorWorkspace, ClickingASwatchPicksIt) {
     auto& editor = Open();
     const auto index = editor.WatchDesign().Document().Components().size() - 1;

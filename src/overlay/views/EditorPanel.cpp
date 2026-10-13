@@ -28,6 +28,7 @@
 #include "panels/ActionsPanel.hpp"
 #include "panels/CapturePanel.hpp"
 #include "panels/ColorPanel.hpp"
+#include "panels/FontPanel.hpp"
 #include "panels/GhostPanel.hpp"
 #include "panels/KeyPickerPanel.hpp"
 #include "panels/KeyboardProperties.hpp"
@@ -94,6 +95,7 @@ auto EditorPanel::Rebuild(Editor& editor) -> void {
         case DialogKind::Actions: form->AddComponent<ActionsPanel>(editor, size); break;
         case DialogKind::KeyPicker: form->AddComponent<KeyPickerPanel>(editor, size); break;
         case DialogKind::Timezone: form->AddComponent<TimezonePanel>(editor, size); break;
+        case DialogKind::Font: form->AddComponent<FontPanel>(editor, size); break;
         case DialogKind::None: break;
         }
         break;

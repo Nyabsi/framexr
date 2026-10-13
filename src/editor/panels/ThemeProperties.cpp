@@ -56,6 +56,7 @@ ThemeProperties::ThemeProperties(Editor& editor, const Eigen::Vector2f& size)
     );
     AddThemes(editor);
     AddCorners(editor);
+    AddFont(editor);
     AddColours(editor);
 }
 
@@ -128,6 +129,23 @@ auto ThemeProperties::AddCorners(Editor& editor) -> void {
     roundings.SetOnChoose([&editor](size_t index) -> void {
         editor.EditTheme([index](ThemeDefinition& edited) -> void { edited.rounding = kRoundings.at(index); });
     });
+}
+
+auto ThemeProperties::AddFont(Editor& editor) -> void {
+    const auto& font = editor.ThemeHistory().Current().font;
+    const bool picking = editor.Dialog() == DialogKind::Font;
+
+    m_stack.AddComponent<SectionComponent>("font", "Font");
+
+    auto& row = m_stack.AddComponent<RowComponent>("font-row", PanelStyle::kRowHeight, PanelStyle::kGap);
+    row.SetWeights({1.0f, 2.0f});
+    row.AddComponent<TextLineComponent>("caption", "Font", PanelStyle::kTextFont, FormTheme::Rgba("@subtle"));
+    auto& pick = row.AddComponent<ButtonComponent>("pick", font.value_or("Default"));
+    pick.SetFontSize(PanelStyle::kTextFont);
+    pick.SetFgColor(FormTheme::Rgba(picking ? "@on-accent" : "@text"));
+    pick.SetBgColor(FormTheme::Rgba(picking ? "@accent" : "@surface"));
+    pick.SetEllipsize(true);
+    pick.SetOnRelease([&editor]() -> void { editor.OpenFonts(); });
 }
 
 auto ThemeProperties::AddColours(Editor& editor) -> void {
