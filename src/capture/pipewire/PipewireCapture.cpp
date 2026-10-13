@@ -435,7 +435,7 @@ auto PipewireCapture::OnParamChanged(void* data, uint32_t id, const spa_pod* par
     LOG_INFO("{}: got {} video format:", self->m_name, kind);
     LOG_INFO("  format: {} ({})", static_cast<uint32_t>(info.format), SpaFormatName(info.format));
     LOG_INFO("  size: {}x{}", info.size.width, info.size.height);
-    LOG_INFO("  modifier: {}", info.modifier);
+    LOG_INFO("  modifier: {:#018x}", info.modifier);
 
     self->UpdateStreamParams();
 }
