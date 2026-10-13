@@ -32,21 +32,14 @@
 #include <string>
 #include <thread>
 
-#include "Backend.hpp"
 #include "CommandLine.hpp"
 #include "Config.hpp"
+#include "ConfigStore.hpp"
 #include "Logger.hpp"
 #include "Platform.hpp"
+#include "Runtime.hpp"
 #include "framexr_config.h"
 #include "version.h"
-
-#if FRAMEXR_FEATURE_OPENVR
-#include "openvr/OpenVrBackend.hpp"
-#endif
-
-#if FRAMEXR_FEATURE_OPENXR
-#include "openxr/OpenXrBackend.hpp"
-#endif
 
 #if !FRAMEXR_FEATURE_OPENVR && !FRAMEXR_FEATURE_OPENXR
 #error "No VR support! Enable either openvr or openxr features!"
@@ -151,33 +144,6 @@ auto LocalTime() -> std::string {
     );
 }
 
-auto HandleResult(const BackendResult& result) -> bool {
-    if (result) {
-        return true;
-    }
-    if (result.error().failure == BackendFailure::NotSupported) {
-        return false;
-    }
-    LOG_ERROR("Fatal: {}", result.error().message);
-    return true;
-}
-
-auto AutoRun() -> void {
-#if FRAMEXR_FEATURE_OPENXR
-    if (!g_command_line->OpenVr() && HandleResult(OpenXrBackend::Run(running, g_command_line->Show()))) {
-        return;
-    }
-#endif
-
-#if FRAMEXR_FEATURE_OPENVR
-    if (!g_command_line->OpenXr() && HandleResult(OpenVrBackend::Run(running, g_command_line->Show()))) {
-        return;
-    }
-#endif
-
-    LOG_ERROR("No more backends to try");
-}
-
 auto Run(std::span<char*> arguments) -> int {
     auto logger = std::make_unique<Logger>();
     g_logger = logger.get();
@@ -199,15 +165,13 @@ auto Run(std::span<char*> arguments) -> int {
     LOG_INFO("Welcome to {} version {}!", FRAMEXR_PKG_NAME, BuildVersion());
     LOG_INFO("It is {}.", LocalTime());
 
-#if FRAMEXR_FEATURE_OPENVR
     if (g_command_line->Uninstall()) {
-        OpenVrBackend::Uninstall();
+        Runtime::Uninstall();
         return 0;
     }
-#endif
 
     Platform::OnTerminate(OnTerminate);
-    AutoRun();
+    Runtime::Run(running);
     return 0;
 }
 

@@ -22,7 +22,7 @@
 #include <memory>
 #include <vector>
 
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 #include "RecordingHid.hpp"
 
 class ScopedRecordingHid final {
@@ -34,6 +34,7 @@ class ScopedRecordingHid final {
 
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_recording->Events(); }
     [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_recording->Buttons(); }
+    [[nodiscard]] auto Wheels() const -> size_t { return m_recording->Wheels(); }
     auto Clear() -> void { m_recording->Clear(); }
 
   private:

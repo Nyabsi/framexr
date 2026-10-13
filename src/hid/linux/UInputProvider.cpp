@@ -30,9 +30,9 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 #include "Logger.hpp"
-#include "VirtualKey.hpp"
+#include "VirtualKeys.hpp"
 
 namespace {
 

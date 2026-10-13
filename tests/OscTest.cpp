@@ -50,7 +50,7 @@ class OscWire : public testing::Test {
         ASSERT_TRUE(receiver.has_value());
         m_receiver = std::move(*receiver);
         ASSERT_TRUE(m_receiver->SetReceiveTimeout(std::chrono::seconds(2)).has_value());
-        auto sender = OscSender::Create(m_receiver->LocalPort());
+        auto sender = Osc::Create(m_receiver->LocalPort());
         ASSERT_TRUE(sender.has_value());
         m_sender = std::move(*sender);
     }
@@ -66,7 +66,7 @@ class OscWire : public testing::Test {
     }
 
     std::optional<UdpSocket> m_receiver;
-    std::unique_ptr<OscSender> m_sender;
+    std::unique_ptr<Osc> m_sender;
 };
 
 } // namespace

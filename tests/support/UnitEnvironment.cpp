@@ -18,9 +18,9 @@
 
 #include "UnitEnvironment.hpp"
 
-#include "KeyboardProfiles.hpp"
+#include "KeyboardLayout.hpp"
 #include "Logger.hpp"
-#include "Theme.hpp"
+#include "FormTheme.hpp"
 
 UnitEnvironment::UnitEnvironment() = default;
 
@@ -29,15 +29,11 @@ UnitEnvironment::~UnitEnvironment() = default;
 auto UnitEnvironment::SetUp() -> void {
     m_logger = std::make_unique<Logger>();
     g_logger = m_logger.get();
-    m_themes = std::make_unique<Theme>();
+    m_themes = std::make_unique<FormTheme>();
     g_themes = m_themes.get();
-    m_keyboard_profiles = std::make_unique<KeyboardProfiles>();
-    g_keyboard_profiles = m_keyboard_profiles.get();
 }
 
 auto UnitEnvironment::TearDown() -> void {
-    m_keyboard_profiles.reset();
-    g_keyboard_profiles = nullptr;
     m_themes.reset();
     g_themes = nullptr;
     m_logger.reset();

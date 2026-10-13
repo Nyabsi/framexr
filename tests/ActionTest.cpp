@@ -23,9 +23,9 @@
 #include <gtest/gtest.h>
 
 #include "ActionRunner.hpp"
-#include "ButtonAction.hpp"
+#include "document/Actions.hpp"
 #include "Keymap.hpp"
-#include "OverlayContainer.hpp"
+#include "Container.hpp"
 #include "RecordingHid.hpp"
 #include "ScopedRecordingHid.hpp"
 
@@ -61,10 +61,10 @@ TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse) {
 }
 
 TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds) {
-    auto previous = g_input->TypingKeymap();
+    auto previous = g_interaction->TypingKeymap();
     auto us = Keymap::FromNames("us", "");
     ASSERT_TRUE(us.has_value());
-    g_input->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*us)));
+    g_interaction->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*us)));
 
     ScopedRecordingHid hid;
     ActionRunner runner;
@@ -76,9 +76,9 @@ TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds) {
 
     auto finnish = Keymap::FromNames("fi", "");
     ASSERT_TRUE(finnish.has_value());
-    g_input->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*finnish)));
+    g_interaction->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*finnish)));
     hid.Clear();
     runner.Run(TypeTextButtonAction{.text = "ä@"});
     EXPECT_EQ(hid.Events(), Join({Tap(VirtualKey::Oem7), Tap(VirtualKey::N2, kModMeta)}));
-    g_input->SetTypingKeymap(previous);
+    g_interaction->SetTypingKeymap(previous);
 }

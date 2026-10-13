@@ -30,9 +30,8 @@
 
 #include <Eigen/Core>
 
-#include "Canvas.hpp"
+#include "Form.hpp"
 #include "History.hpp"
-#include "Modular.hpp"
 
 enum class FormHitKind : uint8_t {
     None,
@@ -84,10 +83,10 @@ class FormDesigner final {
         FormPart::Screens,
     };
 
-    explicit FormDesigner(ModularUiConfig config);
+    explicit FormDesigner(FormDocument config);
 
-    [[nodiscard]] auto Revisions() const -> const History<ModularUiConfig>& { return m_revisions; }
-    [[nodiscard]] auto Revisions() -> History<ModularUiConfig>& { return m_revisions; }
+    [[nodiscard]] auto Revisions() const -> const History<FormDocument>& { return m_revisions; }
+    [[nodiscard]] auto Revisions() -> History<FormDocument>& { return m_revisions; }
     [[nodiscard]] auto Selected() const -> const std::optional<size_t>& { return m_selected; }
     [[nodiscard]] auto Selected() -> std::optional<size_t>& { return m_selected; }
     [[nodiscard]] auto SelectedForm() const -> const std::optional<size_t>& { return m_selected_form; }
@@ -103,25 +102,25 @@ class FormDesigner final {
     auto SetSnap(bool snap) -> void { m_snap = snap; }
     auto SetHold(std::chrono::milliseconds hold) -> void { m_hold = hold; }
     std::function<float(std::string_view, int)> measure;
-    std::function<std::string(const LabelContent&)> label_text;
-    std::function<std::string(const ClockLabelContent&)> city_text;
+    std::function<std::string(const FormElement&)> label_text;
+    std::function<std::string(const ClockElement&)> city_text;
 
-    [[nodiscard]] auto Document() const -> const ModularUiConfig& { return Revisions().Current(); }
+    [[nodiscard]] auto Document() const -> const FormDocument& { return Revisions().Current(); }
     [[nodiscard]] auto PreviewSize() const -> Eigen::Vector2f;
     [[nodiscard]] auto ToDocument(const Eigen::Vector2f& preview) const -> Eigen::Vector2f;
     [[nodiscard]] auto ToPreview(const Eigen::Vector2f& document) const -> Eigen::Vector2f;
     [[nodiscard]] auto Origin() const -> Eigen::Vector2f;
-    [[nodiscard]] auto Form(size_t index) const -> CanvasRect;
+    [[nodiscard]] auto FormBounds(size_t index) const -> CanvasRect;
     [[nodiscard]] auto Toolbar() const -> std::optional<CanvasRect>;
     [[nodiscard]] auto FormAt(const Eigen::Vector2f& point) const -> std::optional<size_t>;
     [[nodiscard]] auto VisualRect(size_t index) const -> CanvasRect;
     [[nodiscard]] auto HitTest(const Eigen::Vector2f& point, std::optional<int> layer = std::nullopt) const -> FormHit;
     [[nodiscard]] auto Accepts(const Eigen::Vector2f& point, int layer) const -> bool;
     [[nodiscard]] auto Guides() const -> std::span<const Guide> { return m_guides; }
-    [[nodiscard]] auto MinimumSize(const ModularElement& element) const -> Eigen::Vector2f;
-    [[nodiscard]] auto MinimumForm(const ModularUiConfig& config, size_t form = 0) const -> Eigen::Vector2f;
-    [[nodiscard]] auto MinimumToolbarHeight(const ModularUiConfig& config) const -> float;
-    auto Fit(ModularUiConfig& config, size_t index) const -> void;
+    [[nodiscard]] auto MinimumSize(const FormElement& element) const -> Eigen::Vector2f;
+    [[nodiscard]] auto MinimumForm(const FormDocument& config, size_t form = 0) const -> Eigen::Vector2f;
+    [[nodiscard]] auto MinimumToolbarHeight(const FormDocument& config) const -> float;
+    auto Fit(FormDocument& config, size_t index) const -> void;
     [[nodiscard]] auto Dragging() const -> bool { return m_drag.has_value(); }
     [[nodiscard]] auto Engaged() const -> bool { return m_drag && m_drag->engaged; }
 
@@ -134,17 +133,17 @@ class FormDesigner final {
     auto Remove(size_t index) -> void;
     auto RemoveForm(size_t form) -> void;
     auto Restack(size_t index, int direction) -> void;
-    auto Draw(Canvas& canvas, std::optional<int> layer = std::nullopt) const -> void;
+    auto Draw(Form& form, std::optional<int> layer = std::nullopt) const -> void;
 
-    static auto LayerOf(const ModularElement& element) -> int;
-    static auto MakePart(FormPart part) -> ModularElement;
+    static auto LayerOf(const FormElement& element) -> int;
+    static auto MakePart(FormPart part) -> FormElement;
     static auto PartName(FormPart part) -> std::string_view;
 
   private:
     struct Drag {
         FormHit hit;
         Eigen::Vector2f start = Eigen::Vector2f::Zero();
-        ModularUiConfig before;
+        FormDocument before;
         std::array<float, 4> rect{};
         Eigen::Vector2f start_position = Eigen::Vector2f::Zero();
         int font_size = 0;
@@ -185,7 +184,7 @@ class FormDesigner final {
     SnapLock m_snap_x;
     SnapLock m_snap_y;
 
-    History<ModularUiConfig> m_revisions;
+    History<FormDocument> m_revisions;
     std::optional<size_t> m_selected;
     std::optional<size_t> m_selected_form;
     std::optional<size_t> m_hovered;

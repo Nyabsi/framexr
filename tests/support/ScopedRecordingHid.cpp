@@ -18,7 +18,7 @@
 
 #include "ScopedRecordingHid.hpp"
 
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 #include "RecordingHid.hpp"
 
 ScopedRecordingHid::ScopedRecordingHid() : m_recording(std::make_unique<RecordingHid>()), m_previous(g_hid) {

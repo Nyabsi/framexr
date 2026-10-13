@@ -28,7 +28,7 @@
 #include <string_view>
 
 #include "Error.hpp"
-#include "VirtualKey.hpp"
+#include "VirtualKeys.hpp"
 
 struct xkb_context;
 struct xkb_keymap;

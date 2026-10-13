@@ -22,7 +22,7 @@
 #include <memory>
 #include <vector>
 
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 
 struct HidEvent {
     VirtualKey key = VirtualKey::Escape;
@@ -43,6 +43,7 @@ class RecordingHid final : public HidProvider {
   public:
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_events; }
     [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_buttons; }
+    [[nodiscard]] auto Wheels() const -> size_t { return m_wheels; }
 
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
     auto SendButton(uint16_t button, bool down) -> void override;
@@ -57,5 +58,6 @@ class RecordingHid final : public HidProvider {
   private:
     std::vector<HidEvent> m_events;
     std::vector<ButtonEvent> m_buttons;
+    size_t m_wheels = 0;
     uint8_t m_modifiers = 0;
 };

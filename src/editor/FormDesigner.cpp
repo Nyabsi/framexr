@@ -25,11 +25,13 @@
 #include <ranges>
 #include <utility>
 
-#include "EditorColors.hpp"
-#include "Font.hpp"
-#include "Label.hpp"
-#include "OutlineControl.hpp"
-#include "Theme.hpp"
+#include "ClockComponent.hpp"
+#include "FormTheme.hpp"
+#include "FontCache.hpp"
+#include "document/FormElements.hpp"
+#include "FormTheme.hpp"
+#include "OutlineComponent.hpp"
+#include "PanelComponent.hpp"
 
 namespace {
 
@@ -59,21 +61,20 @@ auto CenteredRect(float x, float y, float w, float h) -> CanvasRect {
     return {x - w / 2.0f, y - h / 2.0f, w, h};
 }
 
-auto BaselineLabel(const ModularElement& element) -> const LabelElement* {
-    const auto* label = std::get_if<LabelElement>(&element);
-    return label != nullptr && !label->centered ? label : nullptr;
+auto BaselineText(const FormElement& element) -> bool {
+    return FormElements::IsText(element) && !FormElements::Centered(element);
 }
 
-auto CityAbove(const LabelElement& label) -> float {
-    const auto* clock = std::get_if<ClockLabelContent>(&label.content);
+auto CityAbove(const FormElement& element) -> float {
+    const auto* clock = std::get_if<ClockElement>(&element);
     if (clock == nullptr || !clock->city_size) {
         return 0.0f;
     }
     const auto city = static_cast<float>(*clock->city_size);
-    return label.centered ? city * kLabelHeight : city + kCityGap;
+    return clock->centered ? city * kLabelHeight : city + kCityGap;
 }
 
-auto FontSize(const ModularElement& element) -> int {
+auto FontSize(const FormElement& element) -> int {
     return std::visit(
         [](const auto& item) -> int {
             if constexpr (requires { item.font_size; }) {
@@ -86,7 +87,7 @@ auto FontSize(const ModularElement& element) -> int {
     );
 }
 
-auto SetFontSize(ModularElement& element, int font_size) -> void {
+auto SetFontSize(FormElement& element, int font_size) -> void {
     std::visit(
         [font_size](auto& item) -> void {
             if constexpr (requires { item.font_size; }) {
@@ -97,8 +98,27 @@ auto SetFontSize(ModularElement& element, int font_size) -> void {
     );
 }
 
-auto Outline(const Eigen::Vector4f& color, float width) -> std::unique_ptr<OutlineControl> {
-    return std::make_unique<OutlineControl>(std::nullopt, HighlightOutline{.color = color, .width = width});
+auto Decorate(
+    FormComponent& parent,
+    const CanvasRect& rect,
+    float radius,
+    std::optional<Eigen::Vector4f> fill,
+    const Eigen::Vector4f& color,
+    float width
+) -> void {
+    auto& decoration = parent.AddComponent<OutlineComponent>("", std::move(fill), HighlightOutline{.color = color, .width = width});
+    decoration.SetRect(rect);
+    decoration.SetCornerRadius(radius);
+}
+
+auto ScaleCity(FormElement& element, const FormElement& original, int original_font) -> void {
+    auto* clock = std::get_if<ClockElement>(&element);
+    const auto* before = std::get_if<ClockElement>(&original);
+    if (clock == nullptr || before == nullptr || !before->city_size || original_font <= 0) {
+        return;
+    }
+    const float ratio = static_cast<float>(clock->font_size) / static_cast<float>(original_font);
+    clock->city_size = std::clamp(static_cast<int>(std::lround(static_cast<float>(*before->city_size) * ratio)), 6, 120);
 }
 
 auto WithAlpha(Eigen::Vector4f color, float alpha) -> Eigen::Vector4f {
@@ -106,7 +126,7 @@ auto WithAlpha(Eigen::Vector4f color, float alpha) -> Eigen::Vector4f {
     return color;
 }
 
-auto FormSize(const ModularUiConfig& config, size_t form) -> Eigen::Vector2f {
+auto FormSize(const FormDocument& config, size_t form) -> Eigen::Vector2f {
     if (form == 0 || form > config.Forms().size()) {
         return {config.Form().width, config.Form().height};
     }
@@ -114,7 +134,7 @@ auto FormSize(const ModularUiConfig& config, size_t form) -> Eigen::Vector2f {
     return {extra.width, extra.height};
 }
 
-auto SetFormSize(ModularUiConfig& config, size_t form, const Eigen::Vector2f& size) -> void {
+auto SetFormSize(FormDocument& config, size_t form, const Eigen::Vector2f& size) -> void {
     if (form == 0 || form > config.Forms().size()) {
         config.Form().width = size.x();
         config.Form().height = size.y();
@@ -126,14 +146,14 @@ auto SetFormSize(ModularUiConfig& config, size_t form, const Eigen::Vector2f& si
 
 } // namespace
 
-FormDesigner::FormDesigner(ModularUiConfig config) : m_revisions(std::move(config)) {
+FormDesigner::FormDesigner(FormDocument config) : m_revisions(std::move(config)) {
 }
 
 auto FormDesigner::Origin() const -> Eigen::Vector2f {
     return m_frozen_origin.value_or(Document().Origin());
 }
 
-auto FormDesigner::Form(size_t index) const -> CanvasRect {
+auto FormDesigner::FormBounds(size_t index) const -> CanvasRect {
     return Document().FormRect(index, Origin());
 }
 
@@ -145,7 +165,7 @@ auto FormDesigner::FormAt(const Eigen::Vector2f& point) const -> std::optional<s
     const auto count = Document().FormCount();
     for (size_t offset = 0; offset < count; ++offset) {
         const size_t index = count - 1 - offset;
-        if (Contains(Form(index), point)) {
+        if (Contains(FormBounds(index), point)) {
             return index;
         }
     }
@@ -155,7 +175,7 @@ auto FormDesigner::FormAt(const Eigen::Vector2f& point) const -> std::optional<s
 auto FormDesigner::Extent() const -> Eigen::Vector2f {
     Eigen::Vector2f extent = Eigen::Vector2f::Zero();
     for (size_t index = 0; index < Document().FormCount(); ++index) {
-        const auto rect = Form(index);
+        const auto rect = FormBounds(index);
         extent = extent.cwiseMax(Eigen::Vector2f(rect.x + rect.w, rect.y + rect.h));
     }
     if (const auto toolbar = Toolbar()) {
@@ -185,14 +205,14 @@ auto FormDesigner::ToPreview(const Eigen::Vector2f& document) const -> Eigen::Ve
 auto FormDesigner::VisualRect(size_t index) const -> CanvasRect {
     const auto arranged = Document().Arrange(Origin());
     const auto& element = arranged.at(index);
-    const auto& [x, y, w, h] = ModularElements::Rect(element);
-    if (const auto* label = BaselineLabel(element)) {
-        const auto font = static_cast<float>(label->font_size);
-        const float above = CityAbove(*label);
+    const auto& [x, y, w, h] = FormElements::Rect(element);
+    if (BaselineText(element)) {
+        const auto font = static_cast<float>(FontSize(element));
+        const float above = CityAbove(element);
         return {x, y - font - above, MinimumSize(element).x(), font * kLabelHeight + above};
     }
-    if (const auto* label = std::get_if<LabelElement>(&element)) {
-        const float above = CityAbove(*label);
+    if (FormElements::IsText(element)) {
+        const float above = CityAbove(element);
         return {x, y - above, w, h + above};
     }
     return {x, y, w, h};
@@ -201,7 +221,7 @@ auto FormDesigner::VisualRect(size_t index) const -> CanvasRect {
 auto FormDesigner::Handle(FormHitKind kind, size_t form) const -> std::optional<CanvasRect> {
     switch (kind) {
     case FormHitKind::FormCorner: {
-        const auto rect = Form(form);
+        const auto rect = FormBounds(form);
         return CenteredRect(rect.x + rect.w, rect.y + rect.h, kHandle, kHandle);
     }
     case FormHitKind::ToolbarCorner: {
@@ -221,20 +241,20 @@ auto FormDesigner::Handle(FormHitKind kind, size_t form) const -> std::optional<
     return std::nullopt;
 }
 
-auto FormDesigner::MinimumForm(const ModularUiConfig& config, size_t form) const -> Eigen::Vector2f {
+auto FormDesigner::MinimumForm(const FormDocument& config, size_t form) const -> Eigen::Vector2f {
     Eigen::Vector2f minimum(kMinFormWidth, kMinFormHeight);
     float toolbar_width = 2.0f;
-    for (const auto& element : config.Elements()) {
-        if (ModularElements::RegionOf(element) == Region::Toolbar) {
+    for (const auto& element : config.Components()) {
+        if (FormElements::RegionOf(element) == Region::Toolbar) {
             toolbar_width += MinimumSize(element).x() + 2.0f;
             continue;
         }
-        if (ModularElements::FormOf(element) != form) {
+        if (FormElements::FormOf(element) != form) {
             continue;
         }
-        const auto& [x, y, w, h] = ModularElements::Rect(element);
-        if (const auto* label = BaselineLabel(element)) {
-            const auto font = static_cast<float>(label->font_size);
+        const auto& [x, y, w, h] = FormElements::Rect(element);
+        if (BaselineText(element)) {
+            const auto font = static_cast<float>(FontSize(element));
             minimum = minimum.cwiseMax(Eigen::Vector2f(x + MinimumSize(element).x(), y - font + font * kLabelHeight));
         } else {
             minimum = minimum.cwiseMax(Eigen::Vector2f(x + w, y + h));
@@ -246,15 +266,15 @@ auto FormDesigner::MinimumForm(const ModularUiConfig& config, size_t form) const
     return minimum;
 }
 
-auto FormDesigner::Fit(ModularUiConfig& config, size_t index) const -> void {
-    auto& element = config.Elements().at(index);
-    auto& rect = ModularElements::Rect(element);
+auto FormDesigner::Fit(FormDocument& config, size_t index) const -> void {
+    auto& element = config.Components().at(index);
+    auto& rect = FormElements::Rect(element);
     const auto minimum = MinimumSize(element);
-    if (ModularElements::RegionOf(element) == Region::Form) {
-        const auto size = FormSize(config, ModularElements::FormOf(element));
+    if (FormElements::RegionOf(element) == Region::Form) {
+        const auto size = FormSize(config, FormElements::FormOf(element));
         rect[2] = std::min(rect[2], size.x() - rect[0]);
         rect[2] = std::max(rect[2], minimum.x());
-        if (BaselineLabel(element) == nullptr) {
+        if (!BaselineText(element)) {
             rect[3] = std::clamp(rect[3], minimum.y(), std::max(size.y() - rect[1], minimum.y()));
         }
     } else {
@@ -270,13 +290,13 @@ auto FormDesigner::Fit(ModularUiConfig& config, size_t index) const -> void {
 
 auto FormDesigner::Accepts(const Eigen::Vector2f& point, int layer) const -> bool {
     return layer == 0
-        || (m_drag && m_drag->hit.kind == FormHitKind::Element && LayerOf(Document().Elements().at(m_drag->hit.index)) == layer)
+        || (m_drag && m_drag->hit.kind == FormHitKind::Element && LayerOf(Document().Components().at(m_drag->hit.index)) == layer)
         || HitTest(point, layer).kind != FormHitKind::None;
 }
 
 auto FormDesigner::HitTest(const Eigen::Vector2f& point, std::optional<int> layer) const -> FormHit {
     const auto& config = Document();
-    const auto& elements = config.Elements();
+    const auto& elements = config.Components();
     const auto in_layer = [&](size_t index) -> bool { return !layer || LayerOf(elements.at(index)) == *layer; };
     const bool back = layer.value_or(0) == 0;
     if (m_selected && *m_selected < elements.size() && in_layer(*m_selected)) {
@@ -363,13 +383,13 @@ auto FormDesigner::Press(const Eigen::Vector2f& point, std::optional<int> layer)
     switch (hit.kind) {
     case FormHitKind::Element:
     case FormHitKind::Resize: {
-        const auto& element = config.Elements().at(hit.index);
-        drag.rect = ModularElements::Rect(element);
+        const auto& element = config.Components().at(hit.index);
+        drag.rect = FormElements::Rect(element);
         drag.font_size = FontSize(element);
         const auto arranged = config.Arrange(Origin());
-        const auto& placed = ModularElements::Rect(arranged.at(hit.index));
+        const auto& placed = FormElements::Rect(arranged.at(hit.index));
         drag.start_position = {placed[0], placed[1]};
-        drag.form = ModularElements::FormOf(element);
+        drag.form = FormElements::FormOf(element);
         break;
     }
     case FormHitKind::FormBody: {
@@ -459,17 +479,17 @@ auto FormDesigner::SnapAxis(float start, float size, std::span<const float> targ
 auto FormDesigner::MoveElement(Drag& drag, const Eigen::Vector2f& point) -> void {
     auto& config = m_revisions.Live();
     const auto index = drag.hit.index;
-    auto& element = config.Elements().at(index);
+    auto& element = config.Components().at(index);
 
-    if (ModularElements::RegionOf(element) == Region::Toolbar) {
+    if (FormElements::RegionOf(element) == Region::Toolbar) {
         if (const auto toolbar_rect = Toolbar(); toolbar_rect && InToolbar(point)) {
             const auto arranged = config.Arrange(Origin());
             const auto order = ToolbarOrder(index);
             const auto position = InsertionIndex(point.x(), index);
             if (position < order.size()) {
-                m_toolbar_marker = ModularElements::Rect(arranged[order[position]])[0] - 2.0f;
+                m_toolbar_marker = FormElements::Rect(arranged[order[position]])[0] - 2.0f;
             } else if (!order.empty()) {
-                const auto& last = ModularElements::Rect(arranged[order.back()]);
+                const auto& last = FormElements::Rect(arranged[order.back()]);
                 m_toolbar_marker = last[0] + last[2] + 2.0f;
             } else {
                 m_toolbar_marker = toolbar_rect->x + 4.0f;
@@ -481,9 +501,9 @@ auto FormDesigner::MoveElement(Drag& drag, const Eigen::Vector2f& point) -> void
         return;
     }
 
-    auto& rect = ModularElements::Rect(element);
+    auto& rect = FormElements::Rect(element);
     if (InToolbar(point)) {
-        ModularElements::SetForm(element, ModularElements::FormOf(drag.before.Elements().at(index)));
+        FormElements::SetForm(element, FormElements::FormOf(drag.before.Components().at(index)));
         rect = drag.rect;
         m_drop_form.reset();
         const auto visual = VisualRect(index);
@@ -497,8 +517,8 @@ auto FormDesigner::MoveElement(Drag& drag, const Eigen::Vector2f& point) -> void
         m_snap_x = {};
         m_snap_y = {};
     }
-    const auto form = Form(drag.form);
-    ModularElements::SetForm(element, drag.form);
+    const auto form = FormBounds(drag.form);
+    FormElements::SetForm(element, drag.form);
     m_drop_form = drag.form;
     const Eigen::Vector2f position = drag.start_position + (point - drag.start) - Eigen::Vector2f(form.x, form.y);
     rect = drag.rect;
@@ -510,10 +530,10 @@ auto FormDesigner::MoveElement(Drag& drag, const Eigen::Vector2f& point) -> void
     if (over) {
         std::vector<float> xs{0.0f, form.w / 2.0f, form.w};
         std::vector<float> ys{0.0f, form.h / 2.0f, form.h};
-        for (size_t i = 0; i < config.Elements().size(); ++i) {
-            const auto& other_element = config.Elements()[i];
-            if (i == index || ModularElements::RegionOf(other_element) != Region::Form
-                || ModularElements::FormOf(other_element) != drag.form) {
+        for (size_t i = 0; i < config.Components().size(); ++i) {
+            const auto& other_element = config.Components()[i];
+            if (i == index || FormElements::RegionOf(other_element) != Region::Form
+                || FormElements::FormOf(other_element) != drag.form) {
                 continue;
             }
             const auto other = VisualRect(i);
@@ -535,12 +555,12 @@ auto FormDesigner::MoveElement(Drag& drag, const Eigen::Vector2f& point) -> void
 
 auto FormDesigner::ClampIntoForm(size_t index) -> void {
     auto& config = m_revisions.Live();
-    auto& element = config.Elements().at(index);
-    if (ModularElements::RegionOf(element) != Region::Form) {
+    auto& element = config.Components().at(index);
+    if (FormElements::RegionOf(element) != Region::Form) {
         return;
     }
-    auto& rect = ModularElements::Rect(element);
-    const auto form = Form(ModularElements::FormOf(element));
+    auto& rect = FormElements::Rect(element);
+    const auto form = FormBounds(FormElements::FormOf(element));
     const auto visual = VisualRect(index);
     const float visual_dy = visual.y - form.y - rect[1];
     rect[0] = std::clamp(rect[0], 0.0f, std::max(form.w - visual.w, 0.0f));
@@ -575,21 +595,22 @@ auto FormDesigner::MoveForm(const Drag& drag, const Eigen::Vector2f& point) -> v
 auto FormDesigner::ResizeElement(const Drag& drag, const Eigen::Vector2f& point) -> void {
     auto& config = m_revisions.Live();
     const auto index = drag.hit.index;
-    auto& element = config.Elements().at(index);
-    auto& rect = ModularElements::Rect(element);
+    auto& element = config.Components().at(index);
+    auto& rect = FormElements::Rect(element);
     const Eigen::Vector2f delta = point - drag.start;
     rect = drag.rect;
-    if (BaselineLabel(element) != nullptr) {
+    if (BaselineText(element)) {
         SetFontSize(element, drag.font_size);
+        ScaleCity(element, drag.before.Components().at(index), drag.font_size);
     }
-    if (ModularElements::RegionOf(element) == Region::Toolbar) {
+    if (FormElements::RegionOf(element) == Region::Toolbar) {
         rect[2] = std::max(drag.rect[2] + delta.x(), MinimumSize(element).x());
         return;
     }
-    const auto form_index = ModularElements::FormOf(element);
-    const auto form = Form(form_index);
-    if (const auto* label = BaselineLabel(element)) {
-        const float above = CityAbove(*label);
+    const auto form_index = FormElements::FormOf(element);
+    const auto form = FormBounds(form_index);
+    if (BaselineText(element)) {
+        const float above = CityAbove(element);
         const float start_height = static_cast<float>(drag.font_size) * kLabelHeight;
         const float top = rect[1] - static_cast<float>(drag.font_size) - above;
         const float room = std::max(form.h - top - above, 6.0f * kLabelHeight);
@@ -600,16 +621,17 @@ auto FormDesigner::ResizeElement(const Drag& drag, const Eigen::Vector2f& point)
             SetFontSize(element, FontSize(element) - 1);
             rect[1] = top + above + static_cast<float>(FontSize(element));
         }
+        ScaleCity(element, drag.before.Components().at(index), drag.font_size);
         return;
     }
     rect[2] = drag.rect[2] + delta.x();
     rect[3] = drag.rect[3] + delta.y();
     std::vector<float> xs{form.w / 2.0f, form.w};
     std::vector<float> ys{form.h / 2.0f, form.h};
-    for (size_t i = 0; i < config.Elements().size(); ++i) {
-        const auto& other_element = config.Elements()[i];
-        if (i != index && ModularElements::RegionOf(other_element) == Region::Form
-            && ModularElements::FormOf(other_element) == form_index) {
+    for (size_t i = 0; i < config.Components().size(); ++i) {
+        const auto& other_element = config.Components()[i];
+        if (i != index && FormElements::RegionOf(other_element) == Region::Form
+            && FormElements::FormOf(other_element) == form_index) {
             const auto other = VisualRect(i);
             xs.insert(xs.end(), {other.x - form.x, other.x - form.x + other.w});
             ys.insert(ys.end(), {other.y - form.y, other.y - form.y + other.h});
@@ -652,24 +674,24 @@ auto FormDesigner::ResizeRegion(const Drag& drag, const Eigen::Vector2f& point) 
 
 auto FormDesigner::PlaceInForm(size_t index, const Eigen::Vector2f& center) -> void {
     auto& config = m_revisions.Live();
-    auto& element = config.Elements().at(index);
+    auto& element = config.Components().at(index);
     const auto target = FormAt(center).value_or(0);
-    const auto form = Form(target);
-    auto& rect = ModularElements::Rect(element);
+    const auto form = FormBounds(target);
+    auto& rect = FormElements::Rect(element);
     if (rect[3] <= 0.0f) {
         const auto& toolbar = config.Form().toolbar;
         rect[3] = toolbar ? toolbar->height - 2.0f * toolbar->padding : 32.0f;
     }
-    ModularElements::SetRegion(element, Region::Form);
-    ModularElements::SetForm(element, target);
+    FormElements::SetRegion(element, Region::Form);
+    FormElements::SetForm(element, target);
     const auto minimum = MinimumSize(element);
     rect[2] = std::max(std::min(rect[2], form.w), minimum.x());
     rect[3] = std::max(std::min(rect[3], form.h), minimum.y());
     rect[0] = std::clamp(center.x() - form.x - rect[2] / 2.0f, 0.0f, std::max(form.w - rect[2], 0.0f));
     rect[1] = std::clamp(center.y() - form.y - rect[3] / 2.0f, 0.0f, std::max(form.h - rect[3], 0.0f));
-    if (const auto* label = BaselineLabel(element)) {
-        const auto font = static_cast<float>(label->font_size);
-        const float above = CityAbove(*label);
+    if (BaselineText(element)) {
+        const auto font = static_cast<float>(FontSize(element));
+        const float above = CityAbove(element);
         const float height = font * kLabelHeight + above;
         const float width = MinimumSize(element).x();
         rect[0] = std::clamp(center.x() - form.x - width / 2.0f, 0.0f, std::max(form.w - width, 0.0f));
@@ -702,7 +724,7 @@ auto FormDesigner::Release(const Eigen::Vector2f& point) -> bool {
     }
     if (drag.hit.kind == FormHitKind::Element) {
         const auto index = drag.hit.index;
-        const bool in_toolbar = ModularElements::RegionOf(Document().Elements().at(index)) == Region::Toolbar;
+        const bool in_toolbar = FormElements::RegionOf(Document().Components().at(index)) == Region::Toolbar;
         if (InToolbar(point)) {
             m_selected = PlaceInToolbar(index, InsertionIndex(point.x(), index));
         } else if (in_toolbar) {
@@ -751,11 +773,14 @@ auto FormDesigner::Insert(FormPart part, const std::optional<Eigen::Vector2f>& p
         InsertForm(point);
         return std::nullopt;
     }
+    if (point && !InToolbar(*point) && !FormAt(*point)) {
+        return std::nullopt;
+    }
     auto before = Document();
     auto& config = m_revisions.Live();
-    config.Elements().push_back(MakePart(part));
-    size_t index = config.Elements().size() - 1;
-    const auto form = Form(0);
+    config.Components().push_back(MakePart(part));
+    size_t index = config.Components().size() - 1;
+    const auto form = FormBounds(0);
     const Eigen::Vector2f center = point.value_or(Eigen::Vector2f(form.x + form.w / 2.0f, form.y + form.h / 2.0f));
     if (InToolbar(center)) {
         index = PlaceInToolbar(index, InsertionIndex(center.x(), index));
@@ -772,13 +797,13 @@ auto FormDesigner::RemoveForm(size_t form) -> void {
     if (form == 0 || form >= Document().FormCount()) {
         return;
     }
-    m_revisions.Edit([form](ModularUiConfig& config) -> void { config.RemoveForm(form); });
+    m_revisions.Edit([form](FormDocument& config) -> void { config.RemoveForm(form); });
     m_selected.reset();
     m_selected_form.reset();
     m_hovered.reset();
 }
 
-auto FormDesigner::MinimumSize(const ModularElement& element) const -> Eigen::Vector2f {
+auto FormDesigner::MinimumSize(const FormElement& element) const -> Eigen::Vector2f {
     const auto text_width = [this](std::string_view text, int font_size) -> float {
         if (measure) {
             return measure(text, font_size);
@@ -791,22 +816,24 @@ auto FormDesigner::MinimumSize(const ModularElement& element) const -> Eigen::Ve
             if constexpr (std::is_same_v<Item, ButtonElement>) {
                 const auto font = static_cast<float>(item.font_size);
                 return {std::max(text_width(item.text, item.font_size) + 12.0f, 24.0f), std::max(font * kLabelHeight + 6.0f, 20.0f)};
-            } else if constexpr (std::is_same_v<Item, LabelElement>) {
+            } else if constexpr (requires { item.centered; }) {
                 std::string sample = "100";
                 if (label_text) {
-                    sample = label_text(item.content);
-                } else if (const auto* fixed = std::get_if<StaticLabelContent>(&item.content)) {
-                    sample = fixed->text;
-                } else if (const auto* clock = std::get_if<ClockLabelContent>(&item.content)) {
-                    sample = Labels::FormatTime(clock->format, nullptr, std::chrono::system_clock::now());
-                } else if (std::holds_alternative<TimerLabelContent>(item.content)) {
+                    sample = label_text(element);
+                } else if constexpr (std::is_same_v<Item, LabelElement>) {
+                    sample = item.text;
+                } else if constexpr (std::is_same_v<Item, ClockElement>) {
+                    sample = ClockComponent::FormatTime(item.format, nullptr, std::chrono::system_clock::now());
+                } else if constexpr (std::is_same_v<Item, TimerElement>) {
                     sample = "00:00:00";
                 }
                 float width = text_width(sample, item.font_size);
-                if (const auto* clock = std::get_if<ClockLabelContent>(&item.content); clock != nullptr && clock->city_size) {
-                    width = std::max(width, text_width(city_text ? city_text(*clock) : std::string("City"), *clock->city_size));
+                if constexpr (std::is_same_v<Item, ClockElement>) {
+                    if (item.city_size) {
+                        width = std::max(width, text_width(city_text ? city_text(item) : std::string("City"), *item.city_size));
+                    }
                 }
-                return {std::max(width, kMinSize), static_cast<float>(item.font_size) * kLabelHeight + CityAbove(item)};
+                return {std::max(width, kMinSize), static_cast<float>(item.font_size) * kLabelHeight + CityAbove(element)};
             } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
                 const auto count = static_cast<float>(std::max<size_t>(item.num_devices, 1));
                 const float cell = text_width("R99", item.font_size) + 4.0f;
@@ -823,14 +850,14 @@ auto FormDesigner::MinimumSize(const ModularElement& element) const -> Eigen::Ve
     );
 }
 
-auto FormDesigner::MinimumToolbarHeight(const ModularUiConfig& config) const -> float {
+auto FormDesigner::MinimumToolbarHeight(const FormDocument& config) const -> float {
     float height = kMinToolbarHeight;
     if (!config.Form().toolbar) {
         return height;
     }
     const float padding = config.Form().toolbar->padding;
-    for (const auto& element : config.Elements()) {
-        if (ModularElements::RegionOf(element) == Region::Toolbar) {
+    for (const auto& element : config.Components()) {
+        if (FormElements::RegionOf(element) == Region::Toolbar) {
             const bool list = std::holds_alternative<BatteryListElement>(element)
                            || std::holds_alternative<OverlayListElement>(element);
             height = std::max(height, MinimumSize(element).y() + (list ? 0.0f : 2.0f * padding));
@@ -839,7 +866,7 @@ auto FormDesigner::MinimumToolbarHeight(const ModularUiConfig& config) const -> 
     return height;
 }
 
-auto FormDesigner::LayerOf(const ModularElement& element) -> int {
+auto FormDesigner::LayerOf(const FormElement& element) -> int {
     if (std::holds_alternative<PanelElement>(element) || std::holds_alternative<SpriteElement>(element)) {
         return 0;
     }
@@ -851,9 +878,9 @@ auto FormDesigner::LayerOf(const ModularElement& element) -> int {
 
 auto FormDesigner::ToolbarOrder(std::optional<size_t> without) const -> std::vector<size_t> {
     std::vector<size_t> order;
-    const auto& elements = Document().Elements();
+    const auto& elements = Document().Components();
     for (size_t i = 0; i < elements.size(); ++i) {
-        if (i != without && ModularElements::RegionOf(elements[i]) == Region::Toolbar) {
+        if (i != without && FormElements::RegionOf(elements[i]) == Region::Toolbar) {
             order.push_back(i);
         }
     }
@@ -864,19 +891,19 @@ auto FormDesigner::InsertionIndex(float x, std::optional<size_t> without) const 
     const auto arranged = Document().Arrange();
     const auto order = ToolbarOrder(without);
     return static_cast<size_t>(std::ranges::count_if(order, [&](size_t index) -> bool {
-        const auto& rect = ModularElements::Rect(arranged[index]);
+        const auto& rect = FormElements::Rect(arranged[index]);
         return rect[0] + rect[2] / 2.0f < x;
     }));
 }
 
 auto FormDesigner::PlaceInToolbar(size_t index, size_t position) -> size_t {
-    auto& elements = m_revisions.Live().Elements();
+    auto& elements = m_revisions.Live().Components();
     auto element = std::move(elements.at(index));
     elements.erase(elements.begin() + static_cast<std::ptrdiff_t>(index));
-    ModularElements::SetRegion(element, Region::Toolbar);
+    FormElements::SetRegion(element, Region::Toolbar);
     std::vector<size_t> order;
     for (size_t i = 0; i < elements.size(); ++i) {
-        if (ModularElements::RegionOf(elements[i]) == Region::Toolbar) {
+        if (FormElements::RegionOf(elements[i]) == Region::Toolbar) {
             order.push_back(i);
         }
     }
@@ -891,39 +918,39 @@ auto FormDesigner::PlaceInToolbar(size_t index, size_t position) -> size_t {
 }
 
 auto FormDesigner::Duplicate(size_t index) -> void {
-    m_revisions.Edit([index](ModularUiConfig& config) -> void {
-        auto copy = config.Elements().at(index);
-        if (ModularElements::RegionOf(copy) == Region::Form) {
-            auto& rect = ModularElements::Rect(copy);
+    m_revisions.Edit([index](FormDocument& config) -> void {
+        auto copy = config.Components().at(index);
+        if (FormElements::RegionOf(copy) == Region::Form) {
+            auto& rect = FormElements::Rect(copy);
             rect[0] += 12.0f;
             rect[1] += 12.0f;
         }
-        config.Elements().insert(config.Elements().begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(copy));
+        config.Components().insert(config.Components().begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(copy));
     });
     m_selected = index + 1;
 }
 
 auto FormDesigner::Remove(size_t index) -> void {
-    m_revisions.Edit([index](ModularUiConfig& config) -> void {
-        config.Elements().erase(config.Elements().begin() + static_cast<std::ptrdiff_t>(index));
+    m_revisions.Edit([index](FormDocument& config) -> void {
+        config.Components().erase(config.Components().begin() + static_cast<std::ptrdiff_t>(index));
     });
     m_selected.reset();
     m_hovered.reset();
 }
 
 auto FormDesigner::Restack(size_t index, int direction) -> void {
-    const auto count = Document().Elements().size();
+    const auto count = Document().Components().size();
     const auto target = static_cast<std::ptrdiff_t>(index) + direction;
     if (target < 0 || static_cast<size_t>(target) >= count) {
         return;
     }
-    m_revisions.Edit([index, target](ModularUiConfig& config) -> void {
-        std::swap(config.Elements().at(index), config.Elements().at(static_cast<size_t>(target)));
+    m_revisions.Edit([index, target](FormDocument& config) -> void {
+        std::swap(config.Components().at(index), config.Components().at(static_cast<size_t>(target)));
     });
     m_selected = static_cast<size_t>(target);
 }
 
-auto FormDesigner::MakePart(FormPart part) -> ModularElement {
+auto FormDesigner::MakePart(FormPart part) -> FormElement {
     switch (part) {
     case FormPart::Form: return PanelElement{.rect = {0.0f, 0.0f, 200.0f, 120.0f}, .bg_color = "@background"};
     case FormPart::Button:
@@ -939,21 +966,21 @@ auto FormDesigner::MakePart(FormPart part) -> ModularElement {
             .rect = {0.0f, 0.0f, 140.0f, 20.0f},
             .font_size = 16,
             .fg_color = "@text",
-            .content = StaticLabelContent{.text = "Label"},
+            .text = "Label",
         };
     case FormPart::Clock:
-        return LabelElement{
+        return ClockElement{
             .rect = {0.0f, 0.0f, 150.0f, 40.0f},
             .font_size = 36,
             .fg_color = "@text",
-            .content = ClockLabelContent{.format = "%H:%M"},
+            .format = "%H:%M",
         };
     case FormPart::Date:
-        return LabelElement{
+        return ClockElement{
             .rect = {0.0f, 0.0f, 140.0f, 20.0f},
             .font_size = 14,
             .fg_color = "@text",
-            .content = ClockLabelContent{.format = "%x"},
+            .format = "%x",
         };
     case FormPart::Panel: return PanelElement{.rect = {0.0f, 0.0f, 160.0f, 80.0f}, .bg_color = "@surface"};
     case FormPart::Battery:
@@ -996,22 +1023,29 @@ auto FormDesigner::PartName(FormPart part) -> std::string_view {
     return {};
 }
 
-auto FormDesigner::Draw(Canvas& canvas, std::optional<int> layer) const -> void {
+auto FormDesigner::Draw(Form& form, std::optional<int> layer) const -> void {
     const auto& config = Document();
     const auto size = PreviewSize();
     const auto origin = Origin();
     const bool back = layer.value_or(0) == 0;
     const bool front = layer.value_or(kLayers - 1) == kLayers - 1;
-    const auto in_layer = [&](size_t index) -> bool { return !layer || LayerOf(config.Elements().at(index)) == *layer; };
-    const Eigen::Vector2f pad = Eigen::Vector2f::Constant(kPad);
+    const auto in_layer = [&](size_t index) -> bool { return !layer || LayerOf(config.Components().at(index)) == *layer; };
+    const auto& theme = form.Theme();
     if (back) {
-        canvas.SetBgColor(EditorColors::Hex(layer ? "#11111b80" : "#11111bc0"));
-        canvas.Panel(0.0f, 0.0f, size.x(), size.y(), Theme::Radius(g_themes->Active().rounding, Shape::Panel) * kScale);
-        Modular::FillArranged(canvas, config.Backgrounds(origin), kScale, pad);
+        auto& backdrop = form.AddComponent<PanelComponent>();
+        backdrop.SetSize(size);
+        backdrop.SetCornerRadius(FormTheme::Radius(theme.rounding, Shape::Panel) * kScale);
+        backdrop.SetBgColor(FormTheme::Rgba(layer ? "#11111b80" : "#11111bc0"));
+    }
+    auto& document = form.AddComponent<FormComponent>("document");
+    document.SetPosition(Eigen::Vector2f::Constant(kPad * kScale));
+    document.SetScale(kScale);
+    if (back) {
+        Form::Instantiate(document, config.Backgrounds(origin), {.theme = theme});
     }
     auto arranged = config.Arrange(origin);
     if (layer) {
-        std::vector<ModularElement> shown;
+        std::vector<FormElement> shown;
         for (size_t i = 0; i < arranged.size(); ++i) {
             if (in_layer(i)) {
                 shown.push_back(std::move(arranged[i]));
@@ -1019,7 +1053,7 @@ auto FormDesigner::Draw(Canvas& canvas, std::optional<int> layer) const -> void 
         }
         arranged = std::move(shown);
     }
-    Modular::FillArranged(canvas, arranged, kScale, pad);
+    Form::Instantiate(document, arranged, {.theme = theme});
 
     const auto to_preview = [this](const CanvasRect& rect) -> CanvasRect {
         const Eigen::Vector2f corner = ToPreview({rect.x, rect.y});
@@ -1027,43 +1061,44 @@ auto FormDesigner::Draw(Canvas& canvas, std::optional<int> layer) const -> void 
     };
     const auto outline = [&](const CanvasRect& rect, const Eigen::Vector4f& color, float width, float grow) -> void {
         const auto shown = to_preview({rect.x - grow, rect.y - grow, rect.w + 2.0f * grow, rect.h + 2.0f * grow});
-        canvas.Decoration(shown.x, shown.y, shown.w, shown.h, 4.0f * kScale, Outline(color, width));
+        Decorate(form, shown, 4.0f * kScale, std::nullopt, color, width);
     };
     const auto block = [&](const CanvasRect& rect, const Eigen::Vector4f& color) -> void {
-        const auto shown = to_preview(rect);
-        canvas.SetBgColor(color);
-        canvas.Panel(shown.x, shown.y, shown.w, shown.h, 3.0f);
+        auto& panel = form.AddComponent<PanelComponent>();
+        panel.SetRect(to_preview(rect));
+        panel.SetCornerRadius(3.0f);
+        panel.SetBgColor(color);
     };
 
-    const auto dim = WithAlpha(EditorColors::Dim(), 0.45f);
-    for (size_t form = 0; form < config.FormCount(); ++form) {
-        const bool chosen = m_selected_form == form;
+    const auto dim = WithAlpha(FormTheme::Rgba("@subtle"), 0.45f);
+    for (size_t index = 0; index < config.FormCount(); ++index) {
+        const bool chosen = m_selected_form == index;
         if (back || chosen) {
             outline(
-                Form(form),
-                chosen ? EditorColors::Accent() : (back ? dim : WithAlpha(EditorColors::Dim(), 0.2f)),
+                FormBounds(index),
+                chosen ? FormTheme::Rgba("@accent") : (back ? dim : WithAlpha(FormTheme::Rgba("@subtle"), 0.2f)),
                 chosen ? 2.5f : 1.5f,
                 1.0f
             );
         }
         if (back) {
-            if (const auto handle = Handle(FormHitKind::FormCorner, form)) {
-                block(*handle, chosen ? EditorColors::Accent() : WithAlpha(EditorColors::Dim(), 0.9f));
+            if (const auto handle = Handle(FormHitKind::FormCorner, index)) {
+                block(*handle, chosen ? FormTheme::Rgba("@accent") : WithAlpha(FormTheme::Rgba("@subtle"), 0.9f));
             }
         }
     }
     if (m_drop_form && *m_drop_form < config.FormCount() && config.FormCount() > 1) {
-        outline(Form(*m_drop_form), WithAlpha(EditorColors::Accent(), 0.7f), 2.0f, 3.0f);
+        outline(FormBounds(*m_drop_form), WithAlpha(FormTheme::Rgba("@accent"), 0.7f), 2.0f, 3.0f);
     }
     if (back) {
         if (const auto toolbar = Toolbar()) {
             outline(*toolbar, dim, 1.5f, 1.0f);
         }
         if (const auto handle = Handle(FormHitKind::ToolbarCorner, 0)) {
-            block(*handle, WithAlpha(EditorColors::Dim(), 0.9f));
+            block(*handle, WithAlpha(FormTheme::Rgba("@subtle"), 0.9f));
         }
     }
-    const auto count = config.Elements().size();
+    const auto count = config.Components().size();
     if (m_hovered && *m_hovered < count && m_hovered != m_selected && in_layer(*m_hovered)) {
         outline(VisualRect(*m_hovered), Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.45f), 1.5f, 2.0f);
     }
@@ -1071,48 +1106,35 @@ auto FormDesigner::Draw(Canvas& canvas, std::optional<int> layer) const -> void 
         const auto rect = VisualRect(*m_selected);
         if (m_drag && m_drag->engaged && (m_drag->hit.kind == FormHitKind::Element || m_drag->hit.kind == FormHitKind::Resize)) {
             const auto lifted = to_preview({rect.x - 4.0f, rect.y - 4.0f, rect.w + 8.0f, rect.h + 8.0f});
-            canvas.Decoration(
-                lifted.x,
-                lifted.y,
-                lifted.w,
-                lifted.h,
-                6.0f * kScale,
-                std::make_unique<OutlineControl>(
-                    WithAlpha(EditorColors::Accent(), 0.22f),
-                    HighlightOutline{.color = EditorColors::Accent(), .width = 3.5f}
-                )
-            );
+            Decorate(form, lifted, 6.0f * kScale, WithAlpha(FormTheme::Rgba("@accent"), 0.22f), FormTheme::Rgba("@accent"), 3.5f);
         } else {
-            outline(rect, EditorColors::Accent(), 2.5f, 2.0f);
+            outline(rect, FormTheme::Rgba("@accent"), 2.5f, 2.0f);
         }
-        block(CenteredRect(rect.x + rect.w, rect.y + rect.h, kHandle, kHandle), EditorColors::Accent());
+        block(CenteredRect(rect.x + rect.w, rect.y + rect.h, kHandle, kHandle), FormTheme::Rgba("@accent"));
     }
     if (m_drag && m_drag->engaged && m_drag->hit.kind == FormHitKind::FormBody) {
-        const auto form = to_preview(Form(m_drag->hit.index));
-        canvas.Decoration(
-            form.x - 4.0f,
-            form.y - 4.0f,
-            form.w + 8.0f,
-            form.h + 8.0f,
+        const auto bounds = to_preview(FormBounds(m_drag->hit.index));
+        Decorate(
+            form,
+            {bounds.x - 4.0f, bounds.y - 4.0f, bounds.w + 8.0f, bounds.h + 8.0f},
             6.0f * kScale,
-            std::make_unique<OutlineControl>(
-                WithAlpha(EditorColors::Accent(), 0.15f),
-                HighlightOutline{.color = EditorColors::Accent(), .width = 3.5f}
-            )
+            WithAlpha(FormTheme::Rgba("@accent"), 0.15f),
+            FormTheme::Rgba("@accent"),
+            3.5f
         );
     }
 
     if (!front) {
         return;
     }
-    canvas.SetBgColor(EditorColors::Accent());
     for (const auto& guide : m_guides) {
         const Eigen::Vector2f at = ToPreview({guide.position, guide.position});
-        if (guide.vertical) {
-            canvas.Panel(at.x() - 0.75f, 0.0f, 1.5f, size.y(), 0.0f);
-        } else {
-            canvas.Panel(0.0f, at.y() - 0.75f, size.x(), 1.5f, 0.0f);
-        }
+        auto& line = form.AddComponent<PanelComponent>();
+        line.SetRect(
+            guide.vertical ? CanvasRect{at.x() - 0.75f, 0.0f, 1.5f, size.y()} : CanvasRect{0.0f, at.y() - 0.75f, size.x(), 1.5f}
+        );
+        line.SetCornerRadius(0.0f);
+        line.SetBgColor(FormTheme::Rgba("@accent"));
     }
     const auto toolbar = Toolbar();
     std::optional<float> marker = m_toolbar_marker;
@@ -1124,35 +1146,31 @@ auto FormDesigner::Draw(Canvas& canvas, std::optional<int> layer) const -> void 
             const auto order = ToolbarOrder(std::nullopt);
             const auto position = InsertionIndex(point.x(), std::nullopt);
             if (position < order.size()) {
-                marker = ModularElements::Rect(placed[order[position]])[0] - 2.0f;
+                marker = FormElements::Rect(placed[order[position]])[0] - 2.0f;
             } else if (order.empty()) {
                 marker = toolbar->x + 4.0f;
             } else {
-                const auto& last = ModularElements::Rect(placed[order.back()]);
+                const auto& last = FormElements::Rect(placed[order.back()]);
                 marker = last[0] + last[2] + 2.0f;
             }
         } else {
             const auto element = MakePart(part);
-            const auto& rect = ModularElements::Rect(element);
-            const float h = BaselineLabel(element) != nullptr ? static_cast<float>(FontSize(element)) * kLabelHeight : rect[3];
+            const auto& rect = FormElements::Rect(element);
+            const float h = BaselineText(element) ? static_cast<float>(FontSize(element)) * kLabelHeight : rect[3];
             landing = CenteredRect(point.x(), point.y(), rect[2], h);
         }
     }
     if (marker && toolbar) {
-        block({*marker - 1.5f, toolbar->y, 3.0f, toolbar->h}, EditorColors::Accent());
+        block({*marker - 1.5f, toolbar->y, 3.0f, toolbar->h}, FormTheme::Rgba("@accent"));
     }
     if (landing) {
-        const auto shown = to_preview(*landing);
-        canvas.Decoration(
-            shown.x,
-            shown.y,
-            shown.w,
-            shown.h,
+        Decorate(
+            form,
+            to_preview(*landing),
             4.0f * kScale,
-            std::make_unique<OutlineControl>(
-                WithAlpha(EditorColors::Accent(), 0.2f),
-                HighlightOutline{.color = EditorColors::Accent(), .width = 2.0f}
-            )
+            WithAlpha(FormTheme::Rgba("@accent"), 0.2f),
+            FormTheme::Rgba("@accent"),
+            2.0f
         );
     }
 }

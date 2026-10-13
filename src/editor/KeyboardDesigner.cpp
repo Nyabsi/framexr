@@ -24,10 +24,12 @@
 #include <map>
 #include <utility>
 
-#include "EditorColors.hpp"
+#include "FormTheme.hpp"
+#include "FormTheme.hpp"
 #include "Keyboard.hpp"
-#include "OutlineControl.hpp"
-#include "Theme.hpp"
+#include "LabelComponent.hpp"
+#include "OutlineComponent.hpp"
+#include "PanelComponent.hpp"
 
 namespace {
 
@@ -471,38 +473,39 @@ auto KeyboardDesigner::Place(KeyTemplate key_template, float x, int row) -> bool
     return true;
 }
 
-auto KeyboardDesigner::Draw(Canvas& canvas, const std::shared_ptr<const Keymap>& keymap) const -> void {
+auto KeyboardDesigner::Draw(Form& form, const std::shared_ptr<const Keymap>& keymap) const -> void {
     const auto& layout = Document();
     const auto size = PreviewSize();
-    canvas.SetBgColor(EditorColors::Hex("#11111bc0"));
-    canvas.Panel(0.0f, 0.0f, size.x(), size.y(), Theme::Radius(g_themes->Active().rounding, Shape::Panel) * kScale);
-    Keyboard::Fill(canvas, layout, keymap, std::make_shared<KeyboardState>(), {.scale = kScale, .interactive = false});
+    auto& backdrop = form.AddComponent<PanelComponent>();
+    backdrop.SetSize(size);
+    backdrop.SetCornerRadius(FormTheme::Radius(form.Theme().rounding, Shape::Panel) * kScale);
+    backdrop.SetBgColor(FormTheme::Rgba("#11111bc0"));
+    Keyboard::Fill(form, layout, keymap, {.scale = kScale}, nullptr);
 
     const auto outline =
-        [&canvas](const CanvasRect& rect, const std::optional<Eigen::Vector4f>& fill, const Eigen::Vector4f& color, float width)
+        [&form](const CanvasRect& rect, const std::optional<Eigen::Vector4f>& fill, const Eigen::Vector4f& color, float width)
         -> void {
-        canvas.Decoration(
-            rect.x - 2.0f,
-            rect.y - 2.0f,
-            rect.w + 4.0f,
-            rect.h + 4.0f,
-            6.0f,
-            std::make_unique<OutlineControl>(fill, HighlightOutline{.color = color, .width = width})
-        );
+        auto& decoration = form.AddComponent<OutlineComponent>("", fill, HighlightOutline{.color = color, .width = width});
+        decoration.SetRect({rect.x - 2.0f, rect.y - 2.0f, rect.w + 4.0f, rect.h + 4.0f});
+        decoration.SetCornerRadius(6.0f);
     };
     const auto button =
-        [&canvas](const CanvasRect& rect, std::string_view text, const Eigen::Vector4f& bg, const Eigen::Vector4f& fg) -> void {
-        canvas.SetBgColor(bg);
-        canvas.Panel(rect.x, rect.y, rect.w, rect.h, 6.0f);
-        canvas.SetFgColor(fg);
-        canvas.SetFontSize(16);
-        canvas.LabelCentered(rect.x, rect.y, rect.w, rect.h, 0.0f, std::string(text));
+        [&form](const CanvasRect& rect, std::string_view text, const Eigen::Vector4f& bg, const Eigen::Vector4f& fg) -> void {
+        auto& panel = form.AddComponent<PanelComponent>();
+        panel.SetRect(rect);
+        panel.SetCornerRadius(6.0f);
+        panel.SetBgColor(bg);
+        auto& label = form.AddComponent<LabelComponent>("", text);
+        label.SetRect(rect);
+        label.SetFontSize(16);
+        label.SetFgColor(fg);
+        label.SetCentered(true);
     };
 
-    const auto faint = WithAlpha(EditorColors::Surface(), 0.35f);
+    const auto faint = WithAlpha(FormTheme::Rgba("@surface"), 0.35f);
     for (const auto& [x, row] : layout.FreeCells()) {
         const bool lit = m_hovered && m_hovered->kind == KeyHitKind::Cell && m_hovered->x == x && m_hovered->row == row;
-        button(CellRect(x, row, 1.0f), "+", lit ? EditorColors::Surface() : faint, EditorColors::Dim());
+        button(CellRect(x, row, 1.0f), "+", lit ? FormTheme::Rgba("@surface") : faint, FormTheme::Rgba("@subtle"));
     }
     const auto control = [&](KeyHitKind kind, std::string_view text) -> void {
         const bool armed = m_armed == kind;
@@ -510,8 +513,8 @@ auto KeyboardDesigner::Draw(Canvas& canvas, const std::shared_ptr<const Keymap>&
         button(
             ControlRect(kind),
             armed ? "Sure?" : text,
-            armed ? EditorColors::Danger() : (lit ? EditorColors::Accent() : EditorColors::Surface()),
-            armed || lit ? EditorColors::OnAccent() : EditorColors::Text()
+            armed ? FormTheme::Rgba("@red") : (lit ? FormTheme::Rgba("@accent") : FormTheme::Rgba("@surface")),
+            armed || lit ? FormTheme::Rgba("@on-accent") : FormTheme::Rgba("@text")
         );
     };
     control(KeyHitKind::AddColumn, "+");
@@ -533,17 +536,17 @@ auto KeyboardDesigner::Draw(Canvas& canvas, const std::shared_ptr<const Keymap>&
         if (m_drag && m_drag->engaged && m_drag->hit.kind == KeyHitKind::Key) {
             outline(
                 {rect.x - 3.0f, rect.y - 3.0f, rect.w + 6.0f, rect.h + 6.0f},
-                WithAlpha(EditorColors::Accent(), 0.22f),
-                EditorColors::Accent(),
+                WithAlpha(FormTheme::Rgba("@accent"), 0.22f),
+                FormTheme::Rgba("@accent"),
                 3.5f
             );
         } else {
-            outline(rect, std::nullopt, EditorColors::Accent(), 2.5f);
+            outline(rect, std::nullopt, FormTheme::Rgba("@accent"), 2.5f);
         }
     }
     if (m_drag && m_drag->moved && m_drag->hit.kind == KeyHitKind::Key) {
         const auto& key = layout.Keys().at(m_drag->hit.index);
-        const auto color = m_drag->fits ? EditorColors::Hex("@green") : EditorColors::Danger();
+        const auto color = m_drag->fits ? FormTheme::Rgba("@green") : FormTheme::Rgba("@red");
         outline(CellRect(m_drag->x, m_drag->row, key.width), WithAlpha(color, 0.25f), color, 2.0f);
     }
     if (m_carrying) {
@@ -555,7 +558,7 @@ auto KeyboardDesigner::Draw(Canvas& canvas, const std::shared_ptr<const Keymap>&
         grown.SetRows(std::max(grown.Rows(), row + shape.Rows()));
         for (const auto& key : shape.Keys()) {
             const bool fits = grown.Fits(key.x + x, key.row + row, key.width);
-            const auto color = fits ? EditorColors::Hex("@green") : EditorColors::Danger();
+            const auto color = fits ? FormTheme::Rgba("@green") : FormTheme::Rgba("@red");
             outline(CellRect(key.x + x, key.row + row, key.width), WithAlpha(color, 0.25f), color, 2.0f);
         }
     }

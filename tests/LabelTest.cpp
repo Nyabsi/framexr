@@ -21,14 +21,14 @@
 
 #include <gtest/gtest.h>
 
-#include "Label.hpp"
+#include "ClockComponent.hpp"
 
 namespace {
 
 auto Format(std::string_view format) -> std::string {
     using namespace std::chrono;
     const sys_time<seconds> instant = sys_days{year{2024} / March / 5} + hours{7} + minutes{8} + seconds{9};
-    return Labels::FormatTime(format, locate_zone("UTC"), instant);
+    return ClockComponent::FormatTime(format, locate_zone("UTC"), instant);
 }
 
 } // namespace

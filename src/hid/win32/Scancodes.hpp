@@ -21,7 +21,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "VirtualKey.hpp"
+#include "VirtualKeys.hpp"
 
 constexpr uint16_t kScancodeExtended = 0xE000;
 

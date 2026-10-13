@@ -24,7 +24,7 @@
 
 namespace {
 
-auto SampleToast() -> Toast {
+auto SampleToast() -> ToastMessage {
     return {
         .topic = ToastTopic::XsNotification,
         .title = "Title ✓",

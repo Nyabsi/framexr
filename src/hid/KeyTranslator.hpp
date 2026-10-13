@@ -27,7 +27,7 @@
 #include <unordered_map>
 
 #include "Keymap.hpp"
-#include "VirtualKey.hpp"
+#include "VirtualKeys.hpp"
 
 struct KeyboardRegion {
     std::string layout;

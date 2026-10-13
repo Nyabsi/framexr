@@ -29,7 +29,7 @@
 
 #include <Eigen/Core>
 
-#include "Canvas.hpp"
+#include "Form.hpp"
 #include "History.hpp"
 #include "KeyboardLayout.hpp"
 
@@ -110,7 +110,7 @@ class KeyboardDesigner final {
     auto Duplicate(size_t index) -> bool;
     auto Remove(size_t index) -> void;
     auto Place(KeyTemplate key_template, float x, int row) -> bool;
-    auto Draw(Canvas& canvas, const std::shared_ptr<const Keymap>& keymap) const -> void;
+    auto Draw(Form& form, const std::shared_ptr<const Keymap>& keymap) const -> void;
 
     static auto Template(KeyTemplate key_template) -> const KeyboardLayout&;
     static auto TemplateName(KeyTemplate key_template) -> std::string_view;

@@ -33,24 +33,25 @@
 #include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
+#include "ConfigStore.hpp"
+#include "FontCache.hpp"
+#include "Forms.hpp"
 #include "Device.hpp"
+#include "ActionRunner.hpp"
 #include "Editor.hpp"
-#include "EditorPanel.hpp"
+#include "document/FormElements.hpp"
 #include "GpuReadback.hpp"
-#include "Input.hpp"
+#include "Interaction.hpp"
 #include "Keyboard.hpp"
-#include "KeyboardProfiles.hpp"
-#include "KeyControl.hpp"
+#include "KeyboardLayout.hpp"
 #include "Keymap.hpp"
-#include "ModifierControl.hpp"
-#include "OverlayContainer.hpp"
-#include "OverlayLayout.hpp"
+#include "Container.hpp"
 #include "Png.hpp"
 #include "ScopedRecordingHid.hpp"
-#include "State.hpp"
-#include "Task.hpp"
+#include "AppState.hpp"
+#include "TaskQueue.hpp"
 #include "TestApp.hpp"
-#include "Theme.hpp"
+#include "FormTheme.hpp"
 #include "Watch.hpp"
 
 namespace {
@@ -64,12 +65,12 @@ class EditorWorkspace : public testing::Test {
             GTEST_SKIP() << "the editor writes drafts, set XDG_CONFIG_HOME to a scratch directory";
         }
         RemoveDrafts();
-        *g_input = InputState();
+        *g_interaction = Interaction();
         g_config->grab_smoothing = false;
         g_config->pointer_smoothing = false;
         g_config->keyboard_profile = "keychron-v1-ansi";
-        g_input->SetHmd(Eigen::Affine3f::Identity());
-        m_overlays = OverlayContainer::CreateEmpty();
+        g_interaction->SetHmd(Eigen::Affine3f::Identity());
+        m_overlays = Container::CreateEmpty();
         auto watch = Watch::Create();
         ASSERT_TRUE(watch.has_value());
         m_overlays->Add(std::move(*watch));
@@ -84,21 +85,21 @@ class EditorWorkspace : public testing::Test {
         if (!m_overlays) {
             return;
         }
-        g_input->SetFocusedTextInput(nullptr);
+        g_interaction->SetFocusedTextInput(nullptr);
         m_overlays.reset();
         RemoveDrafts();
         if (ScratchConfig()) {
             std::error_code error;
-            std::filesystem::remove(Watch::UserFile("default"), error);
+            std::filesystem::remove(Forms::WatchFile("default"), error);
             std::filesystem::remove_all(ConfigStore::Root() / "watches", error);
-            std::filesystem::remove_all(Theme::UserDirectory(), error);
+            std::filesystem::remove_all(FormTheme::UserDirectory(), error);
             g_themes->Reload();
             g_themes->SetActive(g_themes->Find("macchiato"));
             g_config->theme = "macchiato";
             g_config->watch_profile = "default";
-            std::filesystem::remove(KeyboardProfiles::UserDirectory() / "keychron-v1-ansi-custom.yaml", error);
+            std::filesystem::remove(KeyboardLayout::UserDirectory() / "keychron-v1-ansi-custom.yaml", error);
         }
-        g_keyboard_profiles->Reload();
+        KeyboardLayout::Reload();
         g_config->keyboard_profile = "keychron-v1-ansi";
         std::deque<Task> drained;
         g_tasks->TakeDue(drained);
@@ -108,12 +109,12 @@ class EditorWorkspace : public testing::Test {
 
     static auto RemoveDrafts() -> void {
         std::error_code error;
-        std::filesystem::remove(Editor::DraftFile(EditTarget::Watch), error);
-        std::filesystem::remove(Editor::DraftFile(EditTarget::Keyboard), error);
+        std::filesystem::remove(Drafts::File(EditTarget::Watch), error);
+        std::filesystem::remove(Drafts::File(EditTarget::Keyboard), error);
     }
 
     auto Recreate() -> void {
-        m_overlays = OverlayContainer::CreateEmpty();
+        m_overlays = Container::CreateEmpty();
         auto watch = Watch::Create();
         ASSERT_TRUE(watch.has_value());
         m_overlays->Add(std::move(*watch));
@@ -132,14 +133,14 @@ class EditorWorkspace : public testing::Test {
                         using TaskType = std::decay_t<decltype(value)>;
                         if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>) {
                             if (auto* overlay = m_overlays->BySelector(value.selector)) {
-                                value.modify(overlay->State());
+                                value.modify(*overlay);
                             }
                         } else if constexpr (std::is_same_v<TaskType, DropOverlayTask>) {
                             m_overlays->Remove(value.selector);
                         } else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>) {
                             if (m_overlays->BySelector(value.selector) == nullptr) {
                                 if (auto made = value.create()) {
-                                    m_overlays->Add(std::make_unique<Overlay>(std::move(made->first), std::move(made->second)));
+                                    m_overlays->Add(std::move(made));
                                 }
                             }
                         } else if (std::holds_alternative<OpenEditorTask>(value)) {
@@ -155,9 +156,10 @@ class EditorWorkspace : public testing::Test {
     auto Step() -> void {
         m_overlays->UpdateEditor();
         RunTasks();
-        for (const auto kind : Editor::kPanels) {
+        for (const auto kind : PanelPlacement::kPanels) {
             if (auto* panel = Panel(kind)) {
-                EXPECT_TRUE(panel->Backend()->ShouldRender().has_value());
+                panel->Update();
+                EXPECT_TRUE(panel->Composer()->ShouldRender().has_value());
             }
         }
     }
@@ -174,35 +176,35 @@ class EditorWorkspace : public testing::Test {
     }
 
     auto Frame(const PointerState& left, const PointerState& right = {}) -> void {
-        g_input->PreUpdate();
-        g_input->SetDeltaSeconds(kFrameSeconds);
-        g_input->Pointers()[0].SetNow(left);
-        g_input->Pointers()[1].SetNow(right);
-        g_input->PostUpdate();
+        g_interaction->PreUpdate();
+        g_interaction->SetDeltaSeconds(kFrameSeconds);
+        g_interaction->Pointers()[0].SetNow(left);
+        g_interaction->Pointers()[1].SetNow(right);
+        g_interaction->PostUpdate();
         Step();
-        InputState::Interact();
+        Interaction::Interact();
         RunTasks();
     }
 
-    auto Panel(PanelKind kind) -> Overlay* { return m_overlays->ByName(Editor::PanelName(kind)); }
+    auto Panel(PanelKind kind) -> View* { return m_overlays->ByName(PanelPlacement::PanelName(kind)); }
 
     auto AimAt(size_t pointer, PanelKind kind, const Eigen::Vector2f& uv) -> void {
         auto* panel = Panel(kind);
         ASSERT_NE(panel, nullptr);
-        const auto corners = OverlayLayout::Corners(*panel);
+        const auto corners = Container::Corners(*panel);
         ASSERT_TRUE(corners.has_value());
         const auto& c = *corners;
         const Eigen::Vector3f point = c[0] + (c[1] - c[0]) * uv.x() + (c[3] - c[0]) * (1.0f - uv.y());
         const Eigen::Vector3f normal = (c[1] - c[0]).cross(c[3] - c[0]).normalized();
-        const Eigen::Matrix3f linear = panel->State().Transform().linear();
+        const Eigen::Matrix3f linear = panel->Transform().linear();
         Eigen::Affine3f pose = Eigen::Affine3f::Identity();
         pose.linear() = linear / linear.col(0).norm();
         pose.translation() = point + normal * 0.4f;
-        g_input->Pointers()[pointer].SetPose(pose);
+        g_interaction->Pointers()[pointer].SetPose(pose);
     }
 
     auto AimAway(size_t pointer) -> void {
-        g_input->Pointers()[pointer].SetPose(
+        g_interaction->Pointers()[pointer].SetPose(
             Eigen::Affine3f(Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitY()))
         );
     }
@@ -210,7 +212,8 @@ class EditorWorkspace : public testing::Test {
     auto RenderPanel(PanelKind kind, const std::string& name) -> void {
         auto* panel = Panel(kind);
         ASSERT_NE(panel, nullptr);
-        auto& backend = *panel->Backend();
+        panel->Update();
+        auto& backend = *panel->Composer();
         ASSERT_TRUE(backend.ShouldRender().has_value());
         const auto meta = backend.Meta();
         ASSERT_TRUE(meta.has_value());
@@ -233,11 +236,11 @@ class EditorWorkspace : public testing::Test {
 
     auto LiveWatchControls() -> size_t {
         auto* watch = m_overlays->ByName(kWatchName);
-        auto* canvas = dynamic_cast<Canvas*>(watch->Backend());
-        return canvas != nullptr ? canvas->ControlCount() : 0;
+        auto* canvas = watch->Composer();
+        return canvas != nullptr ? canvas->Items().size() : 0;
     }
 
-    std::unique_ptr<OverlayContainer> m_overlays;
+    std::unique_ptr<Container> m_overlays;
 };
 
 } // namespace
@@ -249,27 +252,27 @@ TEST_F(EditorWorkspace, TheWatchButtonOpensAWorkspaceAroundYou) {
     ASSERT_NE(m_overlays->ActiveEditor(), nullptr);
     Step();
 
-    for (const auto kind : Editor::kPanels) {
-        ASSERT_NE(Panel(kind), nullptr) << Editor::PanelName(kind);
+    for (const auto kind : PanelPlacement::kPanels) {
+        ASSERT_NE(Panel(kind), nullptr) << PanelPlacement::PanelName(kind);
     }
-    const Eigen::Vector3f preview = Panel(PanelKind::Preview)->State().Transform().translation();
+    const Eigen::Vector3f preview = Panel(PanelKind::Preview)->Transform().translation();
     EXPECT_NEAR(preview.x(), 0.0f, 1e-4f);
     EXPECT_LT(preview.z(), -0.5f);
-    EXPECT_GT(Panel(PanelKind::Toolbar)->State().Transform().translation().y(), preview.y());
-    EXPECT_LT(Panel(PanelKind::Palette)->State().Transform().translation().x(), -0.2f);
-    EXPECT_GT(Panel(PanelKind::Properties)->State().Transform().translation().x(), 0.2f);
-    EXPECT_TRUE(Panel(PanelKind::Preview)->State().WantVisible());
-    EXPECT_FALSE(Panel(PanelKind::Dialog)->State().WantVisible());
-    EXPECT_FALSE(Panel(PanelKind::Ghost)->State().WantVisible());
-    EXPECT_EQ(Panel(PanelKind::Preview)->State().AttachedTo(), RelativeTo::Stage);
+    EXPECT_GT(Panel(PanelKind::Toolbar)->Transform().translation().y(), preview.y());
+    EXPECT_LT(Panel(PanelKind::Palette)->Transform().translation().x(), -0.2f);
+    EXPECT_GT(Panel(PanelKind::Properties)->Transform().translation().x(), 0.2f);
+    EXPECT_TRUE(Panel(PanelKind::Preview)->WantVisible());
+    EXPECT_FALSE(Panel(PanelKind::Dialog)->WantVisible());
+    EXPECT_FALSE(Panel(PanelKind::Ghost)->WantVisible());
+    EXPECT_EQ(Panel(PanelKind::Preview)->AttachedTo(), RelativeTo::Stage);
 }
 
 TEST_F(EditorWorkspace, TheWorkspaceOpensWhereverYouLook) {
-    g_input->SetHmd(
+    g_interaction->SetHmd(
         Eigen::Translation3f(1.0f, 1.6f, 0.0f) * Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitY())
     );
     Open();
-    const Eigen::Vector3f preview = Panel(PanelKind::Preview)->State().Transform().translation();
+    const Eigen::Vector3f preview = Panel(PanelKind::Preview)->Transform().translation();
     EXPECT_LT(preview.x(), 0.5f);
     EXPECT_NEAR(preview.z(), 0.0f, 1e-3f);
     EXPECT_NEAR(preview.y(), 1.6f - 0.08f, 1e-3f);
@@ -277,34 +280,34 @@ TEST_F(EditorWorkspace, TheWorkspaceOpensWhereverYouLook) {
 
 TEST_F(EditorWorkspace, GrabbingAnyPanelCarriesTheWholeWorkspace) {
     Open();
-    const Eigen::Vector3f before = Panel(PanelKind::Preview)->State().Transform().translation();
+    const Eigen::Vector3f before = Panel(PanelKind::Preview)->Transform().translation();
     AimAt(1, PanelKind::Toolbar, {0.5f, 0.5f});
     Frame({}, {.grab = true});
-    ASSERT_TRUE(g_input->Pointers()[1].Interaction().grabbed.has_value());
-    g_input->Pointers()[1].Pose().translation() += Eigen::Vector3f(0.2f, 0.0f, 0.0f);
+    ASSERT_TRUE(g_interaction->Pointers()[1].Interaction().grabbed.has_value());
+    g_interaction->Pointers()[1].Pose().translation() += Eigen::Vector3f(0.2f, 0.0f, 0.0f);
     Frame({}, {.grab = true});
     Frame({}, {.grab = true});
-    const Eigen::Vector3f after = Panel(PanelKind::Preview)->State().Transform().translation();
+    const Eigen::Vector3f after = Panel(PanelKind::Preview)->Transform().translation();
     EXPECT_TRUE(after.isApprox(before + Eigen::Vector3f(0.2f, 0.0f, 0.0f), 1e-3f)) << after.transpose();
 }
 
 TEST_F(EditorWorkspace, DraggingFromThePaletteDropsOntoThePreview) {
     auto& editor = Open();
-    const auto elements = editor.WatchDesign().Document().Elements().size();
+    const auto elements = editor.WatchDesign().Document().Components().size();
     const auto controls = LiveWatchControls();
 
     AimAt(1, PanelKind::Palette, {0.5f, 121.0f / 420.0f});
     Frame({});
     Frame({}, {.click = true});
     ASSERT_TRUE(editor.Carrying().has_value());
-    EXPECT_TRUE(Panel(PanelKind::Ghost)->State().WantVisible() || (Step(), Panel(PanelKind::Ghost)->State().WantVisible()));
+    EXPECT_TRUE(Panel(PanelKind::Ghost)->WantVisible() || (Step(), Panel(PanelKind::Ghost)->WantVisible()));
 
     AimAt(1, PanelKind::Preview, {0.5f, 0.4f});
     Frame({}, {.click = true});
     Frame({});
     EXPECT_FALSE(editor.Carrying().has_value());
-    ASSERT_EQ(editor.WatchDesign().Document().Elements().size(), elements + 1);
-    EXPECT_TRUE(std::holds_alternative<ButtonElement>(editor.WatchDesign().Document().Elements().back()));
+    ASSERT_EQ(editor.WatchDesign().Document().Components().size(), elements + 1);
+    EXPECT_TRUE(std::holds_alternative<ButtonElement>(editor.WatchDesign().Document().Components().back()));
     EXPECT_EQ(editor.WatchDesign().Selected(), elements);
     Step();
     EXPECT_GT(LiveWatchControls(), controls);
@@ -317,12 +320,12 @@ TEST_F(EditorWorkspace, DraggingFromThePaletteDropsOntoThePreview) {
 
 TEST_F(EditorWorkspace, ClickingAPaletteItemAddsItAndReleasingInTheAirCancels) {
     auto& editor = Open();
-    const auto elements = editor.WatchDesign().Document().Elements().size();
+    const auto elements = editor.WatchDesign().Document().Components().size();
     AimAt(1, PanelKind::Palette, {0.5f, 121.0f / 420.0f});
     Frame({});
     Frame({}, {.click = true});
     Frame({});
-    EXPECT_EQ(editor.WatchDesign().Document().Elements().size(), elements + 1);
+    EXPECT_EQ(editor.WatchDesign().Document().Components().size(), elements + 1);
 
     Frame({}, {.click = true});
     ASSERT_TRUE(editor.Carrying().has_value());
@@ -330,14 +333,14 @@ TEST_F(EditorWorkspace, ClickingAPaletteItemAddsItAndReleasingInTheAirCancels) {
     Frame({}, {.click = true});
     Frame({});
     EXPECT_FALSE(editor.Carrying().has_value());
-    EXPECT_EQ(editor.WatchDesign().Document().Elements().size(), elements + 1);
+    EXPECT_EQ(editor.WatchDesign().Document().Components().size(), elements + 1);
 }
 
 TEST_F(EditorWorkspace, ThePreviewMovesElementsWithThePointer) {
     auto& editor = Open();
     editor.WatchDesign().SetSnap(false);
     const auto& config = editor.WatchDesign().Document();
-    const auto index = config.Elements().size() - 1;
+    const auto index = config.Components().size() - 1;
     const auto rect = editor.WatchDesign().VisualRect(index);
     const Eigen::Vector2f size = editor.PanelSize(PanelKind::Preview);
     const auto uv = [&](float x, float y) -> Eigen::Vector2f { return editor.WatchDesign().ToPreview({x, y}).cwiseQuotient(size); };
@@ -357,54 +360,49 @@ TEST_F(EditorWorkspace, TypingOnTheKeyboardFillsTheFocusedField) {
     auto& editor = Open();
     auto us = Keymap::FromNames("us", "");
     ASSERT_TRUE(us.has_value());
-    auto state = std::make_shared<KeyboardState>();
-    state->SetTypingKeymap(std::make_shared<const Keymap>(std::move(*us)));
-    KeyControl h(state, VirtualKey::H);
-    KeyControl i(state, VirtualKey::I);
-    KeyControl backspace(state, VirtualKey::BackSpace);
-    KeyControl enter(state, VirtualKey::Return);
-    ModifierControl shift(state, kModShift);
-    const auto tap = [](Control& control) -> void {
-        control.OnPress(PointerMode::Left);
-        control.OnRelease();
+    KeyboardInput input;
+    input.SetTypingKeymap(std::make_shared<const Keymap>(std::move(*us)));
+    const auto tap = [&input](VirtualKey key) -> void {
+        input.Press(key, PointerMode::Left);
+        input.Release(key);
     };
 
     std::string committed;
-    editor.BeginText("test", "", [&committed](Editor&, const std::string& text) -> void { committed = text; });
+    editor.Text().Begin("test", "", [&committed](const std::string& text) -> void { committed = text; });
     ScopedRecordingHid hid;
-    tap(i);
-    tap(backspace);
-    tap(shift);
-    tap(h);
-    tap(i);
-    ASSERT_TRUE(editor.Focused().has_value());
-    EXPECT_EQ(editor.Focused()->buffer, "Hi");
-    tap(enter);
+    tap(VirtualKey::I);
+    tap(VirtualKey::BackSpace);
+    tap(VirtualKey::LShift);
+    tap(VirtualKey::H);
+    tap(VirtualKey::I);
+    ASSERT_TRUE(editor.Text().Editing());
+    EXPECT_EQ(editor.Text().Buffer(), "Hi");
+    tap(VirtualKey::Return);
     EXPECT_EQ(committed, "Hi");
-    EXPECT_FALSE(editor.Focused().has_value());
-    EXPECT_EQ(g_input->FocusedTextInput(), nullptr);
+    EXPECT_FALSE(editor.Text().Editing());
+    EXPECT_EQ(g_interaction->FocusedTextInput(), nullptr);
     EXPECT_TRUE(hid.Events().empty());
 
-    tap(h);
+    tap(VirtualKey::H);
     EXPECT_EQ(hid.Events().size(), 2U);
 }
 
 TEST_F(EditorWorkspace, PressingAnotherPanelKeepsWhatWasTyped) {
     auto& editor = Open();
-    const auto index = editor.WatchDesign().Document().Elements().size() - 1;
+    const auto index = editor.WatchDesign().Document().Components().size() - 1;
     editor.WatchDesign().SetSelected(index);
-    editor.BeginText("button.text", "", [index](Editor& owner, const std::string& text) -> void {
-        owner.EditWatch([index, &text](ModularUiConfig& config) -> void {
-            std::get<ButtonElement>(config.Elements().at(index)).text = text;
+    editor.Text().Begin("button.text", "", [&editor, index](const std::string& text) -> void {
+        editor.EditWatch([index, &text](FormDocument& config) -> void {
+            std::get<ButtonElement>(config.Components().at(index)).text = text;
         });
     });
-    editor.OnKey(VirtualKey::O, "O");
-    editor.OnKey(VirtualKey::K, "k");
+    editor.Text().Key(VirtualKey::O, 0, "O");
+    editor.Text().Key(VirtualKey::K, 0, "k");
     AimAt(1, PanelKind::Toolbar, {0.5f, 0.5f});
     Frame({});
     Frame({}, {.click = true});
-    EXPECT_FALSE(editor.Focused().has_value());
-    EXPECT_EQ(std::get<ButtonElement>(editor.WatchDesign().Document().Elements().at(index)).text, "Ok");
+    EXPECT_FALSE(editor.Text().Editing());
+    EXPECT_EQ(std::get<ButtonElement>(editor.WatchDesign().Document().Components().at(index)).text, "Ok");
     Frame({});
 }
 
@@ -417,20 +415,19 @@ TEST_F(EditorWorkspace, PressingAKeyAssignsIt) {
     editor.KeyboardDesign().AddKey(0.0f, editor.KeyboardDesign().Document().Rows() - 1);
     const auto index = *editor.KeyboardDesign().Selected();
 
-    auto state = std::make_shared<KeyboardState>();
-    KeyControl z(state, VirtualKey::Z);
-    editor.BeginCapture(false, [index](Editor& owner, const std::vector<VirtualKey>& keys) -> void {
-        owner.EditKeyboard([index, &keys](KeyboardLayout& layout) -> void {
+    KeyboardInput input;
+    editor.Text().Capture(false, [&editor, index](const std::vector<VirtualKey>& keys) -> void {
+        editor.EditKeyboard([index, &keys](KeyboardLayout& layout) -> void {
             layout.Keys().at(index).action = TypeKey{.key = keys.back()};
         });
     });
-    EXPECT_TRUE(g_input->FocusedTextInput()->WantsRawKeys());
-    z.OnPress(PointerMode::Left);
-    z.OnRelease();
+    EXPECT_TRUE(g_interaction->FocusedTextInput()->WantsRawKeys());
+    input.Press(VirtualKey::Z, PointerMode::Left);
+    input.Release(VirtualKey::Z);
     const auto* typed = std::get_if<TypeKey>(&editor.KeyboardDesign().Document().Keys().at(index).action);
     ASSERT_NE(typed, nullptr);
     EXPECT_EQ(typed->key, VirtualKey::Z);
-    EXPECT_FALSE(editor.Capturing());
+    EXPECT_FALSE(editor.Text().Capturing());
 }
 
 TEST_F(EditorWorkspace, SaveWritesTheWatchAndRevertRemovesIt) {
@@ -439,16 +436,16 @@ TEST_F(EditorWorkspace, SaveWritesTheWatchAndRevertRemovesIt) {
     }
     auto& editor = Open();
     const float width = editor.WatchDesign().Document().Width();
-    editor.EditWatch([](ModularUiConfig& config) -> void { config.SetWidth(config.Width() + 0.01f); });
+    editor.EditWatch([](FormDocument& config) -> void { config.SetWidth(config.Width() + 0.01f); });
     editor.Save();
-    ASSERT_TRUE(std::filesystem::exists(Watch::UserFile("default")));
-    EXPECT_NEAR(Watch::LoadConfig("default").Width(), width + 0.01f, 1e-5f);
+    ASSERT_TRUE(std::filesystem::exists(Forms::WatchFile("default")));
+    EXPECT_NEAR(Forms::Watch("default").Width(), width + 0.01f, 1e-5f);
     EXPECT_FALSE(editor.Dirty());
 
     editor.Revert();
-    EXPECT_TRUE(std::filesystem::exists(Watch::UserFile("default")));
+    EXPECT_TRUE(std::filesystem::exists(Forms::WatchFile("default")));
     editor.Revert();
-    EXPECT_FALSE(std::filesystem::exists(Watch::UserFile("default")));
+    EXPECT_FALSE(std::filesystem::exists(Forms::WatchFile("default")));
     EXPECT_NEAR(editor.WatchDesign().Document().Width(), width, 1e-5f);
 }
 
@@ -461,13 +458,13 @@ TEST_F(EditorWorkspace, SavingAKeyboardAddsAProfileAndSwitchesToIt) {
     editor.KeyboardDesign().AddColumn();
     editor.SaveAsNew();
     EXPECT_EQ(editor.KeyboardDesign().Document().Name(), "keychron-v1-ansi-custom");
-    EXPECT_TRUE(std::filesystem::exists(KeyboardProfiles::UserDirectory() / "keychron-v1-ansi-custom.yaml"));
-    const auto& saved = g_keyboard_profiles->Find("keychron-v1-ansi-custom");
+    EXPECT_TRUE(std::filesystem::exists(KeyboardLayout::UserDirectory() / "keychron-v1-ansi-custom.yaml"));
+    const auto& saved = KeyboardLayout::Find("keychron-v1-ansi-custom");
     EXPECT_EQ(saved.Name(), "keychron-v1-ansi-custom");
     EXPECT_FLOAT_EQ(saved.Columns(), 17.0f);
     EXPECT_EQ(g_config->keyboard_profile, "keychron-v1-ansi-custom");
     RunTasks();
-    const auto meta = m_overlays->ByName(kKeyboardName)->Backend()->Meta();
+    const auto meta = m_overlays->ByName(kKeyboardName)->Composer()->Meta();
     ASSERT_TRUE(meta.has_value());
     EXPECT_EQ(meta->extent.width, (17U * 80U) + 28U);
     EXPECT_FALSE(editor.Dirty());
@@ -477,7 +474,7 @@ TEST_F(EditorWorkspace, DoneAsksBeforeDroppingUnsavedWork) {
     auto& editor = Open();
     const auto controls = LiveWatchControls();
     editor.WatchDesign().Insert(FormPart::Panel, std::nullopt);
-    editor.EditWatch([](ModularUiConfig&) -> void {});
+    editor.EditWatch([](FormDocument&) -> void {});
     Step();
     EXPECT_GT(LiveWatchControls(), controls);
 
@@ -487,7 +484,7 @@ TEST_F(EditorWorkspace, DoneAsksBeforeDroppingUnsavedWork) {
     EXPECT_TRUE(editor.Closing());
     Step();
     EXPECT_EQ(m_overlays->ActiveEditor(), nullptr);
-    for (const auto kind : Editor::kPanels) {
+    for (const auto kind : PanelPlacement::kPanels) {
         EXPECT_EQ(Panel(kind), nullptr);
     }
     EXPECT_EQ(LiveWatchControls(), controls);
@@ -497,11 +494,11 @@ TEST_F(EditorWorkspace, LayersSpreadInDepthAndLetYouReachThrough) {
     auto& editor = Open();
     editor.SetExploded(true);
     Step();
-    EXPECT_FALSE(Panel(PanelKind::Preview)->State().WantVisible());
-    const float back = Panel(PanelKind::BackLayer)->State().Transform().translation().z();
-    const float front = Panel(PanelKind::FrontLayer)->State().Transform().translation().z();
-    EXPECT_TRUE(Panel(PanelKind::MiddleLayer)->State().WantVisible());
-    EXPECT_NEAR(front - back, 2.0f * Editor::kLayerSpacing, 1e-4f);
+    EXPECT_FALSE(Panel(PanelKind::Preview)->WantVisible());
+    const float back = Panel(PanelKind::BackLayer)->Transform().translation().z();
+    const float front = Panel(PanelKind::FrontLayer)->Transform().translation().z();
+    EXPECT_TRUE(Panel(PanelKind::MiddleLayer)->WantVisible());
+    EXPECT_NEAR(front - back, 2.0f * PanelPlacement::kLayerSpacing, 1e-4f);
 
     const Eigen::Vector2f size = editor.PanelSize(PanelKind::Preview);
     const auto uv = [&](float x, float y) -> Eigen::Vector2f { return editor.WatchDesign().ToPreview({x, y}).cwiseQuotient(size); };
@@ -511,9 +508,9 @@ TEST_F(EditorWorkspace, LayersSpreadInDepthAndLetYouReachThrough) {
     Frame({});
     ASSERT_TRUE(editor.WatchDesign().Selected().has_value());
     EXPECT_TRUE(
-        std::holds_alternative<PanelElement>(editor.WatchDesign().Document().Elements().at(*editor.WatchDesign().Selected()))
+        std::holds_alternative<PanelElement>(editor.WatchDesign().Document().Components().at(*editor.WatchDesign().Selected()))
     );
-    EXPECT_EQ(g_input->Pointers()[1].Interaction().hovered_id, Panel(PanelKind::BackLayer)->State().Id());
+    EXPECT_EQ(g_interaction->Pointers()[1].Interaction().hovered_id, Panel(PanelKind::BackLayer)->Id());
 
     AimAt(1, PanelKind::FrontLayer, uv(350.0f, 68.0f));
     Frame({});
@@ -521,9 +518,9 @@ TEST_F(EditorWorkspace, LayersSpreadInDepthAndLetYouReachThrough) {
     Frame({});
     ASSERT_TRUE(editor.WatchDesign().Selected().has_value());
     EXPECT_TRUE(
-        std::holds_alternative<ButtonElement>(editor.WatchDesign().Document().Elements().at(*editor.WatchDesign().Selected()))
+        std::holds_alternative<ButtonElement>(editor.WatchDesign().Document().Components().at(*editor.WatchDesign().Selected()))
     );
-    EXPECT_EQ(g_input->Pointers()[1].Interaction().hovered_id, Panel(PanelKind::FrontLayer)->State().Id());
+    EXPECT_EQ(g_interaction->Pointers()[1].Interaction().hovered_id, Panel(PanelKind::FrontLayer)->Id());
 
     RenderPanel(PanelKind::BackLayer, "editor-layer-back");
     RenderPanel(PanelKind::MiddleLayer, "editor-layer-middle");
@@ -533,7 +530,7 @@ TEST_F(EditorWorkspace, LayersSpreadInDepthAndLetYouReachThrough) {
 TEST_F(EditorWorkspace, OnlyOneHandUsesTheEditorAtATime) {
     auto& editor = Open();
     editor.WatchDesign().SetSnap(false);
-    const auto index = editor.WatchDesign().Document().Elements().size() - 1;
+    const auto index = editor.WatchDesign().Document().Components().size() - 1;
     const auto rect = editor.WatchDesign().VisualRect(index);
     const Eigen::Vector2f size = editor.PanelSize(PanelKind::Preview);
     const auto uv = [&](float x, float y) -> Eigen::Vector2f { return editor.WatchDesign().ToPreview({x, y}).cwiseQuotient(size); };
@@ -561,55 +558,126 @@ TEST_F(EditorWorkspace, OnlyOneHandUsesTheEditorAtATime) {
 
 TEST_F(EditorWorkspace, RecenterAndShowHideIncludeTheWorkspace) {
     Open();
-    g_input->SetHmd(Eigen::Affine3f(Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitY())));
+    g_interaction->SetHmd(Eigen::Affine3f(Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitY())));
     m_overlays->Recenter();
     Step();
-    EXPECT_LT(Panel(PanelKind::Preview)->State().Transform().translation().x(), -0.5f);
+    EXPECT_LT(Panel(PanelKind::Preview)->Transform().translation().x(), -0.5f);
 
     m_overlays->ShowHide();
     Step();
-    EXPECT_FALSE(Panel(PanelKind::Preview)->State().WantVisible());
-    EXPECT_FALSE(Panel(PanelKind::Toolbar)->State().WantVisible());
+    EXPECT_FALSE(Panel(PanelKind::Preview)->WantVisible());
+    EXPECT_FALSE(Panel(PanelKind::Toolbar)->WantVisible());
     m_overlays->ShowHide();
     Step();
-    EXPECT_TRUE(Panel(PanelKind::Preview)->State().WantVisible());
-    EXPECT_TRUE(Panel(PanelKind::Toolbar)->State().WantVisible());
+    EXPECT_TRUE(Panel(PanelKind::Preview)->WantVisible());
+    EXPECT_TRUE(Panel(PanelKind::Toolbar)->WantVisible());
+}
+
+TEST_F(EditorWorkspace, ClickingASwatchPicksIt) {
+    auto& editor = Open();
+    const auto index = editor.WatchDesign().Document().Components().size() - 1;
+    const auto color = [&editor, index]() -> std::string {
+        return std::get<ButtonElement>(editor.WatchDesign().Document().Components().at(index)).bg_color;
+    };
+    editor.OpenColor({
+        .title = "Colour",
+        .get = color,
+        .set = [&editor, index](const std::string& value) -> void {
+            editor.EditWatch([index, &value](FormDocument& config) -> void {
+                std::get<ButtonElement>(config.Components().at(index)).bg_color = value;
+            });
+        },
+    });
+    Step();
+    auto* swatch = Panel(PanelKind::Dialog)->Composer()->Root()->Find("@red");
+    ASSERT_NE(swatch, nullptr);
+    Eigen::Vector2f corner = Eigen::Vector2f::Zero();
+    for (const auto* node = swatch; node != nullptr; node = node->Parent()) {
+        corner += node->Position();
+    }
+    const Eigen::Vector2f center = corner + swatch->Size() / 2.0f;
+    AimAt(1, PanelKind::Dialog, center.cwiseQuotient(editor.PanelSize(PanelKind::Dialog)));
+    Frame({});
+    Frame({}, {.click = true});
+    Frame({});
+    EXPECT_EQ(color(), "@red");
+}
+
+TEST_F(EditorWorkspace, TypingAHexValueSetsTheColour) {
+    auto& editor = Open();
+    const auto index = editor.WatchDesign().Document().Components().size() - 1;
+    const auto color = [&editor, index]() -> std::string {
+        return std::get<ButtonElement>(editor.WatchDesign().Document().Components().at(index)).bg_color;
+    };
+    editor.OpenColor({
+        .title = "Colour",
+        .get = color,
+        .set = [&editor, index](const std::string& value) -> void {
+            editor.EditWatch([index, &value](FormDocument& config) -> void {
+                std::get<ButtonElement>(config.Components().at(index)).bg_color = value;
+            });
+        },
+    });
+    Step();
+    const auto type = [&editor, this](std::string_view text) -> void {
+        auto* hex = Panel(PanelKind::Dialog)->Composer()->Root()->Find("color.hex");
+        ASSERT_NE(hex, nullptr);
+        auto* field = hex->Find("field");
+        ASSERT_NE(field, nullptr);
+        field->OnRelease();
+        ASSERT_TRUE(editor.Text().Editing("color.hex"));
+        while (!editor.Text().Buffer().empty()) {
+            editor.Text().Key(VirtualKey::BackSpace, 0, "");
+        }
+        for (const char c : text) {
+            editor.Text().Key(VirtualKey::A, 0, std::string(1, c));
+        }
+        editor.Text().Key(VirtualKey::Return, 0, "");
+        Step();
+    };
+    type("ff8800");
+    EXPECT_EQ(color(), "#ff8800");
+    type("@accent");
+    EXPECT_EQ(color(), "@accent");
+    type("nope");
+    EXPECT_EQ(color(), "@accent");
+    EXPECT_FALSE(editor.Text().Editing());
 }
 
 TEST_F(EditorWorkspace, TheColourWheelPicksLiveAndUndoesInOneStep) {
     auto& editor = Open();
-    const auto index = editor.WatchDesign().Document().Elements().size() - 1;
+    const auto index = editor.WatchDesign().Document().Components().size() - 1;
     const auto color = [&editor, index]() -> std::string {
-        return std::get<ButtonElement>(editor.WatchDesign().Document().Elements().at(index)).bg_color;
+        return std::get<ButtonElement>(editor.WatchDesign().Document().Components().at(index)).bg_color;
     };
     const auto before = color();
     editor.OpenColor({
         .title = "Colour",
-        .get = [index](const Editor& owner) -> std::string {
-            return std::get<ButtonElement>(owner.WatchDesign().Document().Elements().at(index)).bg_color;
+        .get = [&editor, index]() -> std::string {
+            return std::get<ButtonElement>(editor.WatchDesign().Document().Components().at(index)).bg_color;
         },
-        .set = [index](Editor& owner, const std::string& value) -> void {
-            owner.EditWatch([index, &value](ModularUiConfig& config) -> void {
-                std::get<ButtonElement>(config.Elements().at(index)).bg_color = value;
+        .set = [&editor, index](const std::string& value) -> void {
+            editor.EditWatch([index, &value](FormDocument& config) -> void {
+                std::get<ButtonElement>(config.Components().at(index)).bg_color = value;
             });
         },
-        .value = 1.0f,
     });
+    editor.Colors().SetHsv({0.0f, 0.0f, 1.0f});
     Step();
-    const auto& wheel = editor.WheelRect();
+    const auto& wheel = editor.Colors().WheelRect();
     ASSERT_GT(wheel.w, 0.0f);
     const Eigen::Vector2f center(wheel.x + wheel.w / 2.0f, wheel.y + wheel.h / 2.0f);
-    EXPECT_TRUE(editor.DialogPointer(center + Eigen::Vector2f(wheel.w / 2.0f, 0.0f), true));
+    EXPECT_TRUE(editor.Colors().Pointer(editor, center + Eigen::Vector2f(wheel.w / 2.0f, 0.0f), true));
     EXPECT_EQ(color(), "#ff0000");
-    EXPECT_TRUE(editor.DialogHover(center));
+    EXPECT_TRUE(editor.Colors().Hover(editor, center));
     EXPECT_EQ(color(), "#ffffff");
-    EXPECT_TRUE(editor.DialogPointer(center, false));
+    EXPECT_TRUE(editor.Colors().Pointer(editor, center, false));
     RenderPanel(PanelKind::Dialog, "editor-color-wheel-bright");
-    const auto& bar = editor.BrightnessRect();
-    EXPECT_TRUE(editor.DialogPointer({bar.x, bar.y + bar.h / 2.0f}, true));
-    EXPECT_TRUE(editor.DialogPointer({bar.x, bar.y + bar.h / 2.0f}, false));
+    const auto& bar = editor.Colors().BarRect();
+    EXPECT_TRUE(editor.Colors().Pointer(editor, {bar.x, bar.y + bar.h / 2.0f}, true));
+    EXPECT_TRUE(editor.Colors().Pointer(editor, {bar.x, bar.y + bar.h / 2.0f}, false));
     EXPECT_EQ(color(), "#000000");
-    EXPECT_FALSE(editor.DialogPointer({1.0f, 1.0f}, true));
+    EXPECT_FALSE(editor.Colors().Pointer(editor, {1.0f, 1.0f}, true));
     RenderPanel(PanelKind::Dialog, "editor-color-wheel");
 
     editor.Undo();
@@ -620,84 +688,76 @@ TEST_F(EditorWorkspace, TheColourWheelPicksLiveAndUndoesInOneStep) {
 
 TEST_F(EditorWorkspace, ExtraFormsGrowTheLiveWatch) {
     auto& editor = Open();
-    const auto width = m_overlays->ByName(kWatchName)->Backend()->Meta()->extent.width;
+    const auto width = m_overlays->ByName(kWatchName)->Composer()->Meta()->extent.width;
     editor.WatchDesign().Insert(FormPart::Form, std::nullopt);
-    editor.EditWatch([](ModularUiConfig&) -> void {});
+    editor.EditWatch([](FormDocument&) -> void {});
     Step();
-    EXPECT_GT(m_overlays->ByName(kWatchName)->Backend()->Meta()->extent.width, width);
+    EXPECT_GT(m_overlays->ByName(kWatchName)->Composer()->Meta()->extent.width, width);
     RenderPanel(PanelKind::Preview, "editor-extra-form");
     RenderPanel(PanelKind::Properties, "editor-extra-form-properties");
 }
 
 TEST_F(EditorWorkspace, TimezonesAreSearchedAndPicked) {
     auto& editor = Open();
-    const auto& elements = editor.WatchDesign().Document().Elements();
-    const auto clock = std::ranges::find_if(elements, [](const ModularElement& element) -> bool {
-        const auto* label = std::get_if<LabelElement>(&element);
-        return label != nullptr && std::holds_alternative<ClockLabelContent>(label->content);
+    const auto& elements = editor.WatchDesign().Document().Components();
+    const auto clock = std::ranges::find_if(elements, [](const FormElement& element) -> bool {
+        return std::holds_alternative<ClockElement>(element);
     });
     ASSERT_NE(clock, elements.end());
     const auto index = static_cast<size_t>(clock - elements.begin());
     editor.WatchDesign().SetSelected(index);
     editor.OpenTimezones(index);
-    editor.BeginText("timezone.search", "", [](Editor&, const std::string&) -> void {});
+    editor.Text().Begin("timezone.search", "", [](const std::string&) -> void {});
     for (const auto* letter : {"h", "e", "l", "s"}) {
-        editor.OnKey(VirtualKey::A, letter);
+        editor.Text().Key(VirtualKey::A, 0, letter);
     }
     Step();
     RenderPanel(PanelKind::Dialog, "editor-timezones");
 
-    auto* dialog = dynamic_cast<EditorPanel*>(Panel(PanelKind::Dialog)->Backend());
-    ASSERT_NE(dialog, nullptr);
-    auto* canvas = dialog->CanvasForTest();
-    ASSERT_NE(canvas, nullptr);
-    Control* helsinki = nullptr;
+    auto* canvas = Panel(PanelKind::Dialog)->Composer();
     size_t results = 0;
-    for (size_t i = 0; i < canvas->ControlCount(); ++i) {
-        auto& control = canvas->ControlAt(i);
-        if (control.Text().starts_with("Europe/") || control.Text().starts_with("Asia/")
-            || control.Text().starts_with("America/")) {
+    for (const auto& item : canvas->Items()) {
+        const auto* text = std::get_if<TextItem>(&item);
+        if (text != nullptr
+            && (text->text.starts_with("Europe/") || text->text.starts_with("Asia/") || text->text.starts_with("America/"))) {
             ++results;
         }
-        if (control.Text() == "Europe/Helsinki") {
-            helsinki = &control;
-        }
     }
+    auto* helsinki = canvas->FindText("Europe/Helsinki");
     ASSERT_NE(helsinki, nullptr);
     EXPECT_LE(results, 3U);
     helsinki->OnRelease();
-    const auto& content = std::get<LabelElement>(editor.WatchDesign().Document().Elements().at(index)).content;
-    const auto& zone = std::get<ClockLabelContent>(content).timezone;
+    const auto& zone = std::get<ClockElement>(editor.WatchDesign().Document().Components().at(index)).timezone;
     ASSERT_TRUE(zone.has_value());
     EXPECT_EQ(std::get<std::string>(*zone), "Europe/Helsinki");
     EXPECT_EQ(editor.Dialog(), DialogKind::None);
-    EXPECT_EQ(g_input->FocusedTextInput(), nullptr);
+    EXPECT_EQ(g_interaction->FocusedTextInput(), nullptr);
 }
 
 TEST_F(EditorWorkspace, TheEditButtonClosesTheEditorAndKeepsADraft) {
     auto& editor = Open();
     const auto controls = LiveWatchControls();
-    const auto elements = editor.WatchDesign().Document().Elements().size();
+    const auto elements = editor.WatchDesign().Document().Components().size();
     editor.WatchDesign().Insert(FormPart::Panel, std::nullopt);
-    editor.EditWatch([](ModularUiConfig&) -> void {});
+    editor.EditWatch([](FormDocument&) -> void {});
     Step();
     EXPECT_GT(LiveWatchControls(), controls);
 
     m_overlays->OpenEditor();
     Step();
     EXPECT_EQ(m_overlays->ActiveEditor(), nullptr);
-    EXPECT_TRUE(std::filesystem::exists(Editor::DraftFile(EditTarget::Watch)));
+    EXPECT_TRUE(std::filesystem::exists(Drafts::File(EditTarget::Watch)));
     EXPECT_EQ(LiveWatchControls(), controls);
 
     auto& reopened = Open();
-    EXPECT_EQ(reopened.WatchDesign().Document().Elements().size(), elements + 1);
+    EXPECT_EQ(reopened.WatchDesign().Document().Components().size(), elements + 1);
     EXPECT_TRUE(reopened.Dirty());
     EXPECT_GT(LiveWatchControls(), controls);
     reopened.Undo();
     EXPECT_FALSE(reopened.Dirty());
     reopened.Redo();
     reopened.Save();
-    EXPECT_FALSE(std::filesystem::exists(Editor::DraftFile(EditTarget::Watch)));
+    EXPECT_FALSE(std::filesystem::exists(Drafts::File(EditTarget::Watch)));
 }
 
 TEST_F(EditorWorkspace, DraftsSurviveACrash) {
@@ -705,7 +765,7 @@ TEST_F(EditorWorkspace, DraftsSurviveACrash) {
     editor.SwitchTarget(EditTarget::Keyboard);
     editor.KeyboardDesign().AddColumn();
     editor.WatchDesign().Insert(FormPart::Button, std::nullopt);
-    editor.SaveDrafts(true);
+    editor.DraftFiles().Save(editor, true);
     Recreate();
 
     auto& recovered = Open();
@@ -714,43 +774,41 @@ TEST_F(EditorWorkspace, DraftsSurviveACrash) {
     EXPECT_TRUE(recovered.WatchDesign().Revisions().Dirty());
     recovered.Discard();
     Step();
-    EXPECT_FALSE(std::filesystem::exists(Editor::DraftFile(EditTarget::Watch)));
-    EXPECT_FALSE(std::filesystem::exists(Editor::DraftFile(EditTarget::Keyboard)));
+    EXPECT_FALSE(std::filesystem::exists(Drafts::File(EditTarget::Watch)));
+    EXPECT_FALSE(std::filesystem::exists(Drafts::File(EditTarget::Keyboard)));
 }
 
 TEST_F(EditorWorkspace, CityClocksAreOneComponentMeasuredByWhatTheyShow) {
     auto& editor = Open();
     const auto& config = editor.WatchDesign().Document();
     size_t clocks = 0;
-    for (size_t i = 0; i < config.Elements().size(); ++i) {
-        const auto* label = std::get_if<LabelElement>(&config.Elements()[i]);
-        const auto* clock = label != nullptr ? std::get_if<ClockLabelContent>(&label->content) : nullptr;
+    for (size_t i = 0; i < config.Components().size(); ++i) {
+        const auto* clock = std::get_if<ClockElement>(&config.Components()[i]);
         if (clock == nullptr || !clock->city_size) {
             continue;
         }
         ++clocks;
         const auto rect = editor.WatchDesign().VisualRect(i);
-        const auto& placed = ModularElements::Rect(config.Elements()[i]);
+        const auto& placed = FormElements::Rect(config.Components()[i]);
         EXPECT_LT(
             rect.y,
-            editor.WatchDesign().Form(0).y + placed[1] - static_cast<float>(label->font_size)
+            editor.WatchDesign().FormBounds(0).y + placed[1] - static_cast<float>(clock->font_size)
                 - static_cast<float>(*clock->city_size)
         );
         EXPECT_GT(rect.w, 20.0f);
         EXPECT_LT(rect.w, 110.0f);
-        EXPECT_LE(rect.x + rect.w, editor.WatchDesign().Form(0).x + editor.WatchDesign().Form(0).w);
+        EXPECT_LE(rect.x + rect.w, editor.WatchDesign().FormBounds(0).x + editor.WatchDesign().FormBounds(0).w);
         EXPECT_EQ(editor.WatchDesign().HitTest({rect.x + 5.0f, rect.y + 3.0f}).index, i);
     }
     EXPECT_EQ(clocks, 2U);
-    EXPECT_FALSE(std::ranges::any_of(config.Elements(), [](const ModularElement& element) -> bool {
-        const auto* label = std::get_if<LabelElement>(&element);
-        return label != nullptr && std::holds_alternative<TimezoneLabelContent>(label->content);
+    EXPECT_FALSE(std::ranges::any_of(config.Components(), [](const FormElement& element) -> bool {
+        return std::holds_alternative<TimezoneElement>(element);
     }));
 }
 
 TEST_F(EditorWorkspace, ThemesRecolourEverythingThatUsesThem) {
     auto& editor = Open();
-    EXPECT_EQ(Canvas::ParseColor("@accent").value(), Canvas::ParseColor("#c6a0f6").value());
+    EXPECT_EQ(FormTheme::ParseColor("@accent").value(), FormTheme::ParseColor("#c6a0f6").value());
     editor.SwitchTarget(EditTarget::Theme);
     RenderPanel(PanelKind::Properties, "editor-theme-properties");
     editor.EditTheme([](ThemeDefinition& theme) -> void {
@@ -761,7 +819,7 @@ TEST_F(EditorWorkspace, ThemesRecolourEverythingThatUsesThem) {
         }
         theme.rounding = Rounding::Square;
     });
-    EXPECT_EQ(Canvas::ParseColor("@accent").value(), Canvas::ParseColor("#00ff00").value());
+    EXPECT_EQ(FormTheme::ParseColor("@accent").value(), FormTheme::ParseColor("#00ff00").value());
     EXPECT_EQ(g_themes->Active().rounding, Rounding::Square);
     EXPECT_TRUE(editor.Dirty());
 
@@ -771,43 +829,43 @@ TEST_F(EditorWorkspace, ThemesRecolourEverythingThatUsesThem) {
     editor.NewTheme();
     EXPECT_EQ(editor.ThemeHistory().Current().name, "my-theme");
     EXPECT_EQ(g_config->theme, "my-theme");
-    EXPECT_TRUE(std::filesystem::exists(Theme::UserDirectory() / "my-theme.yaml"));
-    EXPECT_EQ(Theme::Lookup(g_themes->Find("my-theme"), "accent"), std::optional<std::string>("#00ff00"));
+    EXPECT_TRUE(std::filesystem::exists(FormTheme::UserDirectory() / "my-theme.yaml"));
+    EXPECT_EQ(FormTheme::Lookup(g_themes->Find("my-theme"), "accent"), std::optional<std::string>("#00ff00"));
 
     editor.SelectTheme("latte");
-    EXPECT_EQ(Canvas::ParseColor("@background").value(), Canvas::ParseColor("#eff1f5").value());
+    EXPECT_EQ(FormTheme::ParseColor("@background").value(), FormTheme::ParseColor("#eff1f5").value());
     Step();
     RenderPanel(PanelKind::Preview, "editor-theme-latte");
     editor.SelectTheme("my-theme");
     editor.DeleteTheme();
     editor.DeleteTheme();
-    EXPECT_FALSE(std::filesystem::exists(Theme::UserDirectory() / "my-theme.yaml"));
+    EXPECT_FALSE(std::filesystem::exists(FormTheme::UserDirectory() / "my-theme.yaml"));
     EXPECT_EQ(editor.ThemeHistory().Current().name, "macchiato");
     editor.Revert();
     editor.Revert();
-    EXPECT_EQ(Canvas::ParseColor("@accent").value(), Canvas::ParseColor("#c6a0f6").value());
+    EXPECT_EQ(FormTheme::ParseColor("@accent").value(), FormTheme::ParseColor("#c6a0f6").value());
 }
 
 TEST_F(EditorWorkspace, WatchLayoutsAreChosenCreatedAndDeleted) {
     auto& editor = Open();
-    const auto elements = editor.WatchDesign().Document().Elements().size();
+    const auto elements = editor.WatchDesign().Document().Components().size();
     editor.NewWatch();
     EXPECT_EQ(editor.WatchProfile(), "watch-2");
     EXPECT_EQ(g_config->watch_profile, "watch-2");
     editor.WatchDesign().Insert(FormPart::Panel, std::nullopt);
     editor.Save();
-    EXPECT_EQ(Watch::LoadConfig("watch-2").Elements().size(), elements + 1);
+    EXPECT_EQ(Forms::Watch("watch-2").Components().size(), elements + 1);
 
     editor.SelectWatch("default");
-    EXPECT_EQ(editor.WatchDesign().Document().Elements().size(), elements);
+    EXPECT_EQ(editor.WatchDesign().Document().Components().size(), elements);
     editor.SelectWatch("watch-2");
-    EXPECT_EQ(editor.WatchDesign().Document().Elements().size(), elements + 1);
+    EXPECT_EQ(editor.WatchDesign().Document().Components().size(), elements + 1);
     RenderPanel(PanelKind::Properties, "editor-watch-layouts");
     editor.RenameWatch("mine");
-    EXPECT_EQ(Watch::Profiles(), (std::vector<std::string>{"default", "mine"}));
+    EXPECT_EQ(Forms::WatchProfiles(), (std::vector<std::string>{"default", "mine"}));
     editor.DeleteWatch();
     editor.DeleteWatch();
-    EXPECT_EQ(Watch::Profiles(), std::vector<std::string>{"default"});
+    EXPECT_EQ(Forms::WatchProfiles(), std::vector<std::string>{"default"});
     EXPECT_EQ(editor.WatchProfile(), "default");
 }
 
@@ -828,17 +886,18 @@ TEST_F(EditorWorkspace, LongNamesAreShortenedAndTheEditorFollowsTheTheme) {
     const std::string name = "a-really-long-watch-layout-name-that-never-fits";
     {
         std::filesystem::create_directories(ConfigStore::Root() / "watches");
-        std::ofstream(Watch::UserFile(name)) << "width: 0.1\nform: {width: 100, height: 50}\nelements: []\n";
+        std::ofstream(Forms::WatchFile(name)) << "width: 0.1\nform: {width: 100, height: 50}\ncomponents: []\n";
     }
     editor.Touch();
     Step();
-    auto* properties = dynamic_cast<EditorPanel*>(Panel(PanelKind::Properties)->Backend());
-    ASSERT_NE(properties, nullptr);
-    auto* canvas = properties->CanvasForTest();
-    ASSERT_NE(canvas, nullptr);
+    auto* canvas = Panel(PanelKind::Properties)->Composer();
     bool shortened = false;
-    for (size_t i = 0; i < canvas->ControlCount(); ++i) {
-        const auto& text = canvas->ControlAt(i).Text();
+    for (const auto& item : canvas->Items()) {
+        const auto* label = std::get_if<TextItem>(&item);
+        if (label == nullptr) {
+            continue;
+        }
+        const auto& text = label->text;
         EXPECT_NE(text, name);
         shortened = shortened || (text.starts_with("a-really") && text.ends_with("..."));
     }
@@ -855,18 +914,17 @@ TEST_F(EditorWorkspace, LongNamesAreShortenedAndTheEditorFollowsTheTheme) {
 
 TEST_F(EditorWorkspace, PanelsRender) {
     auto& editor = Open();
-    editor.WatchDesign().SetSelected(editor.WatchDesign().Document().Elements().size() - 2);
+    editor.WatchDesign().SetSelected(editor.WatchDesign().Document().Components().size() - 2);
     editor.Touch();
     RenderPanel(PanelKind::Preview, "editor-watch-preview");
     RenderPanel(PanelKind::Toolbar, "editor-toolbar");
     RenderPanel(PanelKind::Palette, "editor-watch-palette");
     RenderPanel(PanelKind::Properties, "editor-watch-properties");
-    editor.OpenActions(ButtonTrigger::LeftClick);
+    editor.OpenActions(ButtonTrigger::Click);
     RenderPanel(PanelKind::Dialog, "editor-actions");
-    const auto& elements = editor.WatchDesign().Document().Elements();
-    const auto clock = std::ranges::find_if(elements, [](const ModularElement& element) -> bool {
-        const auto* label = std::get_if<LabelElement>(&element);
-        return label != nullptr && std::holds_alternative<ClockLabelContent>(label->content);
+    const auto& elements = editor.WatchDesign().Document().Components();
+    const auto clock = std::ranges::find_if(elements, [](const FormElement& element) -> bool {
+        return std::holds_alternative<ClockElement>(element);
     });
     ASSERT_NE(clock, elements.end());
     editor.WatchDesign().SetSelected(static_cast<size_t>(clock - elements.begin()));
@@ -883,9 +941,8 @@ TEST_F(EditorWorkspace, PanelsRender) {
     RenderPanel(PanelKind::Dialog, "editor-key-picker");
     editor.OpenColor({
         .title = "Key colour",
-        .get = [](const Editor&) -> std::string { return "#8aadf4"; },
-        .set = [](Editor&, const std::string&) -> void {},
-        .hue = 0.6f,
+        .get = []() -> std::string { return "#8aadf4"; },
+        .set = [](const std::string&) -> void {},
     });
     RenderPanel(PanelKind::Dialog, "editor-color");
     editor.KeyboardDesign().Selected().reset();

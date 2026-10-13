@@ -21,9 +21,9 @@
 #include <cstdlib>
 
 #include "Device.hpp"
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 #include "Logger.hpp"
-#include "State.hpp"
+#include "AppState.hpp"
 
 std::unique_ptr<Logger> TestApp::m_logger;
 std::unique_ptr<Device> TestApp::m_device;

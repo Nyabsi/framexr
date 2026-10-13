@@ -1,7 +1,6 @@
 framexr_inc = include_directories(
   '.',
   '..',
-  'backend',
   'capture',
   'capture/pipewire',
   'capture/wayland',
@@ -9,181 +8,233 @@ framexr_inc = include_directories(
   'capture/x11',
   'config',
   'core',
+  'desktop',
   'editor',
-  'graphics',
-  'gui',
-  'gui/canvas',
-  'gui/modular',
+  'form',
+  'form/components',
+  'form/shared',
+  'renderer',
   'hid',
-  'overlays',
+  'input',
+  'net/shared',
+  'overlay',
+  'overlay/views',
   'platform',
+  'runtime',
+  'runtime/openvr',
+  'runtime/openxr',
+  'runtime/shared',
+  'util',
 )
 
 core_sources = files(
   'core/Error.cpp',
   'core/Logger.cpp',
+  'core/TaskQueue.cpp',
 )
 if is_windows
   core_sources += files(
     'platform/win32/ExitStatus.cpp',
     'platform/win32/Platform.cpp',
     'platform/win32/Process.cpp',
-    'platform/win32/UdpSocket.cpp',
   )
 else
   core_sources += files(
     'platform/posix/ExitStatus.cpp',
     'platform/posix/Platform.cpp',
     'platform/posix/Process.cpp',
-    'platform/posix/UdpSocket.cpp',
   )
 endif
+
+app_sources = files(
+  'AppState.cpp',
+)
 
 config_sources = files(
   'config/Config.cpp',
+  'config/ConfigStore.cpp',
+  'config/Forms.cpp',
   'config/Json.cpp',
+  'config/KeyboardLayout.cpp',
   'config/Yaml.cpp',
 )
 
-state_sources = files(
-  'AudioOutput.cpp',
-  'CommandLine.cpp',
-  'State.cpp',
+input_sources = files(
+  'input/Bindings.cpp',
+  'input/Devices.cpp',
+  'input/Interaction.cpp',
+  'input/TextEntry.cpp',
+  'input/methods/KeyboardInput.cpp',
+  'input/methods/LaserPointer.cpp',
 )
 
-backend_sources = files(
-  'backend/ByteReader.cpp',
-  'backend/ByteWriter.cpp',
-  'backend/Input.cpp',
-  'backend/InteractionHandler.cpp',
-  'backend/Notifications.cpp',
-  'backend/NullInteraction.cpp',
-  'backend/NullRenderer.cpp',
-  'backend/OneEuroFilter.cpp',
-  'backend/Osc.cpp',
-  'backend/Overlay.cpp',
-  'backend/OverlayContainer.cpp',
-  'backend/OverlayLayout.cpp',
-  'backend/OverlayRenderer.cpp',
-  'backend/OverlayState.cpp',
-  'backend/Pointer.cpp',
-  'backend/PoseFilter.cpp',
-  'backend/Raycast.cpp',
-  'backend/RotationFilter.cpp',
-  'backend/SplitOverlayBackend.cpp',
-  'backend/Task.cpp',
-  'backend/ToastIngest.cpp',
+net_sources = files(
+  'net/Notifications.cpp',
+  'net/Osc.cpp',
+  'net/ToastIngest.cpp',
 )
+
 if is_windows
-  backend_sources += files('backend/win32/Notifications.cpp')
+  net_sources += files(
+    'net/win32/Notifications.cpp',
+    'net/win32/UdpSocket.cpp',
+  )
 else
-  backend_sources += files(
-    'backend/linux/Dbus.cpp',
-    'backend/linux/DbusNotificationSender.cpp',
-    'backend/linux/Notifications.cpp',
-    'backend/linux/ToastIngest.cpp',
+  net_sources += files(
+    'net/linux/Dbus.cpp',
+    'net/linux/DbusNotificationSender.cpp',
+    'net/linux/Notifications.cpp',
+    'net/linux/ToastIngest.cpp',
+    'net/linux/UdpSocket.cpp',
   )
 endif
 
-editor_sources = files(
-  'editor/CallbackControl.cpp',
-  'editor/Editor.cpp',
-  'editor/EditorColors.cpp',
-  'editor/EditorPanel.cpp',
-  'editor/EditorProperties.cpp',
-  'editor/EditorTextInput.cpp',
-  'editor/FormDesigner.cpp',
-  'editor/KeyboardDesigner.cpp',
-  'editor/OutlineControl.cpp',
-  'editor/PanelBuilder.cpp',
+runtime_sources = files(
+  'runtime/Runtime.cpp',
 )
 
-gui_sources = files(
-  'gui/Font.cpp',
-  is_windows ? 'gui/win32/FontLookup.cpp' : 'gui/linux/FontLookup.cpp',
-  'gui/Theme.cpp',
-  'gui/canvas/Canvas.cpp',
-  'gui/canvas/Control.cpp',
-  'gui/modular/ActionRunner.cpp',
-  'gui/modular/BatteryLabel.cpp',
-  'gui/modular/Button.cpp',
-  'gui/modular/ClockLabel.cpp',
-  'gui/modular/DragMultiplierLabel.cpp',
-  'gui/modular/ExecLabel.cpp',
-  'gui/modular/IpdLabel.cpp',
-  'gui/modular/Label.cpp',
-  'gui/modular/Modular.cpp',
-  'gui/modular/ModularElements.cpp',
-  'gui/modular/ModularUiConfig.cpp',
-  'gui/modular/TimerLabel.cpp',
+util_sources = files(
+  'util/AudioPlayback.cpp',
+  'util/ByteReader.cpp',
+  'util/ByteWriter.cpp',
+  'util/CommandLine.cpp',
+  'util/OneEuroFilter.cpp',
+  'util/PoseFilter.cpp',
+  'util/Raycast.cpp',
+  'util/RotationFilter.cpp',
+  'util/TextSearch.cpp',
+)
+
+desktop_sources = files(
+  'desktop/CapturedFrame.cpp',
+  'desktop/FrameUploader.cpp',
+  'desktop/PendingFrame.cpp',
+  'desktop/ScreenInteraction.cpp',
+  'desktop/ScreenPipeline.cpp',
+  'desktop/ScreenRenderer.cpp',
+)
+
+if get_option('wayland').allowed()
+  desktop_sources += files('desktop/Mirror.cpp')
+endif
+
+overlay_sources = files(
+  'overlay/ActionBinding.cpp',
+  'overlay/ActionRunner.cpp',
+  'overlay/Compose.cpp',
+  'overlay/Container.cpp',
+  'overlay/View.cpp',
+  'overlay/views/Desktop.cpp',
+  'overlay/views/EditorPanel.cpp',
+  'overlay/views/Keyboard.cpp',
+  'overlay/views/Settings.cpp',
+  'overlay/views/Toast.cpp',
+  'overlay/views/Watch.cpp',
+)
+
+form_sources = files(
+  'form/Form.cpp',
+  'form/FormComponent.cpp',
+  'form/FormTheme.cpp',
+  'form/components/BatteryComponent.cpp',
+  'form/components/BatteryListComponent.cpp',
+  'form/components/ButtonComponent.cpp',
+  'form/components/ChoiceGridComponent.cpp',
+  'form/components/ClockComponent.cpp',
+  'form/components/ColorFieldComponent.cpp',
+  'form/components/ColorPickerComponent.cpp',
+  'form/components/DragMultiplierComponent.cpp',
+  'form/components/ExecComponent.cpp',
+  'form/components/IpdComponent.cpp',
+  'form/components/KeyComponent.cpp',
+  'form/components/LabelComponent.cpp',
+  'form/components/LaserInputComponent.cpp',
+  'form/components/OutlineComponent.cpp',
+  'form/components/OverlayListComponent.cpp',
+  'form/components/PanelComponent.cpp',
+  'form/components/RowComponent.cpp',
+  'form/components/SectionComponent.cpp',
+  'form/components/SpriteComponent.cpp',
+  'form/components/StackComponent.cpp',
+  'form/components/StepperComponent.cpp',
+  'form/components/SwatchComponent.cpp',
+  'form/components/TextLineComponent.cpp',
+  'form/components/TimerComponent.cpp',
+  'form/components/TimezoneComponent.cpp',
+  'form/document/Actions.cpp',
+  'form/document/FormDocument.cpp',
+  'form/document/FormElements.cpp',
+  'form/document/FormParser.cpp',
+)
+if is_windows
+  form_sources += files('form/win32/FontLookup.cpp')
+else
+  form_sources += files('form/linux/FontLookup.cpp')
+endif
+
+editor_sources = files(
+  'editor/ColorDialog.cpp',
+  'editor/Drafts.cpp',
+  'editor/Editor.cpp',
+  'editor/FormDesigner.cpp',
+  'editor/KeyboardDesigner.cpp',
+  'editor/PanelPlacement.cpp',
+  'editor/panels/ActionsPanel.cpp',
+  'editor/panels/CapturePanel.cpp',
+  'editor/panels/ColorPanel.cpp',
+  'editor/panels/GhostPanel.cpp',
+  'editor/panels/KeyPickerPanel.cpp',
+  'editor/panels/KeyboardProperties.cpp',
+  'editor/panels/PalettePanel.cpp',
+  'editor/panels/ThemeProperties.cpp',
+  'editor/panels/TimezonePanel.cpp',
+  'editor/panels/ToolbarPanel.cpp',
+  'editor/panels/WatchProperties.cpp',
 )
 
 hid_sources = files(
-  'hid/Hid.cpp',
+  'hid/HidProvider.cpp',
   'hid/KeyTranslator.cpp',
   'hid/NullHidProvider.cpp',
-  'hid/VirtualKey.cpp',
+  'hid/VirtualKeys.cpp',
 )
 if is_windows
   hid_sources += files(
-    'hid/win32/Hid.cpp',
+    'hid/win32/HidProvider.cpp',
     'hid/win32/Keymap.cpp',
     'hid/win32/Scancodes.cpp',
     'hid/win32/SendInputProvider.cpp',
   )
 else
   hid_sources += files(
-    'hid/linux/Hid.cpp',
+    'hid/linux/HidProvider.cpp',
     'hid/linux/Keymap.cpp',
     'hid/linux/UInputProvider.cpp',
   )
 endif
 
-overlay_sources = files(
-  'overlays/ActionKeyControl.cpp',
-  'overlays/CapturedFrame.cpp',
-  'overlays/CustomUi.cpp',
-  'overlays/FrameUploader.cpp',
-  'overlays/Keyboard.cpp',
-  'overlays/KeyboardBackend.cpp',
-  'overlays/KeyboardLayout.cpp',
-  'overlays/KeyboardProfiles.cpp',
-  'overlays/KeyboardState.cpp',
-  'overlays/KeyControl.cpp',
-  'overlays/ModifierControl.cpp',
-  'overlays/PendingFrame.cpp',
-  'overlays/ProfileControl.cpp',
-  'overlays/Screen.cpp',
-  'overlays/ScreenInteraction.cpp',
-  'overlays/ScreenPipeline.cpp',
-  'overlays/ScreenRenderer.cpp',
-  'overlays/Toast.cpp',
-  'overlays/Watch.cpp',
-)
-if get_option('wayland').allowed()
-  overlay_sources += files('overlays/Mirror.cpp')
-endif
-
 subdir('capture')
-subdir('backend/openvr')
-subdir('backend/openxr')
-subdir('graphics/shaders')
+subdir('runtime/openvr')
+subdir('runtime/openxr')
+subdir('renderer/shaders')
 
-graphics_sources = files(
-  'graphics/Buffer.cpp',
-  'graphics/CommandBatch.cpp',
-  'graphics/CommandBuffer.cpp',
-  'graphics/DdsImage.cpp',
-  'graphics/DescriptorSet.cpp',
-  'graphics/Device.cpp',
-  'graphics/Image.cpp',
-  'graphics/Pipeline.cpp',
-  'graphics/Queue.cpp',
-  'graphics/Shaders.cpp',
+renderer_sources = files(
+  'renderer/Buffer.cpp',
+  'renderer/CommandBatch.cpp',
+  'renderer/CommandBuffer.cpp',
+  'renderer/DdsImage.cpp',
+  'renderer/DescriptorSet.cpp',
+  'renderer/Device.cpp',
+  'renderer/FontCache.cpp',
+  'renderer/Image.cpp',
+  'renderer/Pipeline.cpp',
+  'renderer/Queue.cpp',
+  'renderer/Shaders.cpp',
 )
 
-framexr_all_sources = (core_sources + config_sources + editor_sources + state_sources + backend_sources + hid_sources + gui_sources + overlay_sources
-  + capture_sources + graphics_sources + openvr_sources + openxr_sources)
+framexr_all_sources = (app_sources + config_sources + core_sources + desktop_sources + editor_sources + form_sources + hid_sources
+  + input_sources + net_sources + overlay_sources + runtime_sources + util_sources + capture_sources + renderer_sources + openvr_sources
+  + openxr_sources)
 
 hid_deps = []
 if get_option('wayland').allowed()

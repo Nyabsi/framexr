@@ -18,7 +18,7 @@
 
 #include "NullHidProvider.hpp"
 
-#include "VirtualKey.hpp"
+#include "VirtualKeys.hpp"
 
 auto NullHidProvider::MouseMove(const Eigen::Vector2f&) -> void {
 }

@@ -31,8 +31,8 @@
 
 #include <Eigen/Core>
 
-#include "Hid.hpp"
-#include "VirtualKey.hpp"
+#include "HidProvider.hpp"
+#include "VirtualKeys.hpp"
 
 class SendInputProvider final : public HidProvider {
   public:

@@ -26,7 +26,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#include "Hid.hpp"
+#include "HidProvider.hpp"
 #include "Logger.hpp"
 #include "Scancodes.hpp"
 

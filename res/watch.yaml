@@ -12,7 +12,7 @@ form:
     height: 40
     position: Below
 
-elements:
+components:
   # background panel
   - type: Panel
     rect: [0, 30, 400, 130]
@@ -117,48 +117,43 @@ elements:
       Opacity: { delta: -0.025 }
 
   # local clock
-  - type: Label
+  - type: Clock
     rect: [19, 90, 200, 50]
     font_size: 46 # Use 32 for 12-hour time
     fg_color: "@text"
-    source: Clock
     format: "%H:%M" # 23:59
     #format: "%I:%M %p" # 11:59 PM
 
   # local date
-  - type: Label
+  - type: Clock
     rect: [20, 117, 200, 20]
     font_size: 14
     fg_color: "@text"
-    source: Clock
     format: "%x" # local date representation
 
   # local day-of-week
-  - type: Label
+  - type: Clock
     rect: [20, 137, 200, 50]
     font_size: 14
     fg_color: "@text"
-    source: Clock
     format: "%A" # Tuesday
     #format: "%a" # Tue
 
   # alt clock 1
-  - type: Label
+  - type: Clock
     rect: [210, 90, 150, 50]
     font_size: 24 # Use 18 for 12-hour time
     fg_color: "@teal"
-    source: Clock
     timezone: 0
     city_size: 14 # city name above the time
     format: "%H:%M" # 23:59
     #format: "%I:%M %p" # 11:59 PM
 
   # alt clock 2
-  - type: Label
+  - type: Clock
     rect: [210, 150, 150, 50]
     font_size: 24 # Use 18 for 12-hour time
     fg_color: "@lavender"
-    source: Clock
     timezone: 1
     city_size: 14
     format: "%H:%M" # 23:59

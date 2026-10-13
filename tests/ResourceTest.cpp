@@ -22,7 +22,8 @@
 #include <nlohmann/json.hpp>
 
 #include "Config.hpp"
-#include "ModularUiConfig.hpp"
+#include "ConfigStore.hpp"
+#include "document/FormDocument.hpp"
 #include "Yaml.hpp"
 #include "framexr_config.h"
 
@@ -54,9 +55,9 @@ constexpr char kOpenXrActionsJson[] = {
     '\0'
 };
 
-auto ExpectModularUi(std::string_view name, std::string_view text) -> void {
-    const auto ui = ConfigStore::LoadKnownYaml<ModularUiConfig>(name, text);
-    EXPECT_FALSE(ui.Elements().empty()) << name;
+auto ExpectFormDocument(std::string_view name, std::string_view text) -> void {
+    const auto ui = ConfigStore::LoadKnownYaml<FormDocument>(name, text);
+    EXPECT_FALSE(ui.Components().empty()) << name;
     EXPECT_GT(ui.Size()[0], 0U) << name;
     EXPECT_GT(ui.Size()[1], 0U) << name;
     EXPECT_GT(ui.Width(), 0.0f) << name;
@@ -64,12 +65,12 @@ auto ExpectModularUi(std::string_view name, std::string_view text) -> void {
 
 } // namespace
 
-TEST(BundledResources, WatchParsesIntoModularUi) {
-    ExpectModularUi("watch.yaml", kWatchYaml);
+TEST(BundledResources, WatchParsesIntoFormDocument) {
+    ExpectFormDocument("watch.yaml", kWatchYaml);
 }
 
-TEST(BundledResources, SettingsParsesIntoModularUi) {
-    ExpectModularUi("settings.yaml", kSettingsYaml);
+TEST(BundledResources, SettingsParsesIntoFormDocument) {
+    ExpectFormDocument("settings.yaml", kSettingsYaml);
 }
 
 TEST(BundledResources, ExampleConfigIsValidYaml) {

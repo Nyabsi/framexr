@@ -96,12 +96,3 @@ struct DrmFormat {
 };
 
 [[nodiscard]] auto FourccToString(uint32_t fourcc) -> std::string;
-
-class FrameTransforms final {
-  public:
-    static auto IsRotated90(FrameTransform transform) -> bool;
-    static auto IsRotated180(FrameTransform transform) -> bool;
-    static auto IsRotated270(FrameTransform transform) -> bool;
-    static auto Affine(const Eigen::Vector2f& x_axis, const Eigen::Vector2f& y_axis, const Eigen::Vector2f& translation)
-        -> Eigen::Affine2f;
-};

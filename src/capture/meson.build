@@ -1,5 +1,6 @@
 capture_sources = files(
   'Frame.cpp',
+  'FrameTransforms.cpp',
 )
 capture_deps = []
 capture_generated = []

@@ -18,20 +18,24 @@
 
 #include <chrono>
 #include <memory>
+#include <array>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
 
-#include "Canvas.hpp"
+#include "ButtonComponent.hpp"
+#include "Compose.hpp"
 #include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Device.hpp"
+#include "Form.hpp"
 #include "GpuReadback.hpp"
+#include "KeyComponent.hpp"
 #include "Keyboard.hpp"
-#include "KeyControl.hpp"
-#include "ModifierControl.hpp"
-#include "OverlayRenderer.hpp"
+#include "LabelComponent.hpp"
+#include "PanelComponent.hpp"
 #include "Png.hpp"
 #include "TestApp.hpp"
 
@@ -40,7 +44,7 @@ namespace {
 constexpr uint32_t kKeyCanvasWidth = 160;
 constexpr uint32_t kKeyCanvasHeight = 80;
 
-auto Render(Canvas& canvas, std::vector<unsigned char>& pixels) -> void {
+auto Render(Compose& canvas, std::vector<unsigned char>& pixels) -> void {
     auto target = g_device->CreateRenderTexture(
         kKeyCanvasWidth,
         kKeyCanvasHeight,
@@ -63,96 +67,88 @@ auto PixelAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -
 } // namespace
 
 TEST(KeyState, ModifierAppliesToTheNextKeyOnly) {
-    auto state = std::make_shared<KeyboardState>();
-    ModifierControl shift(state, kModShift);
-    KeyControl letter(state, VirtualKey::A);
+    KeyboardInput input;
+    const auto tap = [&input](VirtualKey key) -> void {
+        input.Press(key, PointerMode::Left);
+        input.Release(key);
+    };
 
-    shift.OnPress(PointerMode::Left);
-    shift.OnRelease();
-    EXPECT_EQ(state->Modifiers() & kModShift, kModShift);
-    EXPECT_TRUE(shift.HighlightColor().has_value());
-    EXPECT_FALSE(shift.Outline().has_value());
-
-    letter.OnPress(PointerMode::Left);
-    letter.OnRelease();
-    EXPECT_EQ(state->Modifiers() & kModShift, 0);
-    EXPECT_FALSE(shift.HighlightColor().has_value());
-
-    shift.OnPress(PointerMode::Left);
-    shift.OnRelease();
-    shift.OnPress(PointerMode::Left);
-    shift.OnRelease();
-    EXPECT_EQ(state->Modifiers() & kModShift, 0);
-    EXPECT_FALSE(shift.HighlightColor().has_value());
+    tap(VirtualKey::LShift);
+    EXPECT_TRUE(input.Holds(kModShift));
+    tap(VirtualKey::A);
+    EXPECT_FALSE(input.Holds(kModShift));
+    tap(VirtualKey::LShift);
+    tap(VirtualKey::LShift);
+    EXPECT_FALSE(input.Holds(kModShift));
 }
 
-TEST(KeyState, LetterLabelsFollowCapsLockAndShift) {
-    auto state = std::make_shared<KeyboardState>();
-    Control label;
-    state->Letters().push_back({.label = &label, .lower = "q", .upper = "Q"});
-    state->RefreshLetterCase();
-    KeyControl caps(state, VirtualKey::Caps);
-    ModifierControl shift(state, kModShift);
-    KeyControl letter(state, VirtualKey::Q);
-    EXPECT_EQ(label.Text(), "q");
+TEST(KeyState, UppercaseFollowsCapsLockAndShift) {
+    KeyboardInput input;
+    const auto tap = [&input](VirtualKey key) -> void {
+        input.Press(key, PointerMode::Left);
+        input.Release(key);
+    };
+    EXPECT_FALSE(input.Uppercase());
 
-    caps.OnPress(PointerMode::Left);
-    caps.OnRelease();
-    EXPECT_TRUE(state->CapsLock());
-    EXPECT_EQ(label.Text(), "Q");
-
-    shift.OnPress(PointerMode::Left);
-    shift.OnRelease();
-    EXPECT_EQ(label.Text(), "q");
-
-    letter.OnPress(PointerMode::Left);
-    letter.OnRelease();
-    EXPECT_EQ(label.Text(), "Q");
-    EXPECT_TRUE(state->CapsLock());
-
-    caps.OnPress(PointerMode::Left);
-    caps.OnRelease();
-    EXPECT_FALSE(state->CapsLock());
-    EXPECT_EQ(label.Text(), "q");
-
-    shift.OnPress(PointerMode::Left);
-    shift.OnRelease();
-    EXPECT_EQ(label.Text(), "Q");
+    tap(VirtualKey::Caps);
+    EXPECT_TRUE(input.CapsLock());
+    EXPECT_TRUE(input.Uppercase());
+    tap(VirtualKey::LShift);
+    EXPECT_FALSE(input.Uppercase());
+    tap(VirtualKey::Q);
+    EXPECT_TRUE(input.Uppercase());
+    EXPECT_TRUE(input.CapsLock());
+    tap(VirtualKey::Caps);
+    EXPECT_FALSE(input.CapsLock());
+    EXPECT_FALSE(input.Uppercase());
+    tap(VirtualKey::LShift);
+    EXPECT_TRUE(input.Uppercase());
 }
 
-TEST(KeyState, CapsLockLatchesWithAGlowingOutline) {
-    auto state = std::make_shared<KeyboardState>();
-    KeyControl caps(state, VirtualKey::Caps);
-    KeyControl letter(state, VirtualKey::A);
-
-    caps.OnPress(PointerMode::Left);
-    caps.OnRelease();
-    EXPECT_TRUE(caps.Latched());
-    EXPECT_TRUE(caps.Outline().has_value());
-    EXPECT_TRUE(caps.HighlightColor().has_value());
-
-    letter.OnPress(PointerMode::Left);
-    letter.OnRelease();
-    EXPECT_FALSE(letter.Latched());
-    EXPECT_TRUE(caps.Latched());
-
-    caps.OnPress(PointerMode::Left);
-    caps.OnRelease();
-    EXPECT_FALSE(caps.Latched());
-    EXPECT_FALSE(caps.Outline().has_value());
+TEST(KeyState, CapsLockLatchesUntilPressedAgain) {
+    KeyboardInput input;
+    const auto tap = [&input](VirtualKey key) -> void {
+        input.Press(key, PointerMode::Left);
+        input.Release(key);
+    };
+    tap(VirtualKey::Caps);
+    EXPECT_TRUE(input.Latched(VirtualKey::Caps));
+    tap(VirtualKey::A);
+    EXPECT_FALSE(input.Latched(VirtualKey::A));
+    EXPECT_TRUE(input.Latched(VirtualKey::Caps));
+    tap(VirtualKey::Caps);
+    EXPECT_FALSE(input.Latched(VirtualKey::Caps));
 }
 
 TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill) {
-    auto canvas = Canvas::Create(kKeyCanvasWidth, kKeyCanvasHeight, g_device->NativeFormat());
+    auto keyboard = Keyboard::Create(nullptr);
+    ASSERT_TRUE(keyboard.has_value());
+    auto& input = (*keyboard)->Input();
+    input.Press(VirtualKey::Caps, PointerMode::Left);
+    input.Release(VirtualKey::Caps);
+
+    auto form = std::make_unique<Form>("caps");
+    form->SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    auto& background = form->AddComponent<PanelComponent>();
+    background.SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    background.SetCornerRadius(0.0f);
+    background.SetBgColor(Eigen::Vector4f(0.12f, 0.13f, 0.19f, 1.0f));
+    auto& caps = form->AddComponent<KeyComponent>();
+    caps.SetRect({8.0f, 8.0f, 144.0f, 64.0f});
+    caps.SetCornerRadius(12.0f);
+    caps.SetFontSize(18);
+    caps.SetBgColor(Eigen::Vector4f::Zero());
+    caps.SetLegends(KeyCapType::Regular, std::array<std::string, 1>{"Caps Lock"});
+    caps.SetHighlightColor([&input]() -> std::optional<Eigen::Vector4f> {
+        return input.Latched(VirtualKey::Caps) ? std::optional(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.16f)) : std::nullopt;
+    });
+    caps.SetOutline([&input]() -> std::optional<HighlightOutline> {
+        return input.Latched(VirtualKey::Caps)
+                 ? std::optional(HighlightOutline{.color = {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 1.0f}, .width = 3.0f})
+                 : std::nullopt;
+    });
+    auto canvas = Compose::Create(std::move(form));
     ASSERT_TRUE(canvas.has_value());
-    auto state = std::make_shared<KeyboardState>();
-    (*canvas)->SetBgColor(Eigen::Vector4f(0.12f, 0.13f, 0.19f, 1.0f));
-    (*canvas)->Panel(0.0f, 0.0f, kKeyCanvasWidth, kKeyCanvasHeight, 0.0f);
-    (*canvas)->SetFontSize(18);
-    auto& caps = (*canvas)
-                     ->Button(8.0f, 8.0f, 144.0f, 64.0f, 12.0f, "Caps Lock", std::make_unique<KeyControl>(state, VirtualKey::Caps));
-    caps.OnPress(PointerMode::Left);
-    caps.OnRelease();
     ASSERT_TRUE((*canvas)->ShouldRender().has_value());
 
     std::vector<unsigned char> pixels;
@@ -167,9 +163,13 @@ TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill) {
 }
 
 TEST(KeyState, PressFlashesAndFadesAfterRelease) {
-    auto canvas = Canvas::Create(kKeyCanvasWidth, kKeyCanvasHeight, g_device->NativeFormat());
+    auto form = std::make_unique<Form>("key");
+    form->SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    auto& key = form->AddComponent<ButtonComponent>("", "Key");
+    key.SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    key.SetCornerRadius(8.0f);
+    auto canvas = Compose::Create(std::move(form));
     ASSERT_TRUE(canvas.has_value());
-    (*canvas)->Button(0.0f, 0.0f, kKeyCanvasWidth, kKeyCanvasHeight, 8.0f, "Key");
     std::vector<unsigned char> pixels;
     ASSERT_TRUE((*canvas)->ShouldRender().has_value());
     Render(**canvas, pixels);
@@ -206,8 +206,7 @@ TEST(KeyState, PressFlashesAndFadesAfterRelease) {
 TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
     auto keyboard = Keyboard::Create(nullptr);
     ASSERT_TRUE(keyboard.has_value());
-    auto& backend = *(*keyboard)->Backend();
-    ASSERT_TRUE(backend.Init().has_value());
+    auto& backend = *(*keyboard)->Composer();
     const auto meta = backend.Meta();
     ASSERT_TRUE(meta.has_value());
     const auto width = static_cast<float>(meta->extent.width);

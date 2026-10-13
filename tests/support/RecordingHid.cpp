@@ -26,6 +26,7 @@ auto RecordingHid::SendButton(uint16_t button, bool down) -> void {
 }
 
 auto RecordingHid::Wheel(int32_t, int32_t) -> void {
+    ++m_wheels;
 }
 
 auto RecordingHid::SetModifiers(uint8_t value) -> void {

@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include "Config.hpp"
+#include "ConfigStore.hpp"
 
 TEST(Config, DefaultsMatchOriginal) {
     const auto config = ConfigStore::Load();

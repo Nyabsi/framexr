@@ -70,7 +70,7 @@ auto FirstCodepoint(std::wstring_view text) -> uint32_t {
     return high;
 }
 
-auto KeyboardState(uint8_t modifiers) -> std::array<BYTE, 256> {
+auto KeyboardInput(uint8_t modifiers) -> std::array<BYTE, 256> {
     std::array<BYTE, 256> state{};
     constexpr BYTE kDown = 0x80;
     if ((modifiers & kModShift) != 0) {
@@ -98,7 +98,7 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
     if (virtual_key == 0) {
         return {};
     }
-    const auto state = KeyboardState(modifiers);
+    const auto state = KeyboardInput(modifiers);
     std::array<wchar_t, 8> buffer{};
     const int count = ToUnicodeEx(
         virtual_key,
@@ -110,7 +110,7 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
         layout
     );
     if (count < 0) {
-        const auto empty = KeyboardState(0);
+        const auto empty = KeyboardInput(0);
         std::array<wchar_t, 8> flush{};
         ToUnicodeEx(
             VK_SPACE,

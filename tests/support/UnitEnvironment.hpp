@@ -22,9 +22,8 @@
 
 #include <gtest/gtest.h>
 
-class KeyboardProfiles;
 class Logger;
-class Theme;
+class FormTheme;
 
 class UnitEnvironment final : public testing::Environment {
   public:
@@ -38,6 +37,5 @@ class UnitEnvironment final : public testing::Environment {
 
   private:
     std::unique_ptr<Logger> m_logger;
-    std::unique_ptr<Theme> m_themes;
-    std::unique_ptr<KeyboardProfiles> m_keyboard_profiles;
+    std::unique_ptr<FormTheme> m_themes;
 };

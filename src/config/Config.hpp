@@ -36,7 +36,6 @@
 #include "Error.hpp"
 #include "Json.hpp"
 #include "Logger.hpp"
-#include "Toast.hpp"
 #include "Yaml.hpp"
 
 enum class Handedness : uint8_t {
@@ -47,35 +46,29 @@ enum class Handedness : uint8_t {
 auto from_json(const nlohmann::json& json, Handedness& value) -> void;
 auto to_json(nlohmann::json& json, const Handedness& value) -> void;
 
+enum class ToastTopic : uint8_t {
+    System,
+    DesktopNotification,
+    XsNotification,
+    IpdChange,
+};
+
+enum class ToastDisplay : uint8_t {
+    Hide,
+    Center,
+    Watch,
+};
+
+auto from_json(const nlohmann::json& json, ToastTopic& value) -> void;
+auto to_json(nlohmann::json& json, const ToastTopic& value) -> void;
+auto from_json(const nlohmann::json& json, ToastDisplay& value) -> void;
+auto to_json(nlohmann::json& json, const ToastDisplay& value) -> void;
+
 template <>
 class nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>> {
   public:
     static auto from_json(const nlohmann::json& json, std::map<ToastTopic, ToastDisplay>& value) -> void;
     static auto to_json(nlohmann::json& json, const std::map<ToastTopic, ToastDisplay>& value) -> void;
-};
-
-struct Config;
-class ConfigStore final {
-  public:
-    static auto Load() -> Config;
-    static auto DefaultTimezones() -> std::vector<std::string>;
-
-    static auto Root() -> const std::filesystem::path&;
-    static auto ConfD() -> std::filesystem::path;
-    static auto EnsureDirectories() -> std::filesystem::path;
-    static auto File(std::string_view filename) -> std::filesystem::path;
-
-    static auto LoadText(std::string_view filename) -> std::optional<std::string>;
-    static auto ReadFile(const std::filesystem::path& path) -> std::optional<std::string>;
-    static auto ParseFile(const std::filesystem::path& path) -> Result<nlohmann::json>;
-    static auto LoadWithConfD(std::string_view root_filename) -> nlohmann::json;
-    static auto Merge(nlohmann::json& target, const nlohmann::json& source) -> void;
-
-    template <typename T>
-    static auto LoadKnownYaml(std::string_view filename, std::string_view fallback) -> T;
-
-    static auto SaveSettings() -> Result<>;
-    static auto SaveLayout() -> Result<>;
 };
 
 struct Config {
@@ -129,7 +122,7 @@ struct Config {
     bool space_rotate_unlocked = false;
     std::vector<std::string> alt_click_down;
     std::vector<std::string> alt_click_up;
-    std::vector<std::string> timezones = ConfigStore::DefaultTimezones();
+    std::vector<std::string> timezones{"America/New_York", "Asia/Tokyo"};
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
@@ -186,29 +179,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     alt_click_up,
     timezones
 )
-
-template <typename T>
-auto ConfigStore::LoadKnownYaml(std::string_view filename, std::string_view fallback) -> T {
-    const auto user_text = LoadText(filename);
-    std::vector<std::string_view> candidates;
-    if (user_text) {
-        candidates.emplace_back(*user_text);
-    }
-    candidates.push_back(fallback);
-
-    for (const auto text : candidates) {
-        auto parsed = Yaml::Parse(text);
-        if (parsed) {
-            try {
-                return parsed->template get<T>();
-            } catch (const nlohmann::json::exception& error) {
-                parsed = Unexpected(error.what());
-            }
-        }
-        LOG_ERROR("Failed to parse {}, falling back to defaults.", filename);
-        LOG_ERROR("{}", parsed.error().Message());
-    }
-    FatalError("No usable config found.");
-}
 
 extern Config* g_config;

@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <format>
@@ -23,12 +24,12 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "KeyboardLayout.hpp"
-#include "KeyboardProfiles.hpp"
 #include "Yaml.hpp"
 
 namespace {
@@ -51,7 +52,7 @@ constexpr std::string_view kBase = "name: base\ncolumns: 1\nrows: 1\nkeys:\n  - 
 } // namespace
 
 TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
-    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
+    const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
     EXPECT_FALSE(layout.Keys().empty());
     EXPECT_FLOAT_EQ(layout.Columns(), 16.0f);
     EXPECT_EQ(layout.Rows(), 6);
@@ -59,7 +60,7 @@ TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
 }
 
 TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
-    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
+    const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
     EXPECT_EQ(layout.Name(), "keychron-v1-ansi");
     const auto* caps = KeyNamed(layout, VirtualKey::Caps);
     ASSERT_NE(caps, nullptr);
@@ -88,7 +89,7 @@ TEST(KeyboardLayout, LabelsFollowOriginalRules) {
     EXPECT_EQ(KeyboardLayout::DefaultLabel("BACKSPACE_X"), std::vector<std::string>{"Backspace"});
     EXPECT_TRUE(KeyboardLayout::DefaultLabel("").empty());
 
-    const auto& layout = g_keyboard_profiles->Find("keychron-v1-ansi");
+    const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
     const auto* caps = KeyNamed(layout, VirtualKey::Caps);
     const auto* space = KeyNamed(layout, VirtualKey::Space);
     const auto* one = KeyNamed(layout, VirtualKey::N1);
@@ -102,7 +103,7 @@ TEST(KeyboardLayout, LabelsFollowOriginalRules) {
 }
 
 TEST(KeyboardLayout, ActionKeysRunShortcutsAndCommands) {
-    const auto& layout = g_keyboard_profiles->Find("full-size");
+    const auto& layout = KeyboardLayout::Find("full-size");
     const auto action_key = [&layout](std::string_view label) -> const ActionKey* {
         for (const auto& key : layout.Keys()) {
             if (key.label && key.label->size() == 1 && key.label->front() == label) {
@@ -140,7 +141,7 @@ keys:
 }
 
 TEST(KeyboardLayout, SavedProfilesLoadBackTheSameKeyboard) {
-    for (const auto& profile : g_keyboard_profiles->All()) {
+    for (const auto& profile : KeyboardLayout::All()) {
         const auto saved = Emit(profile);
         const auto reloaded = KeyboardLayout::Parse(saved);
         ASSERT_TRUE(reloaded.has_value()) << profile.Name() << ": " << reloaded.error().Message();
@@ -170,16 +171,16 @@ keys:
 }
 
 TEST(KeyboardProfiles, BuiltInProfilesKeepTheOriginalLayout) {
-    const auto& profiles = g_keyboard_profiles->All();
+    const auto& profiles = KeyboardLayout::All();
     ASSERT_GE(profiles.size(), 2U);
     EXPECT_EQ(profiles[0].Name(), "keychron-v1-ansi");
     EXPECT_EQ(profiles[1].Name(), "full-size");
     EXPECT_FLOAT_EQ(profiles[1].Columns(), 23.0f);
-    EXPECT_TRUE(KeyboardProfiles::IsBuiltIn("full-size"));
-    EXPECT_FALSE(KeyboardProfiles::IsBuiltIn("mine"));
-    EXPECT_EQ(g_keyboard_profiles->After("keychron-v1-ansi").Name(), "full-size");
-    EXPECT_EQ(g_keyboard_profiles->After(profiles.back().Name()).Name(), "keychron-v1-ansi");
-    EXPECT_EQ(g_keyboard_profiles->Find("no-such-profile").Name(), "keychron-v1-ansi");
+    EXPECT_TRUE(KeyboardLayout::IsBuiltIn("full-size"));
+    EXPECT_FALSE(KeyboardLayout::IsBuiltIn("mine"));
+    EXPECT_EQ(KeyboardLayout::After("keychron-v1-ansi").Name(), "full-size");
+    EXPECT_EQ(KeyboardLayout::After(profiles.back().Name()).Name(), "keychron-v1-ansi");
+    EXPECT_EQ(KeyboardLayout::Find("no-such-profile").Name(), "keychron-v1-ansi");
 }
 
 TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
@@ -192,7 +193,7 @@ TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
     std::ofstream(directory / "notes.txt") << "ignored";
 
     const auto built_in = std::to_array<std::string_view>({kBase});
-    const auto profiles = KeyboardProfiles::Load(built_in, directory);
+    const auto profiles = KeyboardLayout::Load(built_in, directory);
     std::filesystem::remove_all(directory);
 
     ASSERT_EQ(profiles.size(), 2U);

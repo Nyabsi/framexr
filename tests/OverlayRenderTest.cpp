@@ -24,25 +24,25 @@
 
 #include <gtest/gtest.h>
 
-#include "Canvas.hpp"
+#include "Compose.hpp"
+#include "Form.hpp"
+#include "PanelComponent.hpp"
 #include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
-#include "CustomUi.hpp"
+#include "Settings.hpp"
 #include "Device.hpp"
 #include "GpuReadback.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
-#include "OverlayContainer.hpp"
-#include "OverlayRenderer.hpp"
+#include "Container.hpp"
 #include "Png.hpp"
 #include "TestApp.hpp"
 #include "Watch.hpp"
 
 namespace {
 
-auto RenderPixels(OverlayBackend& backend, std::vector<unsigned char>& pixels) -> void {
-    ASSERT_TRUE(backend.Init().has_value());
+auto RenderPixels(Compose& backend, std::vector<unsigned char>& pixels) -> void {
     const auto readiness = backend.ShouldRender();
     ASSERT_TRUE(readiness.has_value());
     EXPECT_EQ(*readiness, RenderReadiness::Should);
@@ -67,11 +67,11 @@ auto RenderPixels(OverlayBackend& backend, std::vector<unsigned char>& pixels) -
     ASSERT_FALSE(pixels.empty());
 }
 
-auto RenderOverlay(Overlay& overlay, const std::string& name) -> void {
+auto RenderOverlay(View& overlay, const std::string& name) -> void {
     std::vector<unsigned char> pixels;
-    RenderPixels(*overlay.Backend(), pixels);
+    RenderPixels(*overlay.Composer(), pixels);
     EXPECT_GT(GpuReadback::DistinctColors(pixels), 2U);
-    const auto meta = overlay.Backend()->Meta();
+    const auto meta = overlay.Composer()->Meta();
     ASSERT_TRUE(meta.has_value());
     Png::Write(TestApp::OutputDir() / std::format("{}.png", name), meta->extent.width, meta->extent.height, pixels);
 }
@@ -85,10 +85,10 @@ auto AlphaAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -
 } // namespace
 
 TEST(OverlayRender, Watch) {
-    const auto overlays = OverlayContainer::CreateEmpty();
+    const auto overlays = Container::CreateEmpty();
     auto watch = Watch::Create();
     ASSERT_TRUE(watch.has_value());
-    EXPECT_TRUE((*watch)->State().WantVisible());
+    EXPECT_TRUE((*watch)->WantVisible());
     RenderOverlay(**watch, "watch");
 }
 
@@ -111,18 +111,21 @@ TEST(OverlayRender, KeyboardWithFinnishRegion) {
 }
 
 TEST(OverlayRender, SettingsPanel) {
-    const auto overlays = OverlayContainer::CreateEmpty();
-    auto settings = CustomUi::Create("settings");
-    ASSERT_TRUE(settings.has_value());
-    Overlay overlay(std::move(settings->first), std::move(settings->second));
-    RenderOverlay(overlay, "settings");
+    const auto overlays = Container::CreateEmpty();
+    auto settings = Settings::Create("settings");
+    ASSERT_NE(settings, nullptr);
+    RenderOverlay(*settings, "settings");
 }
 
 TEST(OverlayRender, RoundedCornersUseTheirRadiusAndAreSmooth) {
-    auto canvas = Canvas::Create(kCornerCanvasSize, kCornerCanvasSize, g_device->NativeFormat());
+    auto form = std::make_unique<Form>("corner");
+    form->SetSize({kCornerCanvasSize, kCornerCanvasSize});
+    auto& panel = form->AddComponent<PanelComponent>();
+    panel.SetSize({kCornerCanvasSize, kCornerCanvasSize});
+    panel.SetCornerRadius(16.0f);
+    panel.SetBgColor(Eigen::Vector4f::Ones());
+    auto canvas = Compose::Create(std::move(form));
     ASSERT_TRUE(canvas.has_value());
-    (*canvas)->SetBgColor(Eigen::Vector4f::Ones());
-    (*canvas)->Panel(0.0f, 0.0f, kCornerCanvasSize, kCornerCanvasSize, 16.0f);
 
     std::vector<unsigned char> pixels;
     RenderPixels(**canvas, pixels);
