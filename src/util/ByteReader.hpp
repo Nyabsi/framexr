@@ -33,7 +33,8 @@
 #include <thread>
 #include <vector>
 
-class ByteReader final {
+class ByteReader final
+{
   public:
     explicit ByteReader(std::span<const std::byte> bytes);
 

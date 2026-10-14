@@ -29,22 +29,28 @@
 #include "OpenXrInstance.hpp"
 
 auto OpenXrClickAction::Create(const OpenXrInstance& instance, XrActionSet action_set, std::string_view name, std::string_view side)
-    -> Result<OpenXrClickAction> {
+    -> Result<OpenXrClickAction>
+{
     std::array<OpenXrMultiClick, 3> handlers;
-    for (size_t count = 0; count < handlers.size(); ++count) {
+    for (size_t count = 0; count < handlers.size(); ++count)
+    {
         ASSIGN_OR_RETURN(handlers.at(count), OpenXrMultiClick::Create(instance, action_set, name, side, count));
     }
     return OpenXrClickAction(std::move(handlers));
 }
 
-OpenXrClickAction::OpenXrClickAction(std::array<OpenXrMultiClick, 3> handlers) : m_handlers(std::move(handlers)) {
+OpenXrClickAction::OpenXrClickAction(std::array<OpenXrMultiClick, 3> handlers) : m_handlers(std::move(handlers))
+{
 }
 
-auto OpenXrClickAction::State(bool before, const OpenXrState& xr) -> Result<bool> {
+auto OpenXrClickAction::State(bool before, const OpenXrState& xr) -> Result<bool>
+{
     const float threshold = before ? g_config->xr_click_sensitivity_release : g_config->xr_click_sensitivity;
-    for (auto& handler : m_handlers) {
+    for (auto& handler : m_handlers)
+    {
         ASSIGN_OR_RETURN(const bool pressed, handler.Check(xr, threshold));
-        if (pressed) {
+        if (pressed)
+        {
             return true;
         }
     }

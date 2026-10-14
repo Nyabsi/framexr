@@ -31,7 +31,8 @@
 #include "Image.hpp"
 #include "View.hpp"
 
-struct OpenVrOverlayData {
+struct OpenVrOverlayData
+{
     vr::VROverlayHandle_t handle = vr::k_ulOverlayHandleInvalid;
     bool visible = false;
     Eigen::Vector4f color = Eigen::Vector4f::Zero();
@@ -42,7 +43,8 @@ struct OpenVrOverlayData {
     bool image_dirty = false;
 };
 
-class OpenVrOverlay {
+class OpenVrOverlay
+{
   public:
     static auto EnsureImageAllocated(View& overlay, OpenVrOverlayData& data) -> Result<bool>;
     static auto AfterInput(View& overlay, OpenVrOverlayData& data) -> Result<>;

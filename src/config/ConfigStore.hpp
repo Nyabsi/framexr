@@ -35,7 +35,8 @@
 #include "Logger.hpp"
 #include "Yaml.hpp"
 
-class ConfigStore final {
+class ConfigStore final
+{
   public:
     static auto Load() -> Config;
 
@@ -61,20 +62,27 @@ class ConfigStore final {
 };
 
 template <typename T>
-auto ConfigStore::LoadKnownYaml(std::string_view filename, std::string_view fallback) -> T {
+auto ConfigStore::LoadKnownYaml(std::string_view filename, std::string_view fallback) -> T
+{
     const auto user_text = LoadText(filename);
     std::vector<std::string_view> candidates;
-    if (user_text) {
+    if (user_text)
+    {
         candidates.emplace_back(*user_text);
     }
     candidates.push_back(fallback);
 
-    for (const auto text : candidates) {
+    for (const auto text : candidates)
+    {
         auto parsed = Yaml::Parse(text);
-        if (parsed) {
-            try {
+        if (parsed)
+        {
+            try
+            {
                 return parsed->template get<T>();
-            } catch (const nlohmann::json::exception& error) {
+            }
+            catch (const nlohmann::json::exception& error)
+            {
                 parsed = Unexpected(error.what());
             }
         }

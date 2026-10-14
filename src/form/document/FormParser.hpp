@@ -37,7 +37,8 @@
 #include "document/Common.hpp"
 #include "document/FormDocument.hpp"
 
-class FormParser final {
+class FormParser final
+{
   public:
     static auto Parse(std::string_view yaml) -> Result<FormDocument>;
     static auto Emit(const FormDocument& document) -> std::string;
@@ -56,10 +57,13 @@ class FormParser final {
         const nlohmann::json& json,
         const std::array<std::pair<Enum, std::string_view>, Count>& names,
         std::string_view type
-    ) -> Enum {
+    ) -> Enum
+    {
         const auto name = Json::VariantName(json);
-        for (const auto& [value, value_name] : names) {
-            if (value_name == name) {
+        for (const auto& [value, value_name] : names)
+        {
+            if (value_name == name)
+            {
                 return value;
             }
         }
@@ -67,9 +71,12 @@ class FormParser final {
     }
 
     template <typename Enum, size_t Count>
-    static auto NameOf(Enum value, const std::array<std::pair<Enum, std::string_view>, Count>& names) -> std::string_view {
-        for (const auto& [item, name] : names) {
-            if (item == value) {
+    static auto NameOf(Enum value, const std::array<std::pair<Enum, std::string_view>, Count>& names) -> std::string_view
+    {
+        for (const auto& [item, name] : names)
+        {
+            if (item == value)
+            {
                 return name;
             }
         }
@@ -77,9 +84,11 @@ class FormParser final {
     }
 
     template <typename Value>
-    static auto Optional(const nlohmann::json& json, std::string_view key) -> std::optional<Value> {
+    static auto Optional(const nlohmann::json& json, std::string_view key) -> std::optional<Value>
+    {
         const auto it = json.find(key);
-        if (it == json.end() || it->is_null()) {
+        if (it == json.end() || it->is_null())
+        {
             return std::nullopt;
         }
         return it->get<Value>();

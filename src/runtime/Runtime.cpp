@@ -51,7 +51,8 @@
 #include "OpenXrRuntime.hpp"
 #endif
 
-namespace {
+namespace
+{
 
 constexpr auto kDeviceUpdateInterval = std::chrono::seconds(30);
 
@@ -59,8 +60,10 @@ constexpr auto kPointerLines = std::to_array({Line::LeftPointer, Line::RightPoin
 
 constexpr auto kGuideLines = std::to_array({Line::LeftGuide, Line::RightGuide});
 
-auto Describe(const OverlaySelector& selector) -> std::string {
-    if (const auto* id = std::get_if<OverlayId>(&selector)) {
+auto Describe(const OverlaySelector& selector) -> std::string
+{
+    if (const auto* id = std::get_if<OverlayId>(&selector))
+    {
         return std::format("Id(OverlayID({}))", static_cast<uint64_t>(*id));
     }
     return std::format("Name(\"{}\")", std::get<std::string>(selector));
@@ -68,41 +71,50 @@ auto Describe(const OverlaySelector& selector) -> std::string {
 
 } // namespace
 
-auto Runtime::Run(std::atomic<bool>& running) -> void {
+auto Runtime::Run(std::atomic<bool>& running) -> void
+{
 #if FRAMEXR_FEATURE_OPENXR
-    if (!g_command_line->OpenVr() && Drive(OpenXrRuntime::Connect(), running)) {
+    if (!g_command_line->OpenVr() && Drive(OpenXrRuntime::Connect(), running))
+    {
         return;
     }
 #endif
 #if FRAMEXR_FEATURE_OPENVR
-    if (!g_command_line->OpenXr() && Drive(OpenVrRuntime::Connect(), running)) {
+    if (!g_command_line->OpenXr() && Drive(OpenVrRuntime::Connect(), running))
+    {
         return;
     }
 #endif
     LOG_ERROR("No more backends to try");
 }
 
-auto Runtime::Drive(std::unique_ptr<Runtime> runtime, std::atomic<bool>& running) -> bool {
-    if (!runtime) {
+auto Runtime::Drive(std::unique_ptr<Runtime> runtime, std::atomic<bool>& running) -> bool
+{
+    if (!runtime)
+    {
         return false;
     }
     auto result = runtime->Open();
-    if (result) {
+    if (result)
+    {
         result = runtime->Loop(running);
     }
-    if (!result) {
+    if (!result)
+    {
         LOG_ERROR("Fatal: {}", result.error().Message());
     }
     return true;
 }
 
-auto Runtime::Uninstall() -> void {
+auto Runtime::Uninstall() -> void
+{
 #if FRAMEXR_FEATURE_OPENVR
     OpenVrRuntime::Uninstall();
 #endif
 }
 
-auto Runtime::BeamPose(Eigen::Affine3f from, float length, const Eigen::Affine3f& hmd) -> Eigen::Affine3f {
+auto Runtime::BeamPose(Eigen::Affine3f from, float length, const Eigen::Affine3f& hmd) -> Eigen::Affine3f
+{
     constexpr float kPi = std::numbers::pi_v<float>;
     from.translation() += from.linear() * -Eigen::Vector3f::UnitZ() * (length * 0.5f);
     Eigen::Affine3f beam = from * Eigen::AngleAxisf(-kPi * 0.5f, Eigen::Vector3f::UnitX());
@@ -115,29 +127,41 @@ auto Runtime::BeamPose(Eigen::Affine3f from, float length, const Eigen::Affine3f
         -Eigen::Vector3f::UnitX(),
     });
     size_t closest = 0;
-    for (size_t i = 1; i < sides.size(); ++i) {
-        if (to_hmd.dot(beam.linear() * sides[i]) > to_hmd.dot(beam.linear() * sides[closest])) {
+    for (size_t i = 1; i < sides.size(); ++i)
+    {
+        if (to_hmd.dot(beam.linear() * sides[i]) > to_hmd.dot(beam.linear() * sides[closest]))
+        {
             closest = i;
         }
     }
     return beam * Eigen::AngleAxisf(kPi * 0.5f * static_cast<float>(closest), Eigen::Vector3f::UnitY());
 }
 
-auto Runtime::Start() -> Result<> {
+auto Runtime::Start() -> Result<>
+{
     ASSIGN_OR_RETURN(m_fonts, FontCache::Create(g_config->primary_font));
     m_fonts->SetFamily(g_themes->Active().font);
     g_fonts = m_fonts.get();
-    g_devices->SetOnConnect([](const TrackedDevice& device) -> void {
-        if (device.role != TrackedDeviceRole::None) {
-            Toast::Show({.title = std::format("{} connected", Devices::RoleName(device.role))});
+    g_devices->SetOnConnect(
+        [](const TrackedDevice& device) -> void
+        {
+            if (device.role != TrackedDeviceRole::None)
+            {
+                Toast::Show({.title = std::format("{} connected", Devices::RoleName(device.role))});
+            }
         }
-    });
-    g_devices->SetOnDisconnect([](const TrackedDevice& device) -> void {
-        if (device.role != TrackedDeviceRole::None) {
-            Toast::Show({.title = std::format("{} disconnected", Devices::RoleName(device.role))});
+    );
+    g_devices->SetOnDisconnect(
+        [](const TrackedDevice& device) -> void
+        {
+            if (device.role != TrackedDeviceRole::None)
+            {
+                Toast::Show({.title = std::format("{} disconnected", Devices::RoleName(device.role))});
+            }
         }
-    });
-    if (g_command_line->Show()) {
+    );
+    if (g_command_line->Show())
+    {
         g_tasks->EnqueueAt(SystemTask{ShowHideTask{}}, std::chrono::steady_clock::now() + std::chrono::seconds(1));
     }
     ASSIGN_OR_RETURN(m_overlays, Container::Create());
@@ -148,32 +172,40 @@ auto Runtime::Start() -> Result<> {
     return {};
 }
 
-auto Runtime::Stop() -> void {
+auto Runtime::Stop() -> void
+{
     m_notifications.reset();
     m_overlays.reset();
     m_fonts.reset();
     g_fonts = nullptr;
 }
 
-auto Runtime::WatchOverlay() -> View& {
+auto Runtime::WatchOverlay() -> View&
+{
     auto* watch = m_watch_id == OverlayId{} ? m_overlays->ByName(kWatchName) : m_overlays->ById(m_watch_id);
-    if (watch == nullptr) {
+    if (watch == nullptr)
+    {
         FatalError("Watch overlay is missing");
     }
     return *watch;
 }
 
-auto Runtime::Loop(std::atomic<bool>& running) -> Result<> {
-    while (true) {
+auto Runtime::Loop(std::atomic<bool>& running) -> Result<>
+{
+    while (true)
+    {
         ASSIGN_OR_RETURN(const auto status, BeginFrame(running.load()));
-        if (status == FrameStatus::Quit) {
+        if (status == FrameStatus::Quit)
+        {
             return {};
         }
-        if (const auto now = std::chrono::steady_clock::now(); m_next_device_update <= now) {
+        if (const auto now = std::chrono::steady_clock::now(); m_next_device_update <= now)
+        {
             UpdateDevices();
             m_next_device_update = now + kDeviceUpdateInterval;
         }
-        if (status == FrameStatus::Skip) {
+        if (status == FrameStatus::Skip)
+        {
             continue;
         }
         ++m_frame;
@@ -181,13 +213,15 @@ auto Runtime::Loop(std::atomic<bool>& running) -> Result<> {
         m_notifications->SubmitPending();
         ASSIGN_OR_RETURN(auto removed, m_overlays->Update());
         m_overlays->UpdateTexelFootprints();
-        for (auto& overlay : removed) {
+        for (auto& overlay : removed)
+        {
             Release(std::move(overlay));
         }
         DispatchTasks();
 
         RETURN_IF_ERROR(UpdateInput());
-        for (auto& view : m_overlays->Views()) {
+        for (auto& view : m_overlays->Views())
+        {
             view->AutoMovement();
             view->Update();
         }
@@ -196,8 +230,10 @@ auto Runtime::Loop(std::atomic<bool>& running) -> Result<> {
         g_hid->Commit();
 
 #if FRAMEXR_FEATURE_OSC
-        if (g_osc) {
-            if (const auto sent = g_osc->SendParams(g_devices->All()); !sent) {
+        if (g_osc)
+        {
+            if (const auto sent = g_osc->SendParams(g_devices->All()); !sent)
+            {
                 LOG_TRACE("OSC: {}", sent.error().Message());
             }
         }
@@ -206,68 +242,96 @@ auto Runtime::Loop(std::atomic<bool>& running) -> Result<> {
     }
 }
 
-auto Runtime::Interact() -> void {
+auto Runtime::Interact() -> void
+{
     const auto results = Interaction::Interact();
-    for (size_t i = 0; i < results.size(); ++i) {
+    for (size_t i = 0; i < results.size(); ++i)
+    {
         const auto& pointer = g_interaction->Pointers()[i];
         const auto mode = static_cast<size_t>(pointer.Interaction().mode) + 1;
         DrawLine(kPointerLines[i], LaserPointer::LinePose(pointer.Pose(), results[i].target), results[i].length, mode);
-        if (const auto& haptics = results[i].haptics) {
+        if (const auto& haptics = results[i].haptics)
+        {
             ApplyHaptics(i, *haptics);
         }
     }
     const auto guides = m_overlays->EditorLines();
-    for (size_t i = 0; i < kGuideLines.size(); ++i) {
-        if (i < guides.size()) {
+    for (size_t i = 0; i < kGuideLines.size(); ++i)
+    {
+        if (i < guides.size())
+        {
             DrawLine(kGuideLines[i], guides[i].pose, guides[i].length, 0);
-        } else {
+        }
+        else
+        {
             HideLine(kGuideLines[i]);
         }
     }
 }
 
-auto Runtime::DispatchTasks() -> void {
+auto Runtime::DispatchTasks() -> void
+{
     std::deque<Task> due;
     g_tasks->TakeDue(due);
-    for (auto& task : due) {
+    for (auto& task : due)
+    {
         std::visit(
-            [this](auto& value) -> void {
+            [this](auto& value) -> void
+            {
                 using TaskType = std::decay_t<decltype(value)>;
-                if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>) {
+                if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>)
+                {
                     auto* overlay = m_overlays->BySelector(value.selector);
-                    if (overlay == nullptr) {
+                    if (overlay == nullptr)
+                    {
                         LOG_WARN("Overlay not found for task: {}", Describe(value.selector));
                         return;
                     }
                     const bool was_visible = overlay->WantVisible();
                     value.modify(*overlay);
-                    if (!was_visible && overlay->WantVisible()) {
+                    if (!was_visible && overlay->WantVisible())
+                    {
                         m_overlays->PlaceShown(*overlay);
                     }
-                } else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>) {
-                    if (m_overlays->BySelector(value.selector) != nullptr) {
+                }
+                else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>)
+                {
+                    if (m_overlays->BySelector(value.selector) != nullptr)
+                    {
                         return;
                     }
-                    if (auto created = value.create()) {
+                    if (auto created = value.create())
+                    {
                         created->SetBirthFrame(m_frame);
                         m_overlays->Add(std::move(created));
                     }
-                } else if constexpr (std::is_same_v<TaskType, DropOverlayTask>) {
+                }
+                else if constexpr (std::is_same_v<TaskType, DropOverlayTask>)
+                {
                     const auto* overlay = m_overlays->BySelector(value.selector);
-                    if (overlay == nullptr || overlay->BirthFrame() >= m_frame) {
+                    if (overlay == nullptr || overlay->BirthFrame() >= m_frame)
+                    {
                         return;
                     }
                     LOG_DEBUG("{}: destroy", overlay->Name());
                     Release(m_overlays->Remove(value.selector));
-                } else {
+                }
+                else
+                {
                     std::visit(
-                        [this](const auto& system) -> void {
+                        [this](const auto& system) -> void
+                        {
                             using SystemType = std::decay_t<decltype(system)>;
-                            if constexpr (std::is_same_v<SystemType, ShowHideTask>) {
+                            if constexpr (std::is_same_v<SystemType, ShowHideTask>)
+                            {
                                 m_overlays->ShowHide();
-                            } else if constexpr (std::is_same_v<SystemType, RecenterTask>) {
+                            }
+                            else if constexpr (std::is_same_v<SystemType, RecenterTask>)
+                            {
                                 m_overlays->Recenter();
-                            } else if constexpr (std::is_same_v<SystemType, OpenEditorTask>) {
+                            }
+                            else if constexpr (std::is_same_v<SystemType, OpenEditorTask>)
+                            {
                                 m_overlays->OpenEditor();
                             }
                         },

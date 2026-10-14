@@ -39,7 +39,8 @@
 class Image;
 class Queue;
 
-class FrameUploader final {
+class FrameUploader final
+{
   public:
     FrameUploader(std::string name, Queue& queue);
 

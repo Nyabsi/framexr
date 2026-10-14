@@ -29,7 +29,8 @@
 #include "FormComponent.hpp"
 #include "document/Common.hpp"
 
-struct LabelElement {
+struct LabelElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -39,7 +40,8 @@ struct LabelElement {
     size_t form = 0;
 };
 
-class LabelComponent final : public FormComponent {
+class LabelComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Label";
 

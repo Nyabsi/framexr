@@ -22,7 +22,8 @@
 
 #include "document/FormParser.hpp"
 
-auto LabelComponent::Parse(const nlohmann::json& json) -> LabelElement {
+auto LabelComponent::Parse(const nlohmann::json& json) -> LabelElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -31,16 +32,19 @@ auto LabelComponent::Parse(const nlohmann::json& json) -> LabelElement {
     };
 }
 
-auto LabelComponent::Serialize(nlohmann::ordered_json& json, const LabelElement& element) -> void {
+auto LabelComponent::Serialize(nlohmann::ordered_json& json, const LabelElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     json["text"] = element.text;
 }
 
-auto LabelComponent::Create(FormComponent& parent, const LabelElement& element, const FormContext& context) -> LabelComponent& {
+auto LabelComponent::Create(FormComponent& parent, const LabelElement& element, const FormContext& context) -> LabelComponent&
+{
     auto& label = parent.AddComponent<LabelComponent>("", element.text);
     label.SetRect(FormParser::ToRect(element.rect));
     label.SetFontSize(element.font_size);
@@ -49,34 +53,42 @@ auto LabelComponent::Create(FormComponent& parent, const LabelElement& element, 
     return label;
 }
 
-LabelComponent::LabelComponent(std::string name, std::string_view text) : FormComponent(std::move(name)), m_text(text) {
+LabelComponent::LabelComponent(std::string name, std::string_view text) : FormComponent(std::move(name)), m_text(text)
+{
 }
 
-auto LabelComponent::SetText(std::string_view text) -> void {
-    if (m_text != text) {
+auto LabelComponent::SetText(std::string_view text) -> void
+{
+    if (m_text != text)
+    {
         m_text = text;
         MarkDirty();
     }
 }
 
-auto LabelComponent::SetFontSize(int font_size) -> void {
+auto LabelComponent::SetFontSize(int font_size) -> void
+{
     m_font_size = font_size;
     MarkDirty();
 }
 
-auto LabelComponent::SetFgColor(const Eigen::Vector4f& fg_color) -> void {
-    if (m_fg_color != fg_color) {
+auto LabelComponent::SetFgColor(const Eigen::Vector4f& fg_color) -> void
+{
+    if (m_fg_color != fg_color)
+    {
         m_fg_color = fg_color;
         MarkDirty();
     }
 }
 
-auto LabelComponent::SetCentered(bool centered) -> void {
+auto LabelComponent::SetCentered(bool centered) -> void
+{
     m_centered = centered;
     MarkDirty();
 }
 
-auto LabelComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto LabelComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     state.push_back(
         TextItem{
             .rect = frame.rect,

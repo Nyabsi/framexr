@@ -41,7 +41,8 @@
 class Image;
 class Pipeline;
 
-class ScreenPipeline final {
+class ScreenPipeline final
+{
   public:
     static auto Create(VkExtent2D extent) -> Result<ScreenPipeline>;
 

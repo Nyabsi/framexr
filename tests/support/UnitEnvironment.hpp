@@ -25,7 +25,8 @@
 class Logger;
 class FormTheme;
 
-class UnitEnvironment final : public testing::Environment {
+class UnitEnvironment final : public testing::Environment
+{
   public:
     UnitEnvironment();
     ~UnitEnvironment() override;

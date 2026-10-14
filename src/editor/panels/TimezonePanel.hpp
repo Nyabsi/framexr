@@ -31,7 +31,8 @@ class Editor;
 
 class StackComponent;
 
-class TimezonePanel final : public FormComponent {
+class TimezonePanel final : public FormComponent
+{
   public:
     static auto ZoneName(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string;
     static auto LocalZone() -> std::string;

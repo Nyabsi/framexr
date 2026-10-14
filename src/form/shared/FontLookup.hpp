@@ -26,13 +26,15 @@
 
 struct FT_LibraryRec_;
 
-struct FontFile {
+struct FontFile
+{
     std::string path;
     std::string name;
     int index = 0;
 };
 
-class FontLookup final {
+class FontLookup final
+{
   public:
     explicit FontLookup(std::string primary_font);
 

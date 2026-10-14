@@ -25,11 +25,13 @@
 
 #include "Dbus.hpp"
 
-namespace {
+namespace
+{
 
 constexpr int kDbusTimeoutMs = 1000;
 
-auto AppendHint(DBusMessageIter& dictionary, const char* key, int type, const void* value) -> void {
+auto AppendHint(DBusMessageIter& dictionary, const char* key, int type, const void* value) -> void
+{
     DBusMessageIter entry;
     DBusMessageIter variant;
     const std::array<char, 2> signature{static_cast<char>(type), '\0'};
@@ -43,14 +45,17 @@ auto AppendHint(DBusMessageIter& dictionary, const char* key, int type, const vo
 
 } // namespace
 
-DbusNotificationSender::DbusNotificationSender(DBusConnection* connection) : m_connection(connection) {
+DbusNotificationSender::DbusNotificationSender(DBusConnection* connection) : m_connection(connection)
+{
 }
 
-DbusNotificationSender::~DbusNotificationSender() {
+DbusNotificationSender::~DbusNotificationSender()
+{
     Dbus::CloseConnection(m_connection);
 }
 
-auto DbusNotificationSender::Create() -> Result<std::unique_ptr<DbusNotificationSender>> {
+auto DbusNotificationSender::Create() -> Result<std::unique_ptr<DbusNotificationSender>>
+{
     ASSIGN_OR_RETURN(auto* connection, Dbus::ConnectSessionBus());
     return std::unique_ptr<DbusNotificationSender>(new DbusNotificationSender(connection));
 }
@@ -62,7 +67,8 @@ auto DbusNotificationSender::NotifySend(
     int32_t timeout,
     uint32_t replaces_id,
     bool transient
-) -> Result<uint32_t> {
+) -> Result<uint32_t>
+{
     DBusMessage* message = dbus_message_new_method_call(
         Dbus::kNotificationsInterface,
         Dbus::kNotificationsPath,
@@ -103,7 +109,8 @@ auto DbusNotificationSender::NotifySend(
     dbus_error_init(&error);
     const bool parsed = dbus_message_get_args(reply, &error, DBUS_TYPE_UINT32, &id, DBUS_TYPE_INVALID) == TRUE;
     dbus_message_unref(reply);
-    if (!parsed) {
+    if (!parsed)
+    {
         auto text = std::string(error.message != nullptr ? error.message : "invalid Notify reply");
         dbus_error_free(&error);
         return Unexpected(std::move(text));
@@ -111,7 +118,8 @@ auto DbusNotificationSender::NotifySend(
     return id;
 }
 
-auto DbusNotificationSender::NotifyClose(uint32_t id) -> Result<> {
+auto DbusNotificationSender::NotifyClose(uint32_t id) -> Result<>
+{
     DBusMessage* message = dbus_message_new_method_call(
         Dbus::kNotificationsInterface,
         Dbus::kNotificationsPath,

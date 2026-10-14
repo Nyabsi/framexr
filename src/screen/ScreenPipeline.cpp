@@ -49,7 +49,8 @@
 #include "DxgiCapture.hpp"
 #endif
 
-namespace {
+namespace
+{
 
 constexpr float kCursorSize = 16.0f / 1440.0f;
 
@@ -62,10 +63,12 @@ constexpr float kLowpassShape = 4.0f;
 ScreenPipeline::ScreenPipeline(std::shared_ptr<Pipeline> pipeline, std::shared_ptr<Image> mouse, VkExtent2D extent)
     : m_pipeline(std::move(pipeline)),
       m_mouse(std::move(mouse)),
-      m_extent(extent) {
+      m_extent(extent)
+{
 }
 
-auto ScreenPipeline::Create(VkExtent2D extent) -> Result<ScreenPipeline> {
+auto ScreenPipeline::Create(VkExtent2D extent) -> Result<ScreenPipeline>
+{
     ASSIGN_OR_RETURN(auto pipeline, g_device->CreatePipeline(Shaders::Screen(), g_device->NativeFormat(), Blend::SquareSource));
 
     constexpr std::array<uint8_t, 64> kMouseBytes{
@@ -87,7 +90,8 @@ auto ScreenPipeline::Render(
     CommandBatch& batch,
     float alpha,
     const TexelFootprint& footprint
-) -> Result<> {
+) -> Result<>
+{
     const float filtered = g_config->screen_lowpass_filter ? 1.0f : 0.0f;
     const std::array uniform{
         footprint.size.x(),
@@ -112,7 +116,8 @@ auto ScreenPipeline::Render(
     command_buffer.BeginRendering(target);
     command_buffer.Draw(pass);
 
-    if (frame.Mouse()) {
+    if (frame.Mouse())
+    {
         const auto width = static_cast<float>(m_extent.width);
         const auto height = static_cast<float>(m_extent.height);
         const float size = kCursorSize * height;

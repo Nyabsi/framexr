@@ -39,20 +39,23 @@
 #include "PanelComponent.hpp"
 #include "TaskQueue.hpp"
 
-namespace {
+namespace
+{
 
 constexpr int kFontSize = 16;
 constexpr float kPaddingX = 25.0f;
 constexpr float kPixelsToMeters = 1.0f / 2000.0f;
 constexpr std::string_view kToastName = "toast";
 
-auto Color(std::string_view hex) -> Eigen::Vector4f {
+auto Color(std::string_view hex) -> Eigen::Vector4f
+{
     return FormTheme::ParseColor(hex).value_or(FormTheme::FallbackColor());
 }
 
 } // namespace
 
-auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
+auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
+{
     const auto& topics = g_config->notification_topics;
     const auto configured = topics.find(toast.topic);
     const auto method = configured != topics.end()           ? configured->second
@@ -62,15 +65,19 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
     Eigen::Vector3f spawn_point = Eigen::Vector3f::Zero();
     Eigen::Quaternionf spawn_rotation = Eigen::Quaternionf::Identity();
     RelativeTo relative_to = RelativeTo::Head;
-    switch (method) {
+    switch (method)
+    {
     case ToastDisplay::Hide: return nullptr;
     case ToastDisplay::Center: spawn_point = Eigen::Vector3f(0.0f, -0.2f, -0.5f); break;
     case ToastDisplay::Watch:
         spawn_point = g_config->watch_pos + Eigen::Vector3f(-0.005f, -0.05f, 0.02f);
         spawn_rotation = g_config->watch_rot;
-        if (g_config->watch_hand == Handedness::Left) {
+        if (g_config->watch_hand == Handedness::Left)
+        {
             relative_to = RelativeTo::LeftHand;
-        } else {
+        }
+        else
+        {
             spawn_point.x() = -spawn_point.x();
             spawn_rotation = spawn_rotation * Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX())
                            * Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitZ());
@@ -82,16 +89,21 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
     const std::string title = toast.title.empty() ? "Notification" : toast.title;
 
     TextSize size;
-    if (toast.body.empty()) {
+    if (toast.body.empty())
+    {
         const auto title_size = g_fonts->MeasureText(title, kFontSize);
-        if (!title_size) {
+        if (!title_size)
+        {
             return nullptr;
         }
         size = {.width = title_size->width, .height = title_size->height + 20.0f};
-    } else {
+    }
+    else
+    {
         const auto title_size = g_fonts->MeasureText(title, kFontSize);
         const auto body_size = g_fonts->MeasureText(toast.body, kFontSize);
-        if (!title_size || !body_size) {
+        if (!title_size || !body_size)
+        {
             return nullptr;
         }
         size = {.width = std::max(title_size->width, body_size->width), .height = body_size->height + 50.0f};
@@ -108,13 +120,16 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
     background.SetCornerRadius(16.0f);
     background.SetBgColor(Color("@panel"));
 
-    if (toast.body.empty()) {
+    if (toast.body.empty())
+    {
         auto& heading = form->AddComponent<LabelComponent>("title", title);
         heading.SetRect({kPaddingX, 0.0f, text_width, size.height});
         heading.SetFontSize(kFontSize);
         heading.SetFgColor(Color("@text"));
         heading.SetCentered(true);
-    } else {
+    }
+    else
+    {
         auto& body = form->AddComponent<LabelComponent>("body", toast.body);
         body.SetRect({kPaddingX, 54.0f, text_width, size.height - 54.0f});
         body.SetFontSize(kFontSize);
@@ -133,7 +148,8 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
     }
 
     auto created = Compose::Create(std::move(form));
-    if (!created) {
+    if (!created)
+    {
         return nullptr;
     }
 
@@ -149,17 +165,20 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast> {
     return state;
 }
 
-auto Toast::Show(const ToastMessage& toast) -> void {
+auto Toast::Show(const ToastMessage& toast) -> void
+{
     ShowAt(toast, std::chrono::steady_clock::now());
 }
 
-auto Toast::ShowAt(const ToastMessage& toast, std::chrono::steady_clock::time_point instant) -> void {
+auto Toast::ShowAt(const ToastMessage& toast, std::chrono::steady_clock::time_point instant) -> void
+{
     const auto destroy_at = instant
                           + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                                 std::chrono::duration<float>(toast.timeout)
                           );
 
-    if (toast.sound && g_config->notifications_sound_enabled) {
+    if (toast.sound && g_config->notifications_sound_enabled)
+    {
         g_audio->PlayNotification();
     }
 
@@ -167,9 +186,11 @@ auto Toast::ShowAt(const ToastMessage& toast, std::chrono::steady_clock::time_po
     g_tasks->EnqueueAt(
         CreateOverlayTask{
             .selector = std::string(kToastName),
-            .create = [toast, destroy_at]() -> std::unique_ptr<View> {
+            .create = [toast, destroy_at]() -> std::unique_ptr<View>
+            {
                 auto created = Create(toast);
-                if (created) {
+                if (created)
+                {
                     created->AutoMovement();
                     g_tasks->EnqueueAt(DropOverlayTask{.selector = created->Id()}, destroy_at);
                 }
@@ -180,7 +201,8 @@ auto Toast::ShowAt(const ToastMessage& toast, std::chrono::steady_clock::time_po
     );
 }
 
-auto Toast::ShowError(std::string_view message) -> void {
+auto Toast::ShowError(std::string_view message) -> void
+{
     LOG_ERROR("{}", message);
     Show(ToastMessage{.topic = ToastTopic::System, .title = "Error", .body = std::string(message), .timeout = 3.0f});
 }

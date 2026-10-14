@@ -21,7 +21,8 @@
 #include <string>
 #include <string_view>
 
-class Utf16 final {
+class Utf16 final
+{
   public:
     static auto Narrow(std::wstring_view text) -> std::string;
 };

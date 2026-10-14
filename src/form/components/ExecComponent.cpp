@@ -24,7 +24,8 @@
 #include "Toast.hpp"
 #include "document/FormParser.hpp"
 
-auto ExecComponent::Parse(const nlohmann::json& json) -> ExecElement {
+auto ExecComponent::Parse(const nlohmann::json& json) -> ExecElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -34,17 +35,20 @@ auto ExecComponent::Parse(const nlohmann::json& json) -> ExecElement {
     };
 }
 
-auto ExecComponent::Serialize(nlohmann::ordered_json& json, const ExecElement& element) -> void {
+auto ExecComponent::Serialize(nlohmann::ordered_json& json, const ExecElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     json["command"] = element.command;
     json["interval"] = Json::ShortestFloat(element.interval);
 }
 
-auto ExecComponent::Create(FormComponent& parent, const ExecElement& element, const FormContext& context) -> ExecComponent& {
+auto ExecComponent::Create(FormComponent& parent, const ExecElement& element, const FormContext& context) -> ExecComponent&
+{
     auto& component = parent.AddComponent<ExecComponent>("", element.command, element.interval);
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
@@ -58,30 +62,40 @@ ExecComponent::ExecComponent(std::string name, std::vector<std::string> command,
       m_label(AddComponent<LabelComponent>("label")),
       m_command(std::move(command)),
       m_interval(interval),
-      m_last_exec(std::chrono::steady_clock::now()) {
+      m_last_exec(std::chrono::steady_clock::now())
+{
 }
 
-auto ExecComponent::Layout() -> void {
+auto ExecComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }
 
-auto ExecComponent::Update() -> void {
-    if (m_child) {
+auto ExecComponent::Update() -> void
+{
+    if (m_child)
+    {
         const auto status = m_child->TryWait();
-        if (!status) {
+        if (!status)
+        {
             m_child.reset();
             Toast::ShowError(std::format("Error checking child process: {}", status.error().Message()));
             return;
         }
-        if (!status->has_value()) {
+        if (!status->has_value())
+        {
             return;
         }
         auto child = std::move(*m_child);
         m_child.reset();
-        if ((*status)->Success()) {
-            if (const auto output = child.ReadStdout()) {
+        if ((*status)->Success())
+        {
+            if (const auto output = child.ReadStdout())
+            {
                 m_label.SetText(*output);
-            } else {
+            }
+            else
+            {
                 Toast::ShowError("LabelData::Exec: Failed to read stdout for child process");
             }
             return;
@@ -90,13 +104,17 @@ auto ExecComponent::Update() -> void {
     }
 
     const auto now = std::chrono::steady_clock::now();
-    if (std::chrono::duration<float>(now - m_last_exec).count() <= m_interval) {
+    if (std::chrono::duration<float>(now - m_last_exec).count() <= m_interval)
+    {
         return;
     }
     m_last_exec = now;
-    if (auto process = Process::Spawn(m_command, {.capture_stdout = true})) {
+    if (auto process = Process::Spawn(m_command, {.capture_stdout = true}))
+    {
         m_child.emplace(std::move(*process));
-    } else {
+    }
+    else
+    {
         Toast::ShowError(std::format("Failed to spawn process {}: {}", m_command, process.error().Message()));
     }
 }

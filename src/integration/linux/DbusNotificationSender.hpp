@@ -37,7 +37,8 @@
 
 struct DBusConnection;
 
-class DbusNotificationSender final {
+class DbusNotificationSender final
+{
   public:
     static auto Create() -> Result<std::unique_ptr<DbusNotificationSender>>;
 

@@ -39,7 +39,8 @@
 
 Device* g_device = nullptr;
 
-namespace {
+namespace
+{
 
 constexpr std::array kDmabufExtensions{
     VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
@@ -49,14 +50,17 @@ constexpr std::array kDmabufExtensions{
 
 constexpr uint32_t kDescriptorPoolSize = 1024;
 
-auto HasExtension(const std::vector<std::string>& extensions, std::string_view name) -> bool {
+auto HasExtension(const std::vector<std::string>& extensions, std::string_view name) -> bool
+{
     return std::ranges::find(extensions, name) != extensions.end();
 }
 
-auto DeviceTypePriority(VkPhysicalDevice physical_device) -> uint32_t {
+auto DeviceTypePriority(VkPhysicalDevice physical_device) -> uint32_t
+{
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(physical_device, &properties);
-    switch (properties.deviceType) {
+    switch (properties.deviceType)
+    {
     case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: return 0;
     case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return 1;
     case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: return 2;
@@ -65,46 +69,59 @@ auto DeviceTypePriority(VkPhysicalDevice physical_device) -> uint32_t {
     }
 }
 
-auto DeviceName(VkPhysicalDevice physical_device) -> std::string {
+auto DeviceName(VkPhysicalDevice physical_device) -> std::string
+{
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(physical_device, &properties);
     return properties.deviceName;
 }
 
 auto TryQueueFamilies(VkPhysicalDevice physical_device, std::vector<VkQueueFlags> requested)
-    -> std::optional<std::vector<QueueFamilyRequest>> {
+    -> std::optional<std::vector<QueueFamilyRequest>>
+{
     uint32_t count = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
     std::vector<VkQueueFamilyProperties> families(count);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &count, families.data());
 
     std::vector<QueueFamilyRequest> result;
-    for (uint32_t index = 0; index < count; ++index) {
+    for (uint32_t index = 0; index < count; ++index)
+    {
         auto remaining = families[index].queueCount;
         uint32_t wanted = 0;
-        std::erase_if(requested, [&](VkQueueFlags flags) -> bool {
-            if ((families[index].queueFlags & flags) != 0 && remaining > 0) {
-                --remaining;
-                ++wanted;
-                return true;
+        std::erase_if(
+            requested,
+            [&](VkQueueFlags flags) -> bool
+            {
+                if ((families[index].queueFlags & flags) != 0 && remaining > 0)
+                {
+                    --remaining;
+                    ++wanted;
+                    return true;
+                }
+                return false;
             }
-            return false;
-        });
-        if (wanted > 0) {
+        );
+        if (wanted > 0)
+        {
             result.push_back({.family = index, .count = wanted});
         }
     }
 
-    if (!requested.empty()) {
+    if (!requested.empty())
+    {
         return std::nullopt;
     }
     return result;
 }
 
-auto JoinNames(const std::vector<std::string>& names) -> std::string {
+auto JoinNames(const std::vector<std::string>& names) -> std::string
+{
     std::string joined;
-    for (const auto& name : names) {
-        if (!joined.empty()) {
+    for (const auto& name : names)
+    {
+        if (!joined.empty())
+        {
             joined += ", ";
         }
         joined += name;
@@ -114,15 +131,18 @@ auto JoinNames(const std::vector<std::string>& names) -> std::string {
 
 } // namespace
 
-auto Device::Create(const DeviceCreateInfo& create_info) -> Result<std::unique_ptr<Device>> {
+auto Device::Create(const DeviceCreateInfo& create_info) -> Result<std::unique_ptr<Device>>
+{
     auto device = std::unique_ptr<Device>(new Device());
     g_device = device.get();
     RETURN_IF_ERROR(device->Initialize(create_info));
     return device;
 }
 
-auto Device::FourccToFormat(uint32_t fourcc) -> Result<VkFormat> {
-    switch (fourcc) {
+auto Device::FourccToFormat(uint32_t fourcc) -> Result<VkFormat>
+{
+    switch (fourcc)
+    {
     case kDrmFormatAbgr8888:
     case kDrmFormatXbgr8888: return VK_FORMAT_R8G8B8A8_UNORM;
     case kDrmFormatArgb8888:
@@ -133,30 +153,36 @@ auto Device::FourccToFormat(uint32_t fourcc) -> Result<VkFormat> {
     }
 }
 
-auto Device::QueueFamilyLayout(VkPhysicalDevice physical_device) -> std::optional<std::vector<QueueFamilyRequest>> {
-    if (auto layout = TryQueueFamilies(physical_device, {VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT, VK_QUEUE_TRANSFER_BIT})) {
+auto Device::QueueFamilyLayout(VkPhysicalDevice physical_device) -> std::optional<std::vector<QueueFamilyRequest>>
+{
+    if (auto layout = TryQueueFamilies(physical_device, {VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT, VK_QUEUE_TRANSFER_BIT}))
+    {
         return layout;
     }
-    if (auto layout = TryQueueFamilies(physical_device, {VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT, VK_QUEUE_TRANSFER_BIT})) {
+    if (auto layout = TryQueueFamilies(physical_device, {VK_QUEUE_GRAPHICS_BIT, VK_QUEUE_TRANSFER_BIT, VK_QUEUE_TRANSFER_BIT}))
+    {
         return layout;
     }
     return TryQueueFamilies(physical_device, {VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT});
 }
 
-auto Device::SupportedDeviceExtensions(VkPhysicalDevice physical_device) -> std::vector<std::string> {
+auto Device::SupportedDeviceExtensions(VkPhysicalDevice physical_device) -> std::vector<std::string>
+{
     uint32_t count = 0;
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, nullptr);
     std::vector<VkExtensionProperties> properties(count);
     vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &count, properties.data());
     std::vector<std::string> names;
     names.reserve(count);
-    for (const auto& property : properties) {
+    for (const auto& property : properties)
+    {
         names.emplace_back(property.extensionName);
     }
     return names;
 }
 
-auto Device::Initialize(const DeviceCreateInfo& create_info) -> Result<> {
+auto Device::Initialize(const DeviceCreateInfo& create_info) -> Result<>
+{
     RETURN_IF_ERROR(CreateInstance(create_info));
     RETURN_IF_ERROR(SelectPhysicalDevice(create_info));
     RETURN_IF_ERROR(CreateLogicalDevice(create_info));
@@ -166,22 +192,28 @@ auto Device::Initialize(const DeviceCreateInfo& create_info) -> Result<> {
     return {};
 }
 
-auto Device::CreateInstance(const DeviceCreateInfo& create_info) -> Result<> {
+auto Device::CreateInstance(const DeviceCreateInfo& create_info) -> Result<>
+{
     std::vector<std::string> extensions = create_info.instance_extensions;
-    if (!HasExtension(extensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
+    if (!HasExtension(extensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+    {
         extensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
     }
 
     VkInstanceCreateFlags flags = 0;
-    if (!create_info.create_instance) {
+    if (!create_info.create_instance)
+    {
         uint32_t count = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
         std::vector<VkExtensionProperties> available(count);
         vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
-        const bool has_portability = std::ranges::any_of(available, [](const VkExtensionProperties& property) -> bool {
-            return std::strcmp(property.extensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0;
-        });
-        if (has_portability) {
+        const bool has_portability = std::ranges::any_of(
+            available,
+            [](const VkExtensionProperties& property) -> bool
+            { return std::strcmp(property.extensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0; }
+        );
+        if (has_portability)
+        {
             extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
             flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
@@ -204,69 +236,86 @@ auto Device::CreateInstance(const DeviceCreateInfo& create_info) -> Result<> {
         .ppEnabledExtensionNames = extension_names.data(),
     };
 
-    if (create_info.create_instance) {
+    if (create_info.create_instance)
+    {
         ASSIGN_OR_RETURN(m_instance, create_info.create_instance(instance_info));
         return {};
     }
-    if (const auto result = vkCreateInstance(&instance_info, nullptr, &m_instance); result != VK_SUCCESS) {
+    if (const auto result = vkCreateInstance(&instance_info, nullptr, &m_instance); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateInstance failed: {}", static_cast<int>(result)));
     }
     return {};
 }
 
-auto Device::SelectPhysicalDevice(const DeviceCreateInfo& create_info) -> Result<> {
-    const auto device_extensions_for = [&](VkPhysicalDevice physical_device) -> std::vector<std::string> {
+auto Device::SelectPhysicalDevice(const DeviceCreateInfo& create_info) -> Result<>
+{
+    const auto device_extensions_for = [&](VkPhysicalDevice physical_device) -> std::vector<std::string>
+    {
         auto extensions = create_info.required_device_extensions ? create_info.required_device_extensions(physical_device)
                                                                  : std::vector<std::string>{};
         const auto supported = SupportedDeviceExtensions(physical_device);
-        if (std::ranges::all_of(kDmabufExtensions, [&](const char* name) -> bool { return HasExtension(supported, name); })) {
-            for (const char* name : kDmabufExtensions) {
-                if (!HasExtension(extensions, name)) {
+        if (std::ranges::all_of(kDmabufExtensions, [&](const char* name) -> bool { return HasExtension(supported, name); }))
+        {
+            for (const char* name : kDmabufExtensions)
+            {
+                if (!HasExtension(extensions, name))
+                {
                     extensions.emplace_back(name);
                 }
             }
-            if (HasExtension(supported, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME)) {
+            if (HasExtension(supported, VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME))
+            {
                 extensions.emplace_back(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME);
             }
         }
-        if (HasExtension(supported, VK_EXT_FILTER_CUBIC_EXTENSION_NAME)) {
+        if (HasExtension(supported, VK_EXT_FILTER_CUBIC_EXTENSION_NAME))
+        {
             extensions.emplace_back(VK_EXT_FILTER_CUBIC_EXTENSION_NAME);
         }
         return extensions;
     };
 
-    if (create_info.select_physical_device) {
+    if (create_info.select_physical_device)
+    {
         ASSIGN_OR_RETURN(m_physical_device, create_info.select_physical_device(m_instance));
         auto layout = QueueFamilyLayout(m_physical_device);
-        if (!layout) {
+        if (!layout)
+        {
             return Unexpected("vkPhysicalDevice does not have a GRAPHICS / TRANSFER queue.");
         }
         m_queue_families = std::move(*layout);
         m_device_extensions = device_extensions_for(m_physical_device);
-    } else {
+    }
+    else
+    {
         uint32_t count = 0;
         vkEnumeratePhysicalDevices(m_instance, &count, nullptr);
         std::vector<VkPhysicalDevice> physical_devices(count);
         vkEnumeratePhysicalDevices(m_instance, &count, physical_devices.data());
 
         std::optional<uint32_t> best_score;
-        for (const auto physical_device : physical_devices) {
+        for (const auto physical_device : physical_devices)
+        {
             const auto supported = SupportedDeviceExtensions(physical_device);
             const auto required = create_info.required_device_extensions ? create_info.required_device_extensions(physical_device)
                                                                          : std::vector<std::string>{};
             const auto missing = required
                                | std::views::filter([&](const std::string& name) -> bool { return !HasExtension(supported, name); })
                                | std::ranges::to<std::vector<std::string>>();
-            if (!missing.empty()) {
+            if (!missing.empty())
+            {
                 LOG_DEBUG("Not using {} due to missing extensions:", DeviceName(physical_device));
-                for (const auto& name : missing) {
+                for (const auto& name : missing)
+                {
                     LOG_DEBUG("  {}", name);
                 }
                 continue;
             }
 
             auto layout = QueueFamilyLayout(physical_device);
-            if (!layout) {
+            if (!layout)
+            {
                 continue;
             }
 
@@ -275,21 +324,24 @@ auto Device::SelectPhysicalDevice(const DeviceCreateInfo& create_info) -> Result
 
             const auto family_priority = (layout->size() == 2 || layout->size() == 3) ? 0U : 1U;
             const auto score = DeviceTypePriority(physical_device) * 10 + family_priority;
-            if (!best_score || score < *best_score) {
+            if (!best_score || score < *best_score)
+            {
                 best_score = score;
                 m_physical_device = physical_device;
                 m_queue_families = std::move(*layout);
                 m_device_extensions = std::move(extensions);
             }
         }
-        if (!best_score) {
+        if (!best_score)
+        {
             FatalError("no suitable physical device found");
         }
     }
 
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(m_physical_device, &properties);
-    if (properties.apiVersion < VK_API_VERSION_1_3) {
+    if (properties.apiVersion < VK_API_VERSION_1_3)
+    {
         FatalError("Vulkan physical device doesn't support Vulkan 1.3");
     }
     LOG_INFO("Using vkPhysicalDevice: {}", properties.deviceName);
@@ -301,19 +353,23 @@ auto Device::SelectPhysicalDevice(const DeviceCreateInfo& create_info) -> Result
     return {};
 }
 
-auto Device::CreateLogicalDevice(const DeviceCreateInfo& create_info) -> Result<> {
+auto Device::CreateLogicalDevice(const DeviceCreateInfo& create_info) -> Result<>
+{
     LOG_DEBUG("Selected GPU queue families: {}", m_queue_families.size());
 
     const std::vector<float> priorities(3, 1.0f);
     const auto queue_infos = m_queue_families
-                           | std::views::transform([&](const QueueFamilyRequest& request) -> VkDeviceQueueCreateInfo {
-                                 return {
-                                     .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-                                     .queueFamilyIndex = request.family,
-                                     .queueCount = request.count,
-                                     .pQueuePriorities = priorities.data(),
-                                 };
-                             })
+                           | std::views::transform(
+                                 [&](const QueueFamilyRequest& request) -> VkDeviceQueueCreateInfo
+                                 {
+                                     return {
+                                         .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                                         .queueFamilyIndex = request.family,
+                                         .queueCount = request.count,
+                                         .pQueuePriorities = priorities.data(),
+                                     };
+                                 }
+                           )
                            | std::ranges::to<std::vector>();
 
     const auto extension_names = m_device_extensions | std::views::transform(&std::string::c_str) | std::ranges::to<std::vector>();
@@ -331,9 +387,12 @@ auto Device::CreateLogicalDevice(const DeviceCreateInfo& create_info) -> Result<
         .ppEnabledExtensionNames = extension_names.data(),
     };
 
-    if (create_info.create_device) {
+    if (create_info.create_device)
+    {
         ASSIGN_OR_RETURN(m_device, create_info.create_device(m_physical_device, device_info));
-    } else if (const auto result = vkCreateDevice(m_physical_device, &device_info, nullptr, &m_device); result != VK_SUCCESS) {
+    }
+    else if (const auto result = vkCreateDevice(m_physical_device, &device_info, nullptr, &m_device); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateDevice failed: {}", static_cast<int>(result)));
     }
 
@@ -341,43 +400,52 @@ auto Device::CreateLogicalDevice(const DeviceCreateInfo& create_info) -> Result<
     LOG_DEBUG("  DRM format modifiers supported: {}", m_supports_drm_modifiers);
 
     std::vector<std::unique_ptr<Queue>> queues;
-    for (const auto& request : m_queue_families) {
-        for (uint32_t index = 0; index < request.count; ++index) {
+    for (const auto& request : m_queue_families)
+    {
+        for (uint32_t index = 0; index < request.count; ++index)
+        {
             VkQueue queue = VK_NULL_HANDLE;
             vkGetDeviceQueue(m_device, request.family, index, &queue);
             queues.push_back(std::make_unique<Queue>(queue, request.family));
         }
     }
 
-    if (queues.empty()) {
+    if (queues.empty())
+    {
         return Unexpected("The selected device exposes no queues");
     }
     m_graphics_queue = std::move(queues.front());
     m_transfer_queue = m_graphics_queue.get();
-    if (queues.size() == 3) {
+    if (queues.size() == 3)
+    {
         m_transfer_queue_owned = std::move(queues[1]);
         m_transfer_queue = m_transfer_queue_owned.get();
         m_capture_queue = std::move(queues.back());
-    } else if (queues.size() == 2) {
+    }
+    else if (queues.size() == 2)
+    {
         m_capture_queue = std::move(queues.back());
     }
     return {};
 }
 
-auto Device::CreateAllocator() -> Result<> {
+auto Device::CreateAllocator() -> Result<>
+{
     const VmaAllocatorCreateInfo allocator_info{
         .physicalDevice = m_physical_device,
         .device = m_device,
         .instance = m_instance,
         .vulkanApiVersion = VK_API_VERSION_1_3,
     };
-    if (const auto result = vmaCreateAllocator(&allocator_info, &m_allocator); result != VK_SUCCESS) {
+    if (const auto result = vmaCreateAllocator(&allocator_info, &m_allocator); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vmaCreateAllocator failed: {}", static_cast<int>(result)));
     }
     return {};
 }
 
-auto Device::CreateQuad() -> Result<> {
+auto Device::CreateQuad() -> Result<>
+{
     constexpr std::array kVertices{
         Vertex{.position = {0.0f, 0.0f}, .uv = {0.0f, 0.0f}},
         Vertex{.position = {0.0f, 1.0f}, .uv = {0.0f, 1.0f}},
@@ -393,7 +461,8 @@ auto Device::CreateQuad() -> Result<> {
     return {};
 }
 
-auto Device::QueryDrmFormats() -> void {
+auto Device::QueryDrmFormats() -> void
+{
     constexpr std::array kCandidates{
         kDrmFormatAbgr8888,
         kDrmFormatXbgr8888,
@@ -403,9 +472,11 @@ auto Device::QueryDrmFormats() -> void {
         kDrmFormatXbgr2101010,
     };
 
-    for (const auto fourcc : kCandidates) {
+    for (const auto fourcc : kCandidates)
+    {
         const auto format = FourccToFormat(fourcc);
-        if (!format) {
+        if (!format)
+        {
             continue;
         }
 
@@ -417,14 +488,17 @@ auto Device::QueryDrmFormats() -> void {
         vkGetPhysicalDeviceFormatProperties2(m_physical_device, *format, &properties);
 
         std::vector<VkDrmFormatModifierPropertiesEXT> modifiers(modifier_list.drmFormatModifierCount);
-        if (m_supports_drm_modifiers && !modifiers.empty()) {
+        if (m_supports_drm_modifiers && !modifiers.empty())
+        {
             modifier_list.pDrmFormatModifierProperties = modifiers.data();
             vkGetPhysicalDeviceFormatProperties2(m_physical_device, *format, &properties);
         }
 
         DrmFormat drm_format{.fourcc = fourcc};
-        for (const auto& modifier : modifiers) {
-            if (modifier.drmFormatModifierPlaneCount == 1) {
+        for (const auto& modifier : modifiers)
+        {
+            if (modifier.drmFormatModifierPlaneCount == 1)
+            {
                 drm_format.modifiers.push_back(modifier.drmFormatModifier);
             }
         }
@@ -433,13 +507,16 @@ auto Device::QueryDrmFormats() -> void {
     }
 
     LOG_DEBUG("Supported DRM formats:");
-    for (const auto& format : m_drm_formats) {
+    for (const auto& format : m_drm_formats)
+    {
         LOG_DEBUG("  {} {}", FourccToString(format.fourcc), format.modifiers.size());
     }
 }
 
-Device::~Device() {
-    if (m_device == VK_NULL_HANDLE) {
+Device::~Device()
+{
+    if (m_device == VK_NULL_HANDLE)
+    {
         g_device = nullptr;
         return;
     }
@@ -447,24 +524,29 @@ Device::~Device() {
     CollectFinished();
     m_quad_vertices.reset();
     m_quad_indices.reset();
-    for (const auto& [family, pool] : m_free_command_pools) {
+    for (const auto& [family, pool] : m_free_command_pools)
+    {
         vkDestroyCommandPool(m_device, pool, nullptr);
     }
-    for (const auto pool : m_descriptor_pools) {
+    for (const auto pool : m_descriptor_pools)
+    {
         vkDestroyDescriptorPool(m_device, pool, nullptr);
     }
-    for (const auto& [filter, sampler] : m_samplers) {
+    for (const auto& [filter, sampler] : m_samplers)
+    {
         vkDestroySampler(m_device, sampler, nullptr);
     }
     vmaDestroyAllocator(m_allocator);
     vkDestroyDevice(m_device, nullptr);
-    if (m_owns_instance) {
+    if (m_owns_instance)
+    {
         vkDestroyInstance(m_instance, nullptr);
     }
     g_device = nullptr;
 }
 
-auto Device::CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer> {
+auto Device::CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer>
+{
     ASSIGN_OR_RETURN(const auto pool, AcquireCommandPool(queue.Family()));
 
     const VkCommandBufferAllocateInfo allocate_info{
@@ -474,7 +556,8 @@ auto Device::CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer> {
         .commandBufferCount = 1,
     };
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-    if (const auto result = vkAllocateCommandBuffers(m_device, &allocate_info, &command_buffer); result != VK_SUCCESS) {
+    if (const auto result = vkAllocateCommandBuffers(m_device, &allocate_info, &command_buffer); result != VK_SUCCESS)
+    {
         ReleaseCommandPool(queue.Family(), pool);
         return Unexpected(std::format("vkAllocateCommandBuffers failed: {}", static_cast<int>(result)));
     }
@@ -487,24 +570,29 @@ auto Device::CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer> {
     return CommandBuffer(queue, pool, command_buffer);
 }
 
-auto Device::CreatePipeline(const ShaderProgram& program, VkFormat format, Blend blend) -> Result<std::shared_ptr<Pipeline>> {
-    const auto create_module = [&](std::span<const unsigned char> code) -> Result<VkShaderModule> {
+auto Device::CreatePipeline(const ShaderProgram& program, VkFormat format, Blend blend) -> Result<std::shared_ptr<Pipeline>>
+{
+    const auto create_module = [&](std::span<const unsigned char> code) -> Result<VkShaderModule>
+    {
         const VkShaderModuleCreateInfo module_info{
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .codeSize = code.size(),
             .pCode = reinterpret_cast<const uint32_t*>(code.data()),
         };
         VkShaderModule module = VK_NULL_HANDLE;
-        if (const auto result = vkCreateShaderModule(m_device, &module_info, nullptr, &module); result != VK_SUCCESS) {
+        if (const auto result = vkCreateShaderModule(m_device, &module_info, nullptr, &module); result != VK_SUCCESS)
+        {
             return Unexpected(std::format("vkCreateShaderModule failed: {}", static_cast<int>(result)));
         }
         return module;
     };
 
     std::vector<VkDescriptorSetLayout> set_layouts;
-    for (const auto kind : program.descriptor_sets) {
+    for (const auto kind : program.descriptor_sets)
+    {
         std::vector<VkDescriptorSetLayoutBinding> bindings;
-        if (kind == DescriptorKind::Texture) {
+        if (kind == DescriptorKind::Texture)
+        {
             bindings.push_back(
                 {.binding = 0,
                  .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -517,7 +605,9 @@ auto Device::CreatePipeline(const ShaderProgram& program, VkFormat format, Blend
                  .descriptorCount = 1,
                  .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT}
             );
-        } else {
+        }
+        else
+        {
             bindings.push_back(
                 {.binding = 0,
                  .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -613,7 +703,8 @@ auto Device::CreatePipeline(const ShaderProgram& program, VkFormat format, Blend
     VkPipelineColorBlendAttachmentState blend_attachment{
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
-    switch (blend) {
+    switch (blend)
+    {
     case Blend::Disabled: break;
     case Blend::SquareSource:
         blend_attachment.blendEnable = VK_TRUE;
@@ -679,18 +770,21 @@ auto Device::CreatePipeline(const ShaderProgram& program, VkFormat format, Blend
     const auto result = vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline);
     vkDestroyShaderModule(m_device, vertex_module, nullptr);
     vkDestroyShaderModule(m_device, fragment_module, nullptr);
-    if (result != VK_SUCCESS) {
+    if (result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateGraphicsPipelines failed: {}", static_cast<int>(result)));
     }
     return std::make_shared<Pipeline>(pipeline, pipeline_layout, std::move(set_layouts), format);
 }
 
 auto Device::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkImageLayout final_layout)
-    -> Result<std::shared_ptr<Image>> {
+    -> Result<std::shared_ptr<Image>>
+{
     std::set<uint32_t> families;
     families.insert(m_graphics_queue->Family());
     families.insert(m_transfer_queue->Family());
-    if (m_capture_queue) {
+    if (m_capture_queue)
+    {
         families.insert(m_capture_queue->Family());
     }
     const std::vector<uint32_t> family_list(families.begin(), families.end());
@@ -715,7 +809,8 @@ auto Device::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkIma
     ImageResources resources{};
     if (const auto
             result = vmaCreateImage(m_allocator, &image_info, &allocation_info, &resources.image, &resources.allocation, nullptr);
-        result != VK_SUCCESS) {
+        result != VK_SUCCESS)
+    {
         return Unexpected(std::format("Failed to create {}x{} image: {}", width, height, static_cast<int>(result)));
     }
 
@@ -741,7 +836,8 @@ auto Device::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkIma
 }
 
 auto Device::CreateRenderTexture(uint32_t width, uint32_t height, VkFormat format, VkImageLayout final_layout)
-    -> Result<std::shared_ptr<Image>> {
+    -> Result<std::shared_ptr<Image>>
+{
     LOG_DEBUG("Render texture: {}x{} {}MB", width, height, (width * height * 4) / (1024 * 1024));
     return CreateImage(
         width,
@@ -753,7 +849,8 @@ auto Device::CreateRenderTexture(uint32_t width, uint32_t height, VkFormat forma
 }
 
 auto Device::WrapImage(VkImage image, VkFormat format, VkExtent2D extent, VkImageLayout final_layout)
-    -> Result<std::shared_ptr<Image>> {
+    -> Result<std::shared_ptr<Image>>
+{
     ImageResources resources{.image = image, .owns_image = false};
     const VkImageViewCreateInfo view_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -762,7 +859,8 @@ auto Device::WrapImage(VkImage image, VkFormat format, VkExtent2D extent, VkImag
         .format = format,
         .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1},
     };
-    if (const auto result = vkCreateImageView(m_device, &view_info, nullptr, &resources.view); result != VK_SUCCESS) {
+    if (const auto result = vkCreateImageView(m_device, &view_info, nullptr, &resources.view); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateImageView failed: {}", static_cast<int>(result)));
     }
     return std::make_shared<Image>(
@@ -777,24 +875,31 @@ auto Device::WrapImage(VkImage image, VkFormat format, VkExtent2D extent, VkImag
     );
 }
 
-auto Device::ImportDmabuf(const DmabufFrame& frame) -> Result<std::shared_ptr<Image>> {
-    if (frame.format.modifier == kDrmFormatModInvalid) {
+auto Device::ImportDmabuf(const DmabufFrame& frame) -> Result<std::shared_ptr<Image>>
+{
+    if (frame.format.modifier == kDrmFormatModInvalid)
+    {
         return ImportDmabuf(frame, {});
     }
     const std::vector<uint64_t> modifiers(frame.planes.size(), frame.format.modifier);
     return ImportDmabuf(frame, modifiers);
 }
 
-auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> modifiers) -> Result<std::shared_ptr<Image>> {
+auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> modifiers) -> Result<std::shared_ptr<Image>>
+{
     ASSIGN_OR_RETURN(const auto format, FourccToFormat(frame.format.fourcc));
-    if (frame.planes.empty() || frame.planes.front().fd < 0) {
+    if (frame.planes.empty() || frame.planes.front().fd < 0)
+    {
         return Unexpected("DMA-buf plane has no FD");
     }
 
-    const auto plane_layouts = frame.planes | std::views::transform([](const FramePlane& plane) -> VkSubresourceLayout {
-                                   return {.offset = plane.offset, .size = 0, .rowPitch = static_cast<VkDeviceSize>(plane.stride)};
-                               })
-                             | std::ranges::to<std::vector>();
+    const auto
+        plane_layouts = frame.planes
+                      | std::views::transform(
+                            [](const FramePlane& plane) -> VkSubresourceLayout
+                            { return {.offset = plane.offset, .size = 0, .rowPitch = static_cast<VkDeviceSize>(plane.stride)}; }
+                      )
+                      | std::ranges::to<std::vector>();
 
     const VkExternalMemoryImageCreateInfo external_info{
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
@@ -816,10 +921,13 @@ auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> mo
 
     const void* next = &external_info;
     auto tiling = VK_IMAGE_TILING_OPTIMAL;
-    if (modifiers.size() == 1) {
+    if (modifiers.size() == 1)
+    {
         next = &explicit_info;
         tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
-    } else if (modifiers.size() > 1) {
+    }
+    else if (modifiers.size() > 1)
+    {
         next = &list_info;
         tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
     }
@@ -840,7 +948,8 @@ auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> mo
     };
 
     ImageResources resources{};
-    if (const auto result = vkCreateImage(m_device, &image_info, nullptr, &resources.image); result != VK_SUCCESS) {
+    if (const auto result = vkCreateImage(m_device, &image_info, nullptr, &resources.image); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateImage for DMA-buf failed: {}", static_cast<int>(result)));
     }
     VkMemoryRequirements requirements{};
@@ -849,20 +958,24 @@ auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> mo
     VkPhysicalDeviceMemoryProperties memory_properties{};
     vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
     std::optional<uint32_t> memory_type;
-    for (uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index) {
+    for (uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
+    {
         if ((requirements.memoryTypeBits & (1U << index)) != 0
-            && (memory_properties.memoryTypes[index].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0) {
+            && (memory_properties.memoryTypes[index].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0)
+        {
             memory_type = index;
             break;
         }
     }
-    if (!memory_type) {
+    if (!memory_type)
+    {
         vkDestroyImage(m_device, resources.image, nullptr);
         return Unexpected("failed to get memory type index");
     }
 
     const int fd = dup(frame.planes.front().fd);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         vkDestroyImage(m_device, resources.image, nullptr);
         return Unexpected("Failed to duplicate DMA-buf FD");
     }
@@ -884,12 +997,14 @@ auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> mo
     };
 
     VkDeviceMemory memory = VK_NULL_HANDLE;
-    if (const auto result = vkAllocateMemory(m_device, &allocate_info, nullptr, &memory); result != VK_SUCCESS) {
+    if (const auto result = vkAllocateMemory(m_device, &allocate_info, nullptr, &memory); result != VK_SUCCESS)
+    {
         close(fd);
         vkDestroyImage(m_device, resources.image, nullptr);
         return Unexpected(std::format("Failed to import DMA-buf memory: {}", static_cast<int>(result)));
     }
-    if (const auto result = vkBindImageMemory(m_device, resources.image, memory, 0); result != VK_SUCCESS) {
+    if (const auto result = vkBindImageMemory(m_device, resources.image, memory, 0); result != VK_SUCCESS)
+    {
         vkFreeMemory(m_device, memory, nullptr);
         vkDestroyImage(m_device, resources.image, nullptr);
         return Unexpected(std::format("Failed to bind memory to image: {}", static_cast<int>(result)));
@@ -917,7 +1032,8 @@ auto Device::ImportDmabuf(const DmabufFrame& frame, std::span<const uint64_t> mo
     );
 }
 
-auto Device::UploadVertices(VkExtent2D canvas, float x, float y, float width, float height) -> Result<std::shared_ptr<Buffer>> {
+auto Device::UploadVertices(VkExtent2D canvas, float x, float y, float width, float height) -> Result<std::shared_ptr<Buffer>>
+{
     const auto canvas_width = static_cast<float>(canvas.width);
     const auto canvas_height = static_cast<float>(canvas.height);
     const auto x0 = x / canvas_width;
@@ -936,9 +1052,11 @@ auto Device::UploadVertices(VkExtent2D canvas, float x, float y, float width, fl
     return buffer;
 }
 
-auto Device::Sampler(VkFilter filter) -> VkSampler {
+auto Device::Sampler(VkFilter filter) -> VkSampler
+{
     std::scoped_lock lock(m_sampler_mutex);
-    if (const auto it = m_samplers.find(filter); it != m_samplers.end()) {
+    if (const auto it = m_samplers.find(filter); it != m_samplers.end())
+    {
         return it->second;
     }
     const VkSamplerCreateInfo sampler_info{
@@ -958,9 +1076,11 @@ auto Device::Sampler(VkFilter filter) -> VkSampler {
     return sampler;
 }
 
-auto Device::AllocateDescriptorSet(VkDescriptorSetLayout layout) -> Result<std::pair<VkDescriptorPool, VkDescriptorSet>> {
+auto Device::AllocateDescriptorSet(VkDescriptorSetLayout layout) -> Result<std::pair<VkDescriptorPool, VkDescriptorSet>>
+{
     std::scoped_lock lock(m_descriptor_mutex);
-    for (const auto pool : m_descriptor_pools | std::views::reverse) {
+    for (const auto pool : m_descriptor_pools | std::views::reverse)
+    {
         const VkDescriptorSetAllocateInfo allocate_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = pool,
@@ -968,7 +1088,8 @@ auto Device::AllocateDescriptorSet(VkDescriptorSetLayout layout) -> Result<std::
             .pSetLayouts = &layout,
         };
         VkDescriptorSet set = VK_NULL_HANDLE;
-        if (vkAllocateDescriptorSets(m_device, &allocate_info, &set) == VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(m_device, &allocate_info, &set) == VK_SUCCESS)
+        {
             return std::pair{pool, set};
         }
     }
@@ -986,7 +1107,8 @@ auto Device::AllocateDescriptorSet(VkDescriptorSetLayout layout) -> Result<std::
         .pPoolSizes = pool_sizes.data(),
     };
     VkDescriptorPool pool = VK_NULL_HANDLE;
-    if (const auto result = vkCreateDescriptorPool(m_device, &pool_info, nullptr, &pool); result != VK_SUCCESS) {
+    if (const auto result = vkCreateDescriptorPool(m_device, &pool_info, nullptr, &pool); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateDescriptorPool failed: {}", static_cast<int>(result)));
     }
     m_descriptor_pools.push_back(pool);
@@ -998,21 +1120,25 @@ auto Device::AllocateDescriptorSet(VkDescriptorSetLayout layout) -> Result<std::
         .pSetLayouts = &layout,
     };
     VkDescriptorSet set = VK_NULL_HANDLE;
-    if (const auto result = vkAllocateDescriptorSets(m_device, &allocate_info, &set); result != VK_SUCCESS) {
+    if (const auto result = vkAllocateDescriptorSets(m_device, &allocate_info, &set); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkAllocateDescriptorSets failed: {}", static_cast<int>(result)));
     }
     return std::pair{pool, set};
 }
 
-auto Device::FreeDescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) -> void {
+auto Device::FreeDescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) -> void
+{
     std::scoped_lock lock(m_descriptor_mutex);
     vkFreeDescriptorSets(m_device, pool, 1, &set);
 }
 
-auto Device::AcquireCommandPool(uint32_t family) -> Result<VkCommandPool> {
+auto Device::AcquireCommandPool(uint32_t family) -> Result<VkCommandPool>
+{
     {
         std::scoped_lock lock(m_submission_mutex);
-        if (const auto it = m_free_command_pools.find(family); it != m_free_command_pools.end()) {
+        if (const auto it = m_free_command_pools.find(family); it != m_free_command_pools.end())
+        {
             const auto pool = it->second;
             m_free_command_pools.erase(it);
             return pool;
@@ -1024,38 +1150,46 @@ auto Device::AcquireCommandPool(uint32_t family) -> Result<VkCommandPool> {
         .queueFamilyIndex = family,
     };
     VkCommandPool pool = VK_NULL_HANDLE;
-    if (const auto result = vkCreateCommandPool(m_device, &pool_info, nullptr, &pool); result != VK_SUCCESS) {
+    if (const auto result = vkCreateCommandPool(m_device, &pool_info, nullptr, &pool); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateCommandPool failed: {}", static_cast<int>(result)));
     }
     return pool;
 }
 
-auto Device::ReleaseCommandPool(uint32_t family, VkCommandPool pool) -> void {
+auto Device::ReleaseCommandPool(uint32_t family, VkCommandPool pool) -> void
+{
     vkResetCommandPool(m_device, pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
     std::scoped_lock lock(m_submission_mutex);
     m_free_command_pools.emplace(family, pool);
 }
 
-auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffers, Submission submission, bool wait) -> Result<> {
+auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffers, Submission submission, bool wait) -> Result<>
+{
     CollectFinished();
 
     const VkFenceCreateInfo fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-    if (const auto result = vkCreateFence(m_device, &fence_info, nullptr, &submission.fence); result != VK_SUCCESS) {
+    if (const auto result = vkCreateFence(m_device, &fence_info, nullptr, &submission.fence); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkCreateFence failed: {}", static_cast<int>(result)));
     }
 
-    if (auto result = queue.Submit(command_buffers, submission.fence); !result) {
+    if (auto result = queue.Submit(command_buffers, submission.fence); !result)
+    {
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools) {
+        for (const auto& [family, pool] : submission.pools)
+        {
             ReleaseCommandPool(family, pool);
         }
         return result;
     }
 
-    if (wait) {
+    if (wait)
+    {
         vkWaitForFences(m_device, 1, &submission.fence, VK_TRUE, UINT64_MAX);
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools) {
+        for (const auto& [family, pool] : submission.pools)
+        {
             ReleaseCommandPool(family, pool);
         }
         return {};
@@ -1066,19 +1200,23 @@ auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffe
     return {};
 }
 
-auto Device::CollectFinished() -> void {
+auto Device::CollectFinished() -> void
+{
     std::vector<Submission> finished;
     {
         std::scoped_lock lock(m_submission_mutex);
-        const auto done = std::ranges::partition(m_in_flight, [&](const Submission& submission) -> bool {
-            return vkGetFenceStatus(m_device, submission.fence) == VK_NOT_READY;
-        });
+        const auto done = std::ranges::partition(
+            m_in_flight,
+            [&](const Submission& submission) -> bool { return vkGetFenceStatus(m_device, submission.fence) == VK_NOT_READY; }
+        );
         std::ranges::move(done, std::back_inserter(finished));
         m_in_flight.erase(done.begin(), done.end());
     }
-    for (auto& submission : finished) {
+    for (auto& submission : finished)
+    {
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools) {
+        for (const auto& [family, pool] : submission.pools)
+        {
             ReleaseCommandPool(family, pool);
         }
     }

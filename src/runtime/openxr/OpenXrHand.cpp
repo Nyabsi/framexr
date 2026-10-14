@@ -28,11 +28,13 @@
 #include "OpenXrInstance.hpp"
 #include "OpenXrPose.hpp"
 
-auto OpenXrHand::Update(LaserPointer& pointer, const OpenXrState& xr) -> Result<> {
+auto OpenXrHand::Update(LaserPointer& pointer, const OpenXrState& xr) -> Result<>
+{
     XrSpaceLocation location{.type = XR_TYPE_SPACE_LOCATION};
     RETURN_IF_ERROR(xr.instance->Check(xrLocateSpace(m_space, xr.stage, xr.predicted_display_time, &location)));
 
-    if ((location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
+    if ((location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0)
+    {
         const Eigen::Quaternionf current_rotation(Eigen::Matrix3f(pointer.Pose().linear()));
         const Eigen::Vector3f current_position = pointer.Pose().translation();
         const auto new_rotation = OpenXrPose::ToQuaternion(location.pose.orientation);

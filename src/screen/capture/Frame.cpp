@@ -21,9 +21,11 @@
 
 #include "Frame.hpp"
 
-auto FourccToString(uint32_t fourcc) -> std::string {
+auto FourccToString(uint32_t fourcc) -> std::string
+{
     std::string text;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i)
+    {
         text.push_back(static_cast<char>((fourcc >> (i * 8)) & 0xFF));
     }
     return text;

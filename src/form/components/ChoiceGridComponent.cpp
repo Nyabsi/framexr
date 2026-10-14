@@ -32,28 +32,36 @@ ChoiceGridComponent::ChoiceGridComponent(
 )
     : FormComponent(std::move(name)),
       m_columns(columns),
-      m_row_height(row_height) {
-    for (size_t i = 0; i < choices.size(); ++i) {
+      m_row_height(row_height)
+{
+    for (size_t i = 0; i < choices.size(); ++i)
+    {
         const bool chosen = selected == i;
         auto& choice = AddComponent<ButtonComponent>(choices[i], choices[i]);
         choice.SetFontSize(kFontSize);
         choice.SetFgColor(FormTheme::Rgba(chosen ? "@on-accent" : "@text"));
         choice.SetBgColor(FormTheme::Rgba(chosen ? "@accent" : "@surface"));
         choice.SetEllipsize(true);
-        choice.SetOnRelease([this, i]() -> void {
-            if (m_on_choose) {
-                m_on_choose(i);
+        choice.SetOnRelease(
+            [this, i]() -> void
+            {
+                if (m_on_choose)
+                {
+                    m_on_choose(i);
+                }
             }
-        });
+        );
     }
     const size_t rows = (choices.size() + columns - 1) / columns;
     SetSize({0.0f, rows == 0 ? 0.0f : static_cast<float>(rows) * (row_height + kGap) - kGap});
 }
 
-auto ChoiceGridComponent::Layout() -> void {
+auto ChoiceGridComponent::Layout() -> void
+{
     const float width = (Size().x() - kGap * static_cast<float>(m_columns - 1)) / static_cast<float>(m_columns);
     const auto& children = Children();
-    for (size_t i = 0; i < children.size(); ++i) {
+    for (size_t i = 0; i < children.size(); ++i)
+    {
         const auto column = static_cast<float>(i % m_columns);
         const auto row = static_cast<float>(i / m_columns);
         children[i]->SetRect({column * (width + kGap), row * (m_row_height + kGap), width, m_row_height});

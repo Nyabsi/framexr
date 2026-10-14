@@ -36,30 +36,35 @@
 #include "TaskQueue.hpp"
 #include "VirtualKeys.hpp"
 
-enum class PressRelease : uint8_t {
+enum class PressRelease : uint8_t
+{
     Release,
     Press,
 };
 
-enum class ViewAngleKind : uint8_t {
+enum class ViewAngleKind : uint8_t
+{
     MinOpacity,
     MaxOpacity,
 };
 
-enum class Axis : uint8_t {
+enum class Axis : uint8_t
+{
     X,
     Y,
     Z,
 };
 
-enum class HighlightTest : uint8_t {
+enum class HighlightTest : uint8_t
+{
     AllowSliding,
     NotificationSounds,
     Notifications,
     RotateLock,
 };
 
-enum class SystemAction : uint8_t {
+enum class SystemAction : uint8_t
+{
     ToggleAllowSliding,
     Recenter,
     ShowHide,
@@ -74,102 +79,130 @@ enum class SystemAction : uint8_t {
     Edit,
 };
 
-enum class WindowAction : uint8_t {
+enum class WindowAction : uint8_t
+{
     ShowMirror,
     ShowUi,
     Destroy,
 };
 
-struct WatchHide {};
+struct WatchHide
+{
+};
 
-struct WatchSwitchHands {};
+struct WatchSwitchHands
+{
+};
 
-struct WatchViewAngle {
+struct WatchViewAngle
+{
     ViewAngleKind kind = ViewAngleKind::MinOpacity;
     float delta = 0.0f;
 };
 
-struct WatchRotation {
+struct WatchRotation
+{
     Axis axis = Axis::X;
     float delta = 0.0f;
 };
 
-struct WatchPosition {
+struct WatchPosition
+{
     Axis axis = Axis::X;
     float delta = 0.0f;
 };
 
 using WatchAction = std::variant<WatchHide, WatchSwitchHands, WatchViewAngle, WatchRotation, WatchPosition>;
 
-struct OverlayToggleVisible {};
+struct OverlayToggleVisible
+{
+};
 
-struct OverlayToggleImmovable {};
+struct OverlayToggleImmovable
+{
+};
 
-struct OverlayToggleInteraction {};
+struct OverlayToggleInteraction
+{
+};
 
-struct OverlayOpacity {
+struct OverlayOpacity
+{
     float delta = 0.0f;
 };
 
 using OverlayAction = std::variant<OverlayToggleVisible, OverlayToggleImmovable, OverlayToggleInteraction, OverlayOpacity>;
 
-struct ExecButtonAction {
+struct ExecButtonAction
+{
     std::vector<std::string> command;
     std::optional<std::string> toast;
 };
 
-struct VirtualKeyButtonAction {
+struct VirtualKeyButtonAction
+{
     VirtualKey keycode = VirtualKey::Escape;
     PressRelease action = PressRelease::Press;
 };
 
-struct WatchButtonAction {
+struct WatchButtonAction
+{
     WatchAction action;
 };
 
-struct OverlayButtonAction {
+struct OverlayButtonAction
+{
     OverlaySelector target;
     OverlayAction action;
 };
 
-struct WindowButtonAction {
+struct WindowButtonAction
+{
     std::string target;
     WindowAction action = WindowAction::ShowUi;
 };
 
-struct ToastButtonAction {
+struct ToastButtonAction
+{
     std::string message;
     std::optional<std::string> body;
     std::optional<float> seconds;
 };
 
-struct ColorAdjustButtonAction {
+struct ColorAdjustButtonAction
+{
     ColorChannel channel = ColorChannel::All;
     float delta = 0.0f;
 };
 
-struct DragMultiplierButtonAction {
+struct DragMultiplierButtonAction
+{
     float delta = 0.0f;
 };
 
-struct SystemButtonAction {
+struct SystemButtonAction
+{
     SystemAction action = SystemAction::PersistConfig;
 };
 
-struct SendOscButtonAction {
+struct SendOscButtonAction
+{
     std::string parameter;
     std::optional<std::vector<OscValue>> values;
 };
 
-struct ShortcutButtonAction {
+struct ShortcutButtonAction
+{
     std::vector<VirtualKey> keys;
 };
 
-struct TypeTextButtonAction {
+struct TypeTextButtonAction
+{
     std::string text;
 };
 
-struct KeyboardProfileButtonAction {
+struct KeyboardProfileButtonAction
+{
     std::optional<std::string> profile;
 };
 
@@ -188,7 +221,8 @@ using ButtonAction = std::variant<
     TypeTextButtonAction,
     KeyboardProfileButtonAction>;
 
-struct ButtonData {
+struct ButtonData
+{
     std::optional<std::vector<ButtonAction>> click_down;
     std::optional<std::vector<ButtonAction>> click_up;
     std::optional<std::vector<ButtonAction>> long_click_up;

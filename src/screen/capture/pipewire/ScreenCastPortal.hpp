@@ -35,18 +35,21 @@
 struct DBusConnection;
 struct DBusMessageIter;
 
-struct PipewireStream {
+struct PipewireStream
+{
     uint32_t node_id = 0;
     std::optional<Eigen::Vector2i> position;
     std::optional<Eigen::Vector2i> size;
 };
 
-struct ScreenSelection {
+struct ScreenSelection
+{
     std::vector<PipewireStream> streams;
     std::optional<std::string> restore_token;
 };
 
-struct ScreenCastOptions {
+struct ScreenCastOptions
+{
     std::optional<std::string> restore_token;
     bool embed_mouse = false;
     bool screens_only = false;
@@ -54,7 +57,8 @@ struct ScreenCastOptions {
     bool multiple = false;
 };
 
-enum class PortalCursorMode : uint8_t {
+enum class PortalCursorMode : uint8_t
+{
     Hidden = 1,
     Embedded = 2,
     Metadata = 4,
@@ -63,7 +67,8 @@ enum class PortalCursorMode : uint8_t {
 using PortalOptionWriter = std::function<void(DBusMessageIter& dictionary)>;
 using PortalResultVisitor = std::function<void(const std::string& key, DBusMessageIter& variant)>;
 
-class ScreenCastPortal final {
+class ScreenCastPortal final
+{
   public:
     static auto SelectScreen(ScreenCastOptions options) -> std::future<Result<ScreenSelection>>;
 

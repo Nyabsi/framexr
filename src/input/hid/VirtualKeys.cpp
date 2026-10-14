@@ -25,7 +25,8 @@
 #include <array>
 #include <utility>
 
-namespace {
+namespace
+{
 
 constexpr auto kVirtualKeyNames = std::to_array<std::pair<VirtualKey, std::string_view>>({
     {VirtualKey::Escape, "Escape"},
@@ -182,9 +183,11 @@ constexpr auto kVirtualKeyNames = std::to_array<std::pair<VirtualKey, std::strin
     {VirtualKey::Xf86LaunchB, "XF86LaunchB"},
     {VirtualKey::Xf86Search, "XF86Search"},
 });
-constexpr auto kAllKeys = []->std::array<VirtualKey, kVirtualKeyNames.size()> {
+constexpr auto kAllKeys = []->std::array<VirtualKey, kVirtualKeyNames.size()>
+{
     std::array<VirtualKey, kVirtualKeyNames.size()> keys;
-    for (size_t i = 0; i < keys.size(); ++i) {
+    for (size_t i = 0; i < keys.size(); ++i)
+    {
         keys[i] = kVirtualKeyNames[i].first;
     }
     return keys;
@@ -204,45 +207,56 @@ constexpr auto kKeyModifiers = std::to_array<std::pair<VirtualKey, uint8_t>>({
     {VirtualKey::Meta, kModMeta},
 });
 
-auto Between(VirtualKey key, VirtualKey first, VirtualKey last) -> bool {
+auto Between(VirtualKey key, VirtualKey first, VirtualKey last) -> bool
+{
     return key >= first && key <= last;
 }
 
 } // namespace
 
-auto VirtualKeys::All() -> std::span<const VirtualKey> {
+auto VirtualKeys::All() -> std::span<const VirtualKey>
+{
     return kAllKeys;
 }
 
-auto VirtualKeys::Parse(std::string_view name) -> std::optional<VirtualKey> {
+auto VirtualKeys::Parse(std::string_view name) -> std::optional<VirtualKey>
+{
     const auto* entry = std::ranges::find(kVirtualKeyNames, name, &std::pair<VirtualKey, std::string_view>::second);
-    if (entry == kVirtualKeyNames.end()) {
+    if (entry == kVirtualKeyNames.end())
+    {
         return std::nullopt;
     }
     return entry->first;
 }
 
-auto VirtualKeys::Name(VirtualKey key) -> std::string_view {
+auto VirtualKeys::Name(VirtualKey key) -> std::string_view
+{
     const auto* entry = std::ranges::find(kVirtualKeyNames, key, &std::pair<VirtualKey, std::string_view>::first);
     return entry == kVirtualKeyNames.end() ? std::string_view{} : entry->second;
 }
 
-auto VirtualKeys::Type(VirtualKey key) -> KeyType {
+auto VirtualKeys::Type(VirtualKey key) -> KeyType
+{
     if (Between(key, VirtualKey::N1, VirtualKey::Plus) || Between(key, VirtualKey::Q, VirtualKey::Oem6)
         || Between(key, VirtualKey::A, VirtualKey::Oem3) || Between(key, VirtualKey::Oem5, VirtualKey::Oem2)
-        || key == VirtualKey::Oem102 || key == VirtualKey::AbntC1 || key == VirtualKey::Yen) {
+        || key == VirtualKey::Oem102 || key == VirtualKey::AbntC1 || key == VirtualKey::Yen)
+    {
         return KeyType::Symbol;
     }
-    if (Between(key, VirtualKey::Kp7, VirtualKey::Kp0) && key != VirtualKey::KpSubtract && key != VirtualKey::KpAdd) {
+    if (Between(key, VirtualKey::Kp7, VirtualKey::Kp0) && key != VirtualKey::KpSubtract && key != VirtualKey::KpAdd)
+    {
         return KeyType::NumPad;
     }
     return KeyType::Other;
 }
 
-auto VirtualKeys::Chord(std::span<const VirtualKey> keys) -> std::string {
+auto VirtualKeys::Chord(std::span<const VirtualKey> keys) -> std::string
+{
     std::string text;
-    for (const auto key : keys) {
-        if (!text.empty()) {
+    for (const auto key : keys)
+    {
+        if (!text.empty())
+        {
             text += " + ";
         }
         text += Name(key);
@@ -250,21 +264,26 @@ auto VirtualKeys::Chord(std::span<const VirtualKey> keys) -> std::string {
     return text.empty() ? std::string("(none)") : text;
 }
 
-auto VirtualKeys::Latches(VirtualKey key) -> bool {
+auto VirtualKeys::Latches(VirtualKey key) -> bool
+{
     return key == VirtualKey::Caps || key == VirtualKey::NumLock || key == VirtualKey::Scroll;
 }
 
-auto VirtualKeys::ModifierOf(VirtualKey key) -> std::optional<uint8_t> {
+auto VirtualKeys::ModifierOf(VirtualKey key) -> std::optional<uint8_t>
+{
     const auto* entry = std::ranges::find(kKeyModifiers, key, &std::pair<VirtualKey, uint8_t>::first);
-    if (entry == kKeyModifiers.end()) {
+    if (entry == kKeyModifiers.end())
+    {
         return std::nullopt;
     }
     return entry->second;
 }
 
-auto VirtualKeys::KeyForModifier(uint8_t modifier) -> std::optional<VirtualKey> {
+auto VirtualKeys::KeyForModifier(uint8_t modifier) -> std::optional<VirtualKey>
+{
     const auto* entry = std::ranges::find(kKeyModifiers, modifier, &std::pair<VirtualKey, uint8_t>::second);
-    if (entry == kKeyModifiers.end()) {
+    if (entry == kKeyModifiers.end())
+    {
         return std::nullopt;
     }
     return entry->first;

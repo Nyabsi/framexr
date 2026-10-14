@@ -51,15 +51,18 @@
 #include "Watch.hpp"
 #include "Yaml.hpp"
 
-namespace {
+namespace
+{
 
 constexpr VkExtent2D kPanelExtent{200, 100};
 constexpr float kFrameSeconds = 1.0f / 90.0f;
 constexpr float kSlideRate = 4.0f;
 
-class LaserInteraction : public testing::Test {
+class LaserInteraction : public testing::Test
+{
   protected:
-    auto SetUp() -> void override {
+    auto SetUp() -> void override
+    {
         *g_interaction = Interaction();
         g_config->transform_values.clear();
         g_config->curve_values.clear();
@@ -76,9 +79,11 @@ class LaserInteraction : public testing::Test {
         const Eigen::Vector3f& position,
         std::shared_ptr<std::vector<RecordedEvent>> events,
         bool desktop = false
-    ) -> OverlayId {
+    ) -> OverlayId
+    {
         std::unique_ptr<View> state;
-        if (desktop) {
+        if (desktop)
+        {
             state = std::make_unique<Desktop>(
                 name,
                 Eigen::Vector2i(kPanelExtent.width, kPanelExtent.height),
@@ -87,7 +92,9 @@ class LaserInteraction : public testing::Test {
                 nullptr,
                 ScreenInteraction(Eigen::Vector2f::Zero(), Eigen::Vector2f::Ones(), FrameTransform::Normal)
             );
-        } else {
+        }
+        else
+        {
             state = std::make_unique<RecordingView>(kPanelExtent, std::move(events));
         }
         state->SetName(std::move(name));
@@ -103,17 +110,20 @@ class LaserInteraction : public testing::Test {
         return id;
     }
 
-    auto Aim(size_t pointer, const Eigen::Vector3f& origin) -> void {
+    auto Aim(size_t pointer, const Eigen::Vector3f& origin) -> void
+    {
         g_interaction->Pointers()[pointer].SetPose(Eigen::Translation3f(origin) * Eigen::Affine3f::Identity());
     }
 
-    auto AimAway(size_t pointer) -> void {
+    auto AimAway(size_t pointer) -> void
+    {
         g_interaction->Pointers()[pointer].SetPose(
             Eigen::Affine3f(Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitY()))
         );
     }
 
-    auto Frame(const PointerState& left, const PointerState& right = {}) -> std::array<InteractionResult, 2> {
+    auto Frame(const PointerState& left, const PointerState& right = {}) -> std::array<InteractionResult, 2>
+    {
         g_interaction->PreUpdate();
         g_interaction->SetDeltaSeconds(kFrameSeconds);
         g_interaction->Pointers()[0].SetNow(left);
@@ -124,23 +134,35 @@ class LaserInteraction : public testing::Test {
 
     auto Pointer(size_t index) -> ::LaserPointer& { return g_interaction->Pointers()[index]; }
 
-    auto RunTasks() -> void {
-        for (int round = 0; round < 4; ++round) {
+    auto RunTasks() -> void
+    {
+        for (int round = 0; round < 4; ++round)
+        {
             std::deque<Task> due;
             g_tasks->TakeDue(due);
-            for (auto& task : due) {
+            for (auto& task : due)
+            {
                 std::visit(
-                    [&](auto& value) -> void {
+                    [&](auto& value) -> void
+                    {
                         using TaskType = std::decay_t<decltype(value)>;
-                        if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>) {
-                            if (auto* overlay = m_overlays->BySelector(value.selector)) {
+                        if constexpr (std::is_same_v<TaskType, ModifyOverlayTask>)
+                        {
+                            if (auto* overlay = m_overlays->BySelector(value.selector))
+                            {
                                 value.modify(*overlay);
                             }
-                        } else if constexpr (std::is_same_v<TaskType, DropOverlayTask>) {
+                        }
+                        else if constexpr (std::is_same_v<TaskType, DropOverlayTask>)
+                        {
                             m_overlays->Remove(value.selector);
-                        } else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>) {
-                            if (m_overlays->BySelector(value.selector) == nullptr) {
-                                if (auto made = value.create()) {
+                        }
+                        else if constexpr (std::is_same_v<TaskType, CreateOverlayTask>)
+                        {
+                            if (m_overlays->BySelector(value.selector) == nullptr)
+                            {
+                                if (auto made = value.create())
+                                {
                                     m_overlays->Add(std::move(made));
                                 }
                             }
@@ -152,7 +174,8 @@ class LaserInteraction : public testing::Test {
         }
     }
 
-    auto Bounds(OverlayId id) -> ViewRect {
+    auto Bounds(OverlayId id) -> ViewRect
+    {
         const auto corners = Container::Corners(*m_overlays->ById(id));
         EXPECT_TRUE(corners.has_value());
         return corners ? Container::ViewBounds(*corners, g_interaction->Hmd()) : ViewRect{};
@@ -161,28 +184,34 @@ class LaserInteraction : public testing::Test {
     std::unique_ptr<Container> m_overlays;
 };
 
-auto Pose(const Eigen::Vector3f& position, const Eigen::Quaternionf& rotation) -> Eigen::Affine3f {
+auto Pose(const Eigen::Vector3f& position, const Eigen::Quaternionf& rotation) -> Eigen::Affine3f
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     pose.linear() = rotation.toRotationMatrix();
     pose.translation() = position;
     return pose;
 }
 
-auto Combine(const Eigen::Affine3f& first, const Eigen::Affine3f& second) -> Eigen::Affine3f {
+auto Combine(const Eigen::Affine3f& first, const Eigen::Affine3f& second) -> Eigen::Affine3f
+{
     return Eigen::Affine3f(first.matrix() * second.matrix());
 }
 
-auto Events(const std::shared_ptr<std::vector<RecordedEvent>>& events, RecordedKind kind) -> std::vector<RecordedEvent> {
+auto Events(const std::shared_ptr<std::vector<RecordedEvent>>& events, RecordedKind kind) -> std::vector<RecordedEvent>
+{
     std::vector<RecordedEvent> filtered;
-    std::ranges::copy_if(*events, std::back_inserter(filtered), [kind](const RecordedEvent& event) -> bool {
-        return event.kind == kind;
-    });
+    std::ranges::copy_if(
+        *events,
+        std::back_inserter(filtered),
+        [kind](const RecordedEvent& event) -> bool { return event.kind == kind; }
+    );
     return filtered;
 }
 
 } // namespace
 
-TEST_F(LaserInteraction, HoverReportsUvThroughInteractionTransform) {
+TEST_F(LaserInteraction, HoverReportsUvThroughInteractionTransform)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
 
@@ -203,7 +232,8 @@ TEST_F(LaserInteraction, HoverReportsUvThroughInteractionTransform) {
     EXPECT_NEAR(hovers[1].uv.y(), 0.3f, 1e-5f);
 }
 
-TEST_F(LaserInteraction, HitsOutsideUvRangeAreIgnored) {
+TEST_F(LaserInteraction, HitsOutsideUvRangeAreIgnored)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
 
@@ -214,7 +244,8 @@ TEST_F(LaserInteraction, HitsOutsideUvRangeAreIgnored) {
     EXPECT_TRUE(events->empty());
 }
 
-TEST_F(LaserInteraction, ClickPressAndReleaseAreDelivered) {
+TEST_F(LaserInteraction, ClickPressAndReleaseAreDelivered)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -232,7 +263,8 @@ TEST_F(LaserInteraction, ClickPressAndReleaseAreDelivered) {
     EXPECT_EQ(clicks[0].mode, PointerMode::Left);
 }
 
-TEST_F(LaserInteraction, ModifiersSelectPointerMode) {
+TEST_F(LaserInteraction, ModifiersSelectPointerMode)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -247,7 +279,8 @@ TEST_F(LaserInteraction, ModifiersSelectPointerMode) {
     EXPECT_EQ(clicks[2].mode, PointerMode::Middle);
 }
 
-TEST_F(LaserInteraction, ReleaseGoesToTheOverlayThatWasPressed) {
+TEST_F(LaserInteraction, ReleaseGoesToTheOverlayThatWasPressed)
+{
     auto first = std::make_shared<std::vector<RecordedEvent>>();
     auto second = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("first", {0.0f, 0.0f, -2.0f}, first);
@@ -265,7 +298,8 @@ TEST_F(LaserInteraction, ReleaseGoesToTheOverlayThatWasPressed) {
     EXPECT_EQ(Events(first, RecordedKind::Left).size(), 1U);
 }
 
-TEST_F(LaserInteraction, ReleaseIntoEmptySpaceStillReleases) {
+TEST_F(LaserInteraction, ReleaseIntoEmptySpaceStillReleases)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
 
@@ -281,7 +315,8 @@ TEST_F(LaserInteraction, ReleaseIntoEmptySpaceStillReleases) {
     EXPECT_FALSE(clicks[1].pressed);
 }
 
-TEST_F(LaserInteraction, ReleasingTheTriggerWhileGrabbingReleasesTheClick) {
+TEST_F(LaserInteraction, ReleasingTheTriggerWhileGrabbingReleasesTheClick)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -299,7 +334,8 @@ TEST_F(LaserInteraction, ReleasingTheTriggerWhileGrabbingReleasesTheClick) {
     EXPECT_FALSE(clicks[1].pressed);
 }
 
-TEST_F(LaserInteraction, ScreenReleasesTheButtonItPressed) {
+TEST_F(LaserInteraction, ScreenReleasesTheButtonItPressed)
+{
     ScopedRecordingHid hid;
     ScreenInteraction screen(Eigen::Vector2f::Zero(), Eigen::Vector2f(100.0f, 100.0f), FrameTransform::Normal);
 
@@ -310,7 +346,8 @@ TEST_F(LaserInteraction, ScreenReleasesTheButtonItPressed) {
     EXPECT_EQ(hid.Buttons(), expected);
 }
 
-TEST_F(LaserInteraction, ScrollIsForwarded) {
+TEST_F(LaserInteraction, ScrollIsForwarded)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -324,7 +361,8 @@ TEST_F(LaserInteraction, ScrollIsForwarded) {
     EXPECT_FLOAT_EQ(scrolls[0].delta_x, 0.5f);
 }
 
-TEST_F(LaserInteraction, LeftPointerFirstKeepsPrimaryForItself) {
+TEST_F(LaserInteraction, LeftPointerFirstKeepsPrimaryForItself)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -342,7 +380,8 @@ TEST_F(LaserInteraction, LeftPointerFirstKeepsPrimaryForItself) {
     EXPECT_FALSE(hovers[1].primary);
 }
 
-TEST_F(LaserInteraction, RecentlyClickedRightPointerGoesFirstAndLowerIndexTakesPrimary) {
+TEST_F(LaserInteraction, RecentlyClickedRightPointerGoesFirstAndLowerIndexTakesPrimary)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -361,7 +400,8 @@ TEST_F(LaserInteraction, RecentlyClickedRightPointerGoesFirstAndLowerIndexTakesP
     EXPECT_EQ(m_overlays->ById(id)->PrimaryPointer(), 0U);
 }
 
-TEST_F(LaserInteraction, GrabFollowsControllerRotationFreely) {
+TEST_F(LaserInteraction, GrabFollowsControllerRotationFreely)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -388,7 +428,8 @@ TEST_F(LaserInteraction, GrabFollowsControllerRotationFreely) {
     EXPECT_TRUE(overlay->Transform().matrix().isApprox(expected.matrix(), 1e-4f));
 }
 
-TEST_F(LaserInteraction, DropRemembersPositionRelativeToHead) {
+TEST_F(LaserInteraction, DropRemembersPositionRelativeToHead)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -414,7 +455,8 @@ TEST_F(LaserInteraction, DropRemembersPositionRelativeToHead) {
     EXPECT_TRUE(saved->second.matrix().isApprox(expected.matrix(), 1e-4f));
 }
 
-TEST_F(LaserInteraction, StickPushesAwayAndScalesWithDistance) {
+TEST_F(LaserInteraction, StickPushesAwayAndScalesWithDistance)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -435,7 +477,8 @@ TEST_F(LaserInteraction, StickPushesAwayAndScalesWithDistance) {
     EXPECT_NE(Pointer(0).Interaction().mode, PointerMode::Special);
 }
 
-TEST_F(LaserInteraction, StickScalesWithDistanceFromTheHead) {
+TEST_F(LaserInteraction, StickScalesWithDistanceFromTheHead)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, {0.0f, 0.0f, -0.5f});
@@ -449,13 +492,15 @@ TEST_F(LaserInteraction, StickScalesWithDistanceFromTheHead) {
     EXPECT_NEAR(pushed.col(0).norm(), pushed_to / 2.0f, 1e-5f);
 }
 
-TEST_F(LaserInteraction, StickSlidesFarOverlaysFasterThanNearOnes) {
+TEST_F(LaserInteraction, StickSlidesFarOverlaysFasterThanNearOnes)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto near = AddPanel("near", {0.0f, 0.0f, -1.0f}, events);
     const auto far = AddPanel("far", {3.0f, 0.0f, -4.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
     Frame({.grab = true});
-    for (int frame = 0; frame < 45; ++frame) {
+    for (int frame = 0; frame < 45; ++frame)
+    {
         Frame({.scroll_y = 1.0f, .grab = true});
     }
     Frame({});
@@ -467,7 +512,8 @@ TEST_F(LaserInteraction, StickSlidesFarOverlaysFasterThanNearOnes) {
     Frame({.grab = true});
     ASSERT_TRUE(Pointer(0).Interaction().grabbed.has_value());
     EXPECT_EQ(Pointer(0).Interaction().grabbed->grabbed_id, far);
-    for (int frame = 0; frame < 9; ++frame) {
+    for (int frame = 0; frame < 9; ++frame)
+    {
         Frame({.scroll_y = 1.0f, .grab = true});
     }
     const float far_moved = m_overlays->ById(far)->Transform().translation().norm() - 5.0f;
@@ -475,13 +521,15 @@ TEST_F(LaserInteraction, StickSlidesFarOverlaysFasterThanNearOnes) {
     EXPECT_NEAR(far_moved, 5.0f * near_first_tenth, 0.01f);
 }
 
-TEST_F(LaserInteraction, StickDriftDoesNotMoveOrResize) {
+TEST_F(LaserInteraction, StickDriftDoesNotMoveOrResize)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
 
     Frame({.grab = true});
-    for (int frame = 0; frame < 100; ++frame) {
+    for (int frame = 0; frame < 100; ++frame)
+    {
         Frame({.scroll_y = frame % 2 == 0 ? 0.15f : -0.1f, .grab = true});
     }
     const auto* overlay = m_overlays->ById(id);
@@ -490,7 +538,8 @@ TEST_F(LaserInteraction, StickDriftDoesNotMoveOrResize) {
     EXPECT_NEAR(linear.col(0).norm(), 1.0f, 1e-6f);
 }
 
-TEST_F(LaserInteraction, GrabSmoothingRemovesHandTremor) {
+TEST_F(LaserInteraction, GrabSmoothingRemovesHandTremor)
+{
     g_config->grab_smoothing = true;
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
@@ -498,36 +547,42 @@ TEST_F(LaserInteraction, GrabSmoothingRemovesHandTremor) {
     Frame({.grab = true});
 
     float wobble = 0.0f;
-    for (int frame = 0; frame < 90; ++frame) {
+    for (int frame = 0; frame < 90; ++frame)
+    {
         Aim(0, {frame % 2 == 0 ? 0.002f : -0.002f, 0.0f, 0.0f});
         Frame({.grab = true});
-        if (frame > 30) {
+        if (frame > 30)
+        {
             wobble = std::max(wobble, std::abs(m_overlays->ById(id)->Transform().translation().x()));
         }
     }
     EXPECT_LT(wobble, 0.0005f);
 }
 
-TEST_F(LaserInteraction, GrabSmoothingKeepsUpWithDeliberateMoves) {
+TEST_F(LaserInteraction, GrabSmoothingKeepsUpWithDeliberateMoves)
+{
     g_config->grab_smoothing = true;
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
     Frame({.grab = true});
 
-    for (int frame = 1; frame <= 30; ++frame) {
+    for (int frame = 1; frame <= 30; ++frame)
+    {
         Aim(0, {0.5f * static_cast<float>(frame) / 30.0f, 0.0f, 0.0f});
         Frame({.grab = true});
     }
     const float lag = 0.5f - m_overlays->ById(id)->Transform().translation().x();
     EXPECT_LT(lag, 0.05f);
-    for (int frame = 0; frame < 30; ++frame) {
+    for (int frame = 0; frame < 30; ++frame)
+    {
         Frame({.grab = true});
     }
     EXPECT_NEAR(m_overlays->ById(id)->Transform().translation().x(), 0.5f, 0.001f);
 }
 
-TEST_F(LaserInteraction, ShowPlacesOverlaysRelativeToCurrentHead) {
+TEST_F(LaserInteraction, ShowPlacesOverlaysRelativeToCurrentHead)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -1.0f}, events);
     auto* overlay = m_overlays->ById(id);
@@ -557,7 +612,8 @@ TEST_F(LaserInteraction, ShowPlacesOverlaysRelativeToCurrentHead) {
     EXPECT_TRUE(overlay_linear.col(2).isApprox(head_linear.col(2), 1e-5f));
 }
 
-TEST_F(LaserInteraction, ShowWhileLyingDownPlacesOverlayWhereYouLook) {
+TEST_F(LaserInteraction, ShowWhileLyingDownPlacesOverlayWhereYouLook)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -1.0f}, events);
     auto* overlay = m_overlays->ById(id);
@@ -572,12 +628,14 @@ TEST_F(LaserInteraction, ShowWhileLyingDownPlacesOverlayWhereYouLook) {
     EXPECT_TRUE(overlay->Transform().translation().isApprox(Eigen::Vector3f(0.0f, 1.5f, 0.0f), 1e-5f));
 }
 
-TEST_F(LaserInteraction, RecenterMovesOnlyVisibleOverlays) {
+TEST_F(LaserInteraction, RecenterMovesOnlyVisibleOverlays)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto shown = AddPanel("shown", {0.0f, 0.0f, -1.0f}, events);
     const auto hidden = AddPanel("hidden", {5.0f, 0.0f, -1.0f}, events);
     m_overlays->ById(hidden)->SetWantVisible(false);
-    for (const auto id : {shown, hidden}) {
+    for (const auto id : {shown, hidden})
+    {
         m_overlays->ById(id)->SetSavedTransform(Eigen::Affine3f(Eigen::Translation3f(0.0f, 0.0f, -1.0f)));
     }
 
@@ -587,9 +645,11 @@ TEST_F(LaserInteraction, RecenterMovesOnlyVisibleOverlays) {
     EXPECT_TRUE(m_overlays->ById(hidden)->Transform().translation().isApprox(Eigen::Vector3f(5.0f, 0.0f, -1.0f), 1e-5f));
 }
 
-TEST_F(LaserInteraction, DefaultLayoutArcsScreensAroundTheHead) {
+TEST_F(LaserInteraction, DefaultLayoutArcsScreensAroundTheHead)
+{
     std::vector<std::unique_ptr<Desktop>> screens;
-    for (const int32_t x : {1920, 0, 3840}) {
+    for (const int32_t x : {1920, 0, 3840})
+    {
         screens.push_back(
             std::make_unique<Desktop>(
                 std::format("screen{}", screens.size()),
@@ -610,14 +670,16 @@ TEST_F(LaserInteraction, DefaultLayoutArcsScreensAroundTheHead) {
     EXPECT_LT(middle.SpawnPoint().z(), -0.9f);
     EXPECT_LT(screens[1]->SpawnPoint().x(), -0.5f);
     EXPECT_GT(screens[2]->SpawnPoint().x(), 0.5f);
-    for (const auto& screen : screens) {
+    for (const auto& screen : screens)
+    {
         EXPECT_NEAR(screen->SpawnPoint().norm(), 1.0f, 1e-5f);
         const Eigen::Vector3f facing = screen->SpawnRotation() * Eigen::Vector3f::UnitZ();
         EXPECT_TRUE(facing.isApprox(-screen->SpawnPoint().normalized(), 1e-4f)) << screen->Name();
     }
 }
 
-TEST_F(LaserInteraction, KeyboardSpawnsBelowViewFacingTheHead) {
+TEST_F(LaserInteraction, KeyboardSpawnsBelowViewFacingTheHead)
+{
     auto keyboard = Keyboard::Create(nullptr);
     ASSERT_TRUE(keyboard.has_value());
     const auto& state = **keyboard;
@@ -628,7 +690,8 @@ TEST_F(LaserInteraction, KeyboardSpawnsBelowViewFacingTheHead) {
     EXPECT_TRUE(facing.isApprox(-state.SpawnPoint().normalized(), 1e-4f));
 }
 
-TEST_F(LaserInteraction, KeyboardUsesTheConfiguredProfile) {
+TEST_F(LaserInteraction, KeyboardUsesTheConfiguredProfile)
+{
     g_config->keyboard_profile = "full-size";
     auto keyboard = Keyboard::Create(nullptr);
     g_config->keyboard_profile = "keychron-v1-ansi";
@@ -642,7 +705,8 @@ TEST_F(LaserInteraction, KeyboardUsesTheConfiguredProfile) {
     EXPECT_NEAR((*compact)->SpawnScale() * 23.35f, (*keyboard)->SpawnScale() * 16.35f, 1e-4f);
 }
 
-TEST_F(LaserInteraction, ImeKeySelectsTheInputMethodWhileShown) {
+TEST_F(LaserInteraction, ImeKeySelectsTheInputMethodWhileShown)
+{
     ScopedRecordingHid hid;
     g_config->keyboard_profile = "korean-tkl";
     auto created = Keyboard::Create(nullptr);
@@ -668,19 +732,22 @@ TEST_F(LaserInteraction, ImeKeySelectsTheInputMethodWhileShown) {
     g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
-TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox) {
+TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox)
+{
     auto receiver = UdpSocket::Bind(UdpAddress::Loopback, 0);
     ASSERT_TRUE(receiver.has_value());
     ASSERT_TRUE(receiver->SetReceiveTimeout(std::chrono::milliseconds(500)).has_value());
     auto osc = Osc::Create(receiver->LocalPort());
     ASSERT_TRUE(osc.has_value());
     g_osc = osc->get();
-    const auto receive = [&receiver]() -> std::string {
+    const auto receive = [&receiver]() -> std::string
+    {
         std::array<std::byte, 512> buffer{};
         const auto size = receiver->Receive(buffer);
         return size ? std::string(reinterpret_cast<const char*>(buffer.data()), *size) : std::string();
     };
-    const auto shows = [](View& view, std::string_view text) -> bool {
+    const auto shows = [](View& view, std::string_view text) -> bool
+    {
         EXPECT_TRUE(view.Composer()->ShouldRender().has_value());
         return view.Composer()->FindText(text) != nullptr;
     };
@@ -699,10 +766,12 @@ TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox) {
 
     chat->Parent()->OnPress(PointerMode::Left);
     EXPECT_TRUE(shows(keyboard, "VRChat chatbox"));
-    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return}) {
+    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return})
+    {
         keyboard.Input().Press(key, PointerMode::Left);
         keyboard.Input().Release(key);
-        if (key == VirtualKey::I) {
+        if (key == VirtualKey::I)
+        {
             EXPECT_TRUE(shows(keyboard, "hi"));
         }
     }
@@ -728,11 +797,14 @@ TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox) {
     g_osc = nullptr;
 }
 
-TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
-    if (std::getenv("FRAMEXR_IBUS_TEST") == nullptr) {
+TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus)
+{
+    if (std::getenv("FRAMEXR_IBUS_TEST") == nullptr)
+    {
         GTEST_SKIP() << "needs ibus with anthy, table:cangjie5 and hangul, set FRAMEXR_IBUS_TEST=1";
     }
-    struct Composition {
+    struct Composition
+    {
         std::string_view profile;
         std::string_view toggle;
         std::vector<VirtualKey> keys;
@@ -754,7 +826,8 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
     g_osc = osc->get();
     ScopedRecordingHid hid;
 
-    for (const auto& composition : compositions) {
+    for (const auto& composition : compositions)
+    {
         SCOPED_TRACE(composition.profile);
         g_config->keyboard_profile = std::string(composition.profile);
         auto created = Keyboard::Create(nullptr);
@@ -764,12 +837,14 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
         ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
         keyboard.Composer()->FindText(composition.toggle)->Parent()->OnPress(PointerMode::Left);
         keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
-        for (const auto key : composition.keys) {
+        for (const auto key : composition.keys)
+        {
             keyboard.Input().Press(key, PointerMode::Left);
             keyboard.Input().Release(key);
         }
         bool composed = false;
-        for (int wait = 0; wait < 200 && !composed; ++wait) {
+        for (int wait = 0; wait < 200 && !composed; ++wait)
+        {
             keyboard.Update();
             ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
             composed = keyboard.Composer()->FindText(composition.expected) != nullptr;
@@ -780,7 +855,8 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
         keyboard.Input().Release(VirtualKey::Return);
 
         std::string message;
-        for (int i = 0; i < 6 && !message.starts_with("/chatbox/input"); ++i) {
+        for (int i = 0; i < 6 && !message.starts_with("/chatbox/input"); ++i)
+        {
             std::array<std::byte, 512> buffer{};
             const auto size = receiver->Receive(buffer);
             message = size ? std::string(reinterpret_cast<const char*>(buffer.data()), *size) : std::string();
@@ -793,7 +869,8 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
     g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
-TEST_F(LaserInteraction, ChatKeyTellsTheUserWhenVrchatIsNotListening) {
+TEST_F(LaserInteraction, ChatKeyTellsTheUserWhenVrchatIsNotListening)
+{
     uint16_t port = 0;
     {
         auto closed = UdpSocket::Bind(UdpAddress::Loopback, 0);
@@ -815,7 +892,8 @@ TEST_F(LaserInteraction, ChatKeyTellsTheUserWhenVrchatIsNotListening) {
     auto* chat = keyboard.Composer()->FindText("Chat");
     ASSERT_NE(chat, nullptr);
     chat->Parent()->OnPress(PointerMode::Left);
-    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return, VirtualKey::H}) {
+    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return, VirtualKey::H})
+    {
         keyboard.Input().Press(key, PointerMode::Left);
         keyboard.Input().Release(key);
         RunTasks();
@@ -827,7 +905,8 @@ TEST_F(LaserInteraction, ChatKeyTellsTheUserWhenVrchatIsNotListening) {
     g_osc = nullptr;
 }
 
-TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards) {
+TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards)
+{
     auto created = Keyboard::Create(nullptr);
     ASSERT_TRUE(created.has_value());
     (*created)->SetWantVisible(true);
@@ -853,7 +932,8 @@ TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards) {
     g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
-TEST_F(LaserInteraction, ProfileKeySwapsTheKeyboardInPlace) {
+TEST_F(LaserInteraction, ProfileKeySwapsTheKeyboardInPlace)
+{
     auto created = Keyboard::Create(nullptr);
     ASSERT_TRUE(created.has_value());
     auto& original = **created;
@@ -887,7 +967,8 @@ TEST_F(LaserInteraction, ProfileKeySwapsTheKeyboardInPlace) {
     g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
-TEST_F(LaserInteraction, DroppingOntoAnotherOverlayKeepsTheOverlap) {
+TEST_F(LaserInteraction, DroppingOntoAnotherOverlayKeepsTheOverlap)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto fixed = AddPanel("fixed", {0.0f, 0.0f, -2.0f}, events);
     const auto moving = AddPanel("moving", {0.3f, 0.0f, -2.0f}, events);
@@ -901,7 +982,8 @@ TEST_F(LaserInteraction, DroppingOntoAnotherOverlayKeepsTheOverlap) {
     EXPECT_TRUE(Container::Overlaps(Bounds(moving), Bounds(fixed), 0.0f));
 }
 
-TEST_F(LaserInteraction, ShowHideRestoresOnlyWhatWasOpen) {
+TEST_F(LaserInteraction, ShowHideRestoresOnlyWhatWasOpen)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto open = AddPanel("open", {0.0f, 0.0f, -1.0f}, events);
     const auto closed = AddPanel("closed", {2.0f, 0.0f, -1.0f}, events);
@@ -916,7 +998,8 @@ TEST_F(LaserInteraction, ShowHideRestoresOnlyWhatWasOpen) {
     EXPECT_FALSE(m_overlays->ById(closed)->WantVisible());
 }
 
-TEST_F(LaserInteraction, ShowHideIncludesOverlaysOpenedOutsideTheSet) {
+TEST_F(LaserInteraction, ShowHideIncludesOverlaysOpenedOutsideTheSet)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events);
     const auto extra = AddPanel("extra", {2.0f, 0.0f, -1.0f}, events);
@@ -931,7 +1014,8 @@ TEST_F(LaserInteraction, ShowHideIncludesOverlaysOpenedOutsideTheSet) {
     EXPECT_TRUE(m_overlays->ById(extra)->WantVisible());
 }
 
-TEST_F(LaserInteraction, CurvedScreensCoverTheirRealViewAngle) {
+TEST_F(LaserInteraction, CurvedScreensCoverTheirRealViewAngle)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     auto* overlay = m_overlays->ById(screen);
@@ -948,7 +1032,8 @@ TEST_F(LaserInteraction, CurvedScreensCoverTheirRealViewAngle) {
     );
 }
 
-TEST_F(LaserInteraction, ShowHideKeepsOverlapsTheUserMade) {
+TEST_F(LaserInteraction, ShowHideKeepsOverlapsTheUserMade)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
@@ -968,11 +1053,13 @@ TEST_F(LaserInteraction, ShowHideKeepsOverlapsTheUserMade) {
     EXPECT_TRUE(Container::Overlaps(Bounds(keyboard), Bounds(screen), 0.0f));
 }
 
-TEST_F(LaserInteraction, ShowHideClearsOverlapsTheUserDidNotMake) {
+TEST_F(LaserInteraction, ShowHideClearsOverlapsTheUserDidNotMake)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
-    for (const auto id : {screen, keyboard}) {
+    for (const auto id : {screen, keyboard})
+    {
         auto& state = *m_overlays->ById(id);
         state.SetSavedTransform(state.Transform());
     }
@@ -985,7 +1072,8 @@ TEST_F(LaserInteraction, ShowHideClearsOverlapsTheUserDidNotMake) {
     EXPECT_FALSE(Container::Overlaps(Bounds(keyboard), Bounds(screen), 0.0f));
 }
 
-TEST_F(LaserInteraction, DraggingAwayForgetsTheOverlap) {
+TEST_F(LaserInteraction, DraggingAwayForgetsTheOverlap)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -0.3f, -1.0f}, events);
@@ -1005,10 +1093,12 @@ TEST_F(LaserInteraction, DraggingAwayForgetsTheOverlap) {
     EXPECT_FALSE(Container::Overlaps(Bounds(keyboard), Bounds(screen), 0.0f));
 }
 
-TEST_F(LaserInteraction, RecenteringCurvedScreensKeepsTheirLayoutWhileLyingDown) {
+TEST_F(LaserInteraction, RecenteringCurvedScreensKeepsTheirLayoutWhileLyingDown)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     std::vector<OverlayId> screens;
-    for (const float x : {-0.52f, 0.52f}) {
+    for (const float x : {-0.52f, 0.52f})
+    {
         const auto id = AddPanel(std::format("screen{}", screens.size()), {x, 0.0f, -1.0f}, events, true);
         auto* screen = m_overlays->ById(id);
         screen->SetSavedTransform(screen->Transform());
@@ -1018,7 +1108,8 @@ TEST_F(LaserInteraction, RecenteringCurvedScreensKeepsTheirLayoutWhileLyingDown)
     const Eigen::Affine3f lying(Eigen::AngleAxisf(std::numbers::pi_v<float> / 2.0f, Eigen::Vector3f::UnitZ()));
     g_interaction->SetHmd(lying);
     m_overlays->Recenter();
-    for (const auto id : screens) {
+    for (const auto id : screens)
+    {
         const auto* screen = m_overlays->ById(id);
         const Eigen::Affine3f expected = lying * *screen->SavedTransform();
         EXPECT_TRUE(screen->Transform().matrix().isApprox(expected.matrix(), 1e-5f));
@@ -1026,7 +1117,8 @@ TEST_F(LaserInteraction, RecenteringCurvedScreensKeepsTheirLayoutWhileLyingDown)
     g_interaction->SetHmd(Eigen::Affine3f::Identity());
 }
 
-TEST_F(LaserInteraction, RecenterClearsOverlapsThatWereNotThereBefore) {
+TEST_F(LaserInteraction, RecenterClearsOverlapsThatWereNotThereBefore)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, -1.0f, -1.0f}, events);
@@ -1040,12 +1132,14 @@ TEST_F(LaserInteraction, RecenterClearsOverlapsThatWereNotThereBefore) {
     EXPECT_NEAR(m_overlays->ById(keyboard)->Transform().translation().norm(), Eigen::Vector3f(0.0f, -0.3f, -1.0f).norm(), 1e-4f);
 }
 
-TEST_F(LaserInteraction, ShowKeepsKeyboardClearOfScreen) {
+TEST_F(LaserInteraction, ShowKeepsKeyboardClearOfScreen)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto screen = AddPanel("screen", {0.0f, 0.0f, -1.0f}, events, true);
     const auto keyboard = AddPanel(std::string(kKeyboardName), {0.0f, 0.0f, -1.0f}, events);
     const Eigen::Affine3f screen_spot(Eigen::Translation3f(0.0f, -0.1f, -1.0f));
-    for (const auto id : {screen, keyboard}) {
+    for (const auto id : {screen, keyboard})
+    {
         m_overlays->ById(id)->SetWantVisible(false);
     }
     m_overlays->ById(screen)->SetSavedTransform(screen_spot);
@@ -1058,7 +1152,8 @@ TEST_F(LaserInteraction, ShowKeepsKeyboardClearOfScreen) {
     EXPECT_LT(Bounds(keyboard).max_elevation, Bounds(screen).min_elevation);
 }
 
-TEST_F(LaserInteraction, RecenterStepsAroundLockedOverlays) {
+TEST_F(LaserInteraction, RecenterStepsAroundLockedOverlays)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto locked = AddPanel("locked", {0.0f, 0.0f, -1.0f}, events);
     const auto free = AddPanel("free", {3.0f, 0.0f, -1.0f}, events);
@@ -1071,7 +1166,8 @@ TEST_F(LaserInteraction, RecenterStepsAroundLockedOverlays) {
     EXPECT_NEAR(m_overlays->ById(free)->Transform().translation().norm(), Eigen::Vector3f(0.1f, 0.0f, -1.0f).norm(), 1e-4f);
 }
 
-TEST_F(LaserInteraction, FootprintDescribesTheEyeRelativeToTheScreen) {
+TEST_F(LaserInteraction, FootprintDescribesTheEyeRelativeToTheScreen)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.5f, 0.0f, -2.0f}, events);
     const Eigen::Vector2f density(800.0f, 800.0f);
@@ -1084,7 +1180,8 @@ TEST_F(LaserInteraction, FootprintDescribesTheEyeRelativeToTheScreen) {
     EXPECT_FALSE(Container::MeasureFootprint(*m_overlays->ById(id), g_interaction->Hmd(), Eigen::Vector2f::Zero()).has_value());
 }
 
-TEST_F(LaserInteraction, GrabbedLaserStaysOnTheGrabbedPoint) {
+TEST_F(LaserInteraction, GrabbedLaserStaysOnTheGrabbedPoint)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.3f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -1110,13 +1207,15 @@ TEST_F(LaserInteraction, GrabbedLaserStaysOnTheGrabbedPoint) {
     EXPECT_FALSE(released[0].target.has_value());
 }
 
-TEST_F(LaserInteraction, PointerSmoothingSteadiesTheLaser) {
+TEST_F(LaserInteraction, PointerSmoothingSteadiesTheLaser)
+{
     g_config->pointer_smoothing = true;
     Aim(0, Eigen::Vector3f::Zero());
     Frame({});
     Frame({});
     float drift = 0.0f;
-    for (int i = 0; i < 30; ++i) {
+    for (int i = 0; i < 30; ++i)
+    {
         const float jitter = (i % 2 == 0 ? 1.0f : -1.0f) * 0.004f;
         g_interaction->Pointers()[0].SetPose(Eigen::Affine3f(Eigen::AngleAxisf(jitter, Eigen::Vector3f::UnitY())));
         Frame({});
@@ -1125,7 +1224,8 @@ TEST_F(LaserInteraction, PointerSmoothingSteadiesTheLaser) {
     }
     EXPECT_LT(drift, 0.0015f);
 
-    for (int i = 0; i < 30; ++i) {
+    for (int i = 0; i < 30; ++i)
+    {
         g_interaction->Pointers()[0].SetPose(Eigen::Affine3f(Eigen::AngleAxisf(0.5f, Eigen::Vector3f::UnitY())));
         Frame({});
     }
@@ -1134,7 +1234,8 @@ TEST_F(LaserInteraction, PointerSmoothingSteadiesTheLaser) {
     g_config->pointer_smoothing = false;
 }
 
-TEST_F(LaserInteraction, HandAttachedOverlaysIgnorePointerSmoothing) {
+TEST_F(LaserInteraction, HandAttachedOverlaysIgnorePointerSmoothing)
+{
     g_config->pointer_smoothing = true;
     Frame({});
     g_interaction->Pointers()[0].SetPose(Eigen::Affine3f(Eigen::Translation3f(0.3f, 0.1f, -0.2f)));
@@ -1147,7 +1248,8 @@ TEST_F(LaserInteraction, HandAttachedOverlaysIgnorePointerSmoothing) {
     g_config->pointer_smoothing = false;
 }
 
-TEST_F(LaserInteraction, GrabAndTriggerBendsByPullingTheHand) {
+TEST_F(LaserInteraction, GrabAndTriggerBendsByPullingTheHand)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     auto* overlay = m_overlays->ById(id);
@@ -1176,7 +1278,8 @@ TEST_F(LaserInteraction, GrabAndTriggerBendsByPullingTheHand) {
     std::erase_if(g_config->curve_values, [](const auto& entry) -> bool { return entry.first == "panel"; });
 }
 
-TEST_F(LaserInteraction, ScrollWithOtherHandWhileGrabbedCurves) {
+TEST_F(LaserInteraction, ScrollWithOtherHandWhileGrabbedCurves)
+{
     auto events = std::make_shared<std::vector<RecordedEvent>>();
     const auto id = AddPanel("panel", {0.0f, 0.0f, -2.0f}, events);
     Aim(0, Eigen::Vector3f::Zero());
@@ -1197,7 +1300,8 @@ TEST_F(LaserInteraction, ScrollWithOtherHandWhileGrabbedCurves) {
     EXPECT_TRUE(std::ranges::none_of(g_config->curve_values, [](const auto& entry) -> bool { return entry.first == "panel"; }));
 }
 
-TEST_F(LaserInteraction, ActionButtonClickRunsItsAction) {
+TEST_F(LaserInteraction, ActionButtonClickRunsItsAction)
+{
     const auto parsed = Yaml::Parse(R"(
 width: 0.3
 form:
@@ -1237,7 +1341,8 @@ components:
     g_config->notifications_enabled = before;
 }
 
-TEST(WatchButtons, EveryButtonIsTheClickTargetAtItsCentre) {
+TEST(WatchButtons, EveryButtonIsTheClickTargetAtItsCentre)
+{
     auto overlays = Container::CreateEmpty();
     auto watch = Watch::Create();
     ASSERT_TRUE(watch.has_value());
@@ -1246,14 +1351,19 @@ TEST(WatchButtons, EveryButtonIsTheClickTargetAtItsCentre) {
     const auto meta = compose.Meta();
     ASSERT_TRUE(meta.has_value());
     const Eigen::Vector2f extent(static_cast<float>(meta->extent.width), static_cast<float>(meta->extent.height));
-    for (const auto* text : {"Vol +", "Vol -"}) {
+    for (const auto* text : {"Vol +", "Vol -"})
+    {
         auto* button = compose.FindText(text);
         ASSERT_NE(button, nullptr) << text;
         const auto& items = compose.Items();
-        const auto own = std::ranges::find_if(items, [button](const FormItem& item) -> bool {
-            const auto* interact = std::get_if<InteractItem>(&item);
-            return interact != nullptr && interact->owner == button;
-        });
+        const auto own = std::ranges::find_if(
+            items,
+            [button](const FormItem& item) -> bool
+            {
+                const auto* interact = std::get_if<InteractItem>(&item);
+                return interact != nullptr && interact->owner == button;
+            }
+        );
         ASSERT_NE(own, items.end()) << text;
         const auto& rect = std::get<InteractItem>(*own).rect;
         const Eigen::Vector2f center(rect.x + rect.w / 2.0f, rect.y + rect.h / 2.0f);

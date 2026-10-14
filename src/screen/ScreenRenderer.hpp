@@ -43,7 +43,8 @@
 
 class Image;
 
-class ScreenRenderer final {
+class ScreenRenderer final
+{
   public:
     ScreenRenderer(std::string name, std::unique_ptr<Capture> capture);
 

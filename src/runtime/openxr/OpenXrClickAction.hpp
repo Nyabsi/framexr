@@ -39,7 +39,8 @@
 
 class OpenXrInstance;
 
-class OpenXrClickAction final {
+class OpenXrClickAction final
+{
   public:
     OpenXrClickAction() = default;
 

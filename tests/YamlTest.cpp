@@ -22,7 +22,8 @@
 
 #include "Yaml.hpp"
 
-TEST(Yaml, ResolvesScalarsLikeSerdeYaml) {
+TEST(Yaml, ResolvesScalarsLikeSerdeYaml)
+{
     const auto parsed = Yaml::Parse("a: 0x10\nb: 1.5\nc: ~\nd: yes_string\ne: true\nf: !Variant 3\ng: '12'\nh: -7\n");
     ASSERT_TRUE(parsed.has_value());
     const auto& value = *parsed;
@@ -36,6 +37,7 @@ TEST(Yaml, ResolvesScalarsLikeSerdeYaml) {
     EXPECT_EQ(value["h"].get<int>(), -7);
 }
 
-TEST(Yaml, RejectsMalformedDocuments) {
+TEST(Yaml, RejectsMalformedDocuments)
+{
     EXPECT_FALSE(Yaml::Parse("a: [1, 2").has_value());
 }

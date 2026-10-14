@@ -28,31 +28,38 @@
 
 Logger* g_logger = nullptr;
 
-Logger::Logger() : m_colored(Platform::IsTerminal(stderr)) {
-    if (const char* spec = std::getenv("FRAMEXR_LOG")) {
+Logger::Logger() : m_colored(Platform::IsTerminal(stderr))
+{
+    if (const char* spec = std::getenv("FRAMEXR_LOG"))
+    {
         ParseFilters(spec);
     }
 }
 
-auto Logger::SetOutputFile(FILE* file) -> void {
+auto Logger::SetOutputFile(FILE* file) -> void
+{
     std::scoped_lock lock(m_mutex);
-    if (m_file != nullptr) {
+    if (m_file != nullptr)
+    {
         std::fclose(m_file);
     }
     m_file = file;
 }
 
-auto Logger::IsEnabled(LogLevel level, std::string_view source_file) const -> bool {
+auto Logger::IsEnabled(LogLevel level, std::string_view source_file) const -> bool
+{
     return level <= LevelFor(ModuleOf(source_file));
 }
 
-auto Logger::Write(LogLevel level, std::string_view source_file, std::string_view message) -> void {
+auto Logger::Write(LogLevel level, std::string_view source_file, std::string_view message) -> void
+{
     const auto module = ModuleOf(source_file);
     const auto timestamp = CurrentTimestamp();
     const auto plain = std::format("{} {} {}: {}\n", timestamp, LevelName(level), module, message);
 
     std::scoped_lock lock(m_mutex);
-    if (m_colored) {
+    if (m_colored)
+    {
         const auto colored = std::format(
             "\x1b[2m{}\x1b[0m {}{}\x1b[0m \x1b[1m{}\x1b[0m: {}\n",
             timestamp,
@@ -62,74 +69,97 @@ auto Logger::Write(LogLevel level, std::string_view source_file, std::string_vie
             message
         );
         std::fputs(colored.c_str(), stderr);
-    } else {
+    }
+    else
+    {
         std::fputs(plain.c_str(), stderr);
     }
-    if (m_file != nullptr) {
+    if (m_file != nullptr)
+    {
         std::fputs(plain.c_str(), m_file);
         std::fflush(m_file);
     }
 }
 
-auto Logger::ParseFilters(std::string_view spec) -> void {
-    for (const auto token : std::views::split(spec, ',')) {
+auto Logger::ParseFilters(std::string_view spec) -> void
+{
+    for (const auto token : std::views::split(spec, ','))
+    {
         const std::string_view entry(token.begin(), token.end());
         const auto separator = entry.find('=');
-        if (separator == std::string_view::npos) {
-            if (const auto level = ParseLevel(entry)) {
+        if (separator == std::string_view::npos)
+        {
+            if (const auto level = ParseLevel(entry))
+            {
                 m_default_level = *level;
             }
-        } else if (const auto level = ParseLevel(entry.substr(separator + 1))) {
+        }
+        else if (const auto level = ParseLevel(entry.substr(separator + 1)))
+        {
             m_filters.push_back({std::string(entry.substr(0, separator)), *level});
         }
     }
 }
 
-auto Logger::LevelFor(std::string_view module) const -> LogLevel {
+auto Logger::LevelFor(std::string_view module) const -> LogLevel
+{
     const LogModuleFilter* best = nullptr;
-    for (const auto& filter : m_filters) {
+    for (const auto& filter : m_filters)
+    {
         const bool matches = module.starts_with(filter.module)
                           && (module.size() == filter.module.size() || module[filter.module.size()] == '/');
-        if (matches && (best == nullptr || filter.module.size() > best->module.size())) {
+        if (matches && (best == nullptr || filter.module.size() > best->module.size()))
+        {
             best = &filter;
         }
     }
     return best != nullptr ? best->level : m_default_level;
 }
 
-auto Logger::ModuleOf(std::string_view source_file) -> std::string_view {
-    if (const auto pos = source_file.rfind("src/"); pos != std::string_view::npos) {
+auto Logger::ModuleOf(std::string_view source_file) -> std::string_view
+{
+    if (const auto pos = source_file.rfind("src/"); pos != std::string_view::npos)
+    {
         source_file.remove_prefix(pos + 4);
     }
-    if (const auto dot = source_file.rfind('.'); dot != std::string_view::npos) {
+    if (const auto dot = source_file.rfind('.'); dot != std::string_view::npos)
+    {
         source_file = source_file.substr(0, dot);
     }
     return source_file;
 }
 
-auto Logger::ParseLevel(std::string_view text) -> std::optional<LogLevel> {
+auto Logger::ParseLevel(std::string_view text) -> std::optional<LogLevel>
+{
     auto lower = std::string(text);
     std::ranges::transform(lower, lower.begin(), [](unsigned char c) -> char { return static_cast<char>(std::tolower(c)); });
-    if (lower == "error") {
+    if (lower == "error")
+    {
         return LogLevel::Error;
     }
-    if (lower == "warn") {
+    if (lower == "warn")
+    {
         return LogLevel::Warn;
     }
-    if (lower == "info") {
+    if (lower == "info")
+    {
         return LogLevel::Info;
     }
-    if (lower == "debug") {
+    if (lower == "debug")
+    {
         return LogLevel::Debug;
     }
-    if (lower == "trace") {
+    if (lower == "trace")
+    {
         return LogLevel::Trace;
     }
     return std::nullopt;
 }
 
-auto Logger::LevelName(LogLevel level) -> std::string_view {
-    switch (level) {
+auto Logger::LevelName(LogLevel level) -> std::string_view
+{
+    switch (level)
+    {
     case LogLevel::Error: return "ERROR";
     case LogLevel::Warn: return "WARN ";
     case LogLevel::Info: return "INFO ";
@@ -139,8 +169,10 @@ auto Logger::LevelName(LogLevel level) -> std::string_view {
     return "";
 }
 
-auto Logger::LevelColor(LogLevel level) -> std::string_view {
-    switch (level) {
+auto Logger::LevelColor(LogLevel level) -> std::string_view
+{
+    switch (level)
+    {
     case LogLevel::Error: return "\x1b[31m";
     case LogLevel::Warn: return "\x1b[33m";
     case LogLevel::Info: return "\x1b[32m";
@@ -150,7 +182,8 @@ auto Logger::LevelColor(LogLevel level) -> std::string_view {
     return "";
 }
 
-auto Logger::CurrentTimestamp() -> std::string {
+auto Logger::CurrentTimestamp() -> std::string
+{
     const auto now = std::chrono::floor<std::chrono::microseconds>(std::chrono::system_clock::now());
     return std::format("{:%Y-%m-%dT%H:%M:%S}Z", now);
 }

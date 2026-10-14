@@ -35,24 +35,28 @@ struct xkb_keymap;
 struct wl_seat;
 struct wl_keyboard;
 
-struct TranslatedKey {
+struct TranslatedKey
+{
     VirtualKey key = VirtualKey::Escape;
     uint8_t modifiers = 0;
 };
 
-struct Translation {
+struct Translation
+{
     std::wstring text;
     bool dead = false;
 };
 
-struct WaylandKeymapQuery {
+struct WaylandKeymapQuery
+{
     wl_seat* seat = nullptr;
     wl_keyboard* keyboard = nullptr;
     xkb_context* context = nullptr;
     xkb_keymap* keymap = nullptr;
 };
 
-class Keymap final {
+class Keymap final
+{
   public:
     static auto FromWayland() -> Result<Keymap>;
     static auto FromX11() -> Result<Keymap>;

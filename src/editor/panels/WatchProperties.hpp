@@ -29,7 +29,8 @@ class Editor;
 
 class StackComponent;
 
-class WatchProperties final : public FormComponent {
+class WatchProperties final : public FormComponent
+{
   public:
     WatchProperties(Editor& editor, const Eigen::Vector2f& size);
 

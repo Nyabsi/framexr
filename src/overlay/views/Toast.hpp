@@ -35,7 +35,8 @@
 class Compose;
 class View;
 
-struct ToastMessage {
+struct ToastMessage
+{
     ToastTopic topic = ToastTopic::System;
     std::string title;
     std::string body;
@@ -44,7 +45,8 @@ struct ToastMessage {
     bool sound = false;
 };
 
-class Toast final : public View {
+class Toast final : public View
+{
   public:
     static auto Show(const ToastMessage& toast) -> void;
     static auto ShowAt(const ToastMessage& toast, std::chrono::steady_clock::time_point instant) -> void;

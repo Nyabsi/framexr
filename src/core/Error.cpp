@@ -24,18 +24,22 @@
 
 #include "Logger.hpp"
 
-Error::Error(std::string message) : m_message(std::move(message)) {
+Error::Error(std::string message) : m_message(std::move(message))
+{
 }
 
-auto Error::WithContext(std::string_view context) const -> Error {
+auto Error::WithContext(std::string_view context) const -> Error
+{
     return Error(std::format("{}: {}", context, m_message));
 }
 
-auto Unexpected(std::string message) -> std::unexpected<Error> {
+auto Unexpected(std::string message) -> std::unexpected<Error>
+{
     return std::unexpected<Error>(std::in_place, std::move(message));
 }
 
-auto FatalError(std::string_view message) -> void {
+auto FatalError(std::string_view message) -> void
+{
     LOG_ERROR("Fatal error: {}", message);
     std::abort();
 }

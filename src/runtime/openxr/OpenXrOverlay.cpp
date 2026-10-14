@@ -28,20 +28,25 @@
 #include "OpenXrPose.hpp"
 #include "View.hpp"
 
-auto OpenXrOverlay::EnsureSwapchain(View& overlay, const OpenXrState& xr) -> Result<bool> {
+auto OpenXrOverlay::EnsureSwapchain(View& overlay, const OpenXrState& xr) -> Result<bool>
+{
     const auto meta = overlay.Composer()->Meta();
-    if (m_swapchain && meta) {
+    if (m_swapchain && meta)
+    {
         const auto extent = m_swapchain->Extent();
-        if (extent.width == meta->extent.width && extent.height == meta->extent.height) {
+        if (extent.width == meta->extent.width && extent.height == meta->extent.height)
+        {
             return true;
         }
         RETURN_IF_ERROR(m_swapchain->EnsureImageReleased());
         m_swapchain.reset();
     }
-    if (m_swapchain) {
+    if (m_swapchain)
+    {
         return true;
     }
-    if (!meta) {
+    if (!meta)
+    {
         LOG_WARN("{}: swapchain cannot be created due to missing metadata", overlay.Name());
         return false;
     }
@@ -49,19 +54,23 @@ auto OpenXrOverlay::EnsureSwapchain(View& overlay, const OpenXrState& xr) -> Res
     return true;
 }
 
-auto OpenXrOverlay::Present(View& overlay, const OpenXrState& xr) -> Result<std::optional<OpenXrLayer>> {
-    if (!m_swapchain) {
+auto OpenXrOverlay::Present(View& overlay, const OpenXrState& xr) -> Result<std::optional<OpenXrLayer>>
+{
+    if (!m_swapchain)
+    {
         LOG_WARN("{}: swapchain not ready", overlay.Name());
         return std::nullopt;
     }
-    if (!m_swapchain->EverAcquired()) {
+    if (!m_swapchain->EverAcquired())
+    {
         LOG_WARN("{}: swapchain not rendered", overlay.Name());
         return std::nullopt;
     }
     RETURN_IF_ERROR(m_swapchain->EnsureImageReleased());
 
     const auto meta = overlay.Composer()->Meta();
-    if (!meta) {
+    if (!meta)
+    {
         FatalError(std::format("{}: frame meta missing after render", overlay.Name()));
     }
     const Eigen::Affine3f transform = overlay.Transform() * meta->transform;
@@ -71,17 +80,21 @@ auto OpenXrOverlay::Present(View& overlay, const OpenXrState& xr) -> Result<std:
     const float aspect_ratio = static_cast<float>(extent.height) / static_cast<float>(extent.width);
     float scale_x = 0.0f;
     float scale_y = 0.0f;
-    if (aspect_ratio < 1.0f) {
+    if (aspect_ratio < 1.0f)
+    {
         const float major = linear.col(0).norm();
         scale_x = major;
         scale_y = major * aspect_ratio;
-    } else {
+    }
+    else
+    {
         const float major = linear.col(1).norm();
         scale_x = major / aspect_ratio;
         scale_y = major;
     }
 
-    if (const auto curvature = overlay.Curvature()) {
+    if (const auto curvature = overlay.Curvature())
+    {
         const float radius = scale_x / (2.0f * std::numbers::pi_v<float> * *curvature);
         const Eigen::Quaternionf rotation = OpenXrPose::NormalizedRotation(transform);
         const Eigen::Vector3f center = transform.translation() + rotation * (Eigen::Vector3f::UnitZ() * radius);
@@ -109,11 +122,16 @@ auto OpenXrOverlay::Present(View& overlay, const OpenXrState& xr) -> Result<std:
     }};
 }
 
-auto OpenXrOverlay::AfterInput(View& overlay) -> Result<> {
-    if (m_last_visible != overlay.WantVisible()) {
-        if (overlay.WantVisible()) {
+auto OpenXrOverlay::AfterInput(View& overlay) -> Result<>
+{
+    if (m_last_visible != overlay.WantVisible())
+    {
+        if (overlay.WantVisible())
+        {
             RETURN_IF_ERROR(overlay.Composer()->Resume());
-        } else {
+        }
+        else
+        {
             RETURN_IF_ERROR(overlay.Composer()->Pause());
         }
     }

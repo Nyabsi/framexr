@@ -21,7 +21,8 @@
 #include <string>
 #include <string_view>
 
-class TextSearch final {
+class TextSearch final
+{
   public:
     static auto Fold(std::string_view text) -> std::string;
     static auto Matches(std::string_view text, std::string_view query) -> bool;

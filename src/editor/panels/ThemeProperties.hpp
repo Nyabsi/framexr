@@ -26,7 +26,8 @@ class Editor;
 
 class StackComponent;
 
-class ThemeProperties final : public FormComponent {
+class ThemeProperties final : public FormComponent
+{
   public:
     ThemeProperties(Editor& editor, const Eigen::Vector2f& size);
 

@@ -41,13 +41,15 @@
 #include "TextEntry.hpp"
 #include "ColorDialog.hpp"
 
-enum class EditTarget : uint8_t {
+enum class EditTarget : uint8_t
+{
     Watch,
     Keyboard,
     Theme,
 };
 
-enum class DialogKind : uint8_t {
+enum class DialogKind : uint8_t
+{
     None,
     Color,
     Actions,
@@ -56,7 +58,8 @@ enum class DialogKind : uint8_t {
     Font,
 };
 
-enum class ButtonTrigger : uint8_t {
+enum class ButtonTrigger : uint8_t
+{
     Press,
     Click,
     LongClick,
@@ -72,7 +75,8 @@ enum class ButtonTrigger : uint8_t {
 
 using PaletteItem = std::variant<FormPart, KeyTemplate>;
 
-class Editor final : public std::enable_shared_from_this<Editor> {
+class Editor final : public std::enable_shared_from_this<Editor>
+{
   public:
     static auto Create() -> std::shared_ptr<Editor>;
 

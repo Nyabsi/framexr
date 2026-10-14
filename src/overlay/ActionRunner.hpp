@@ -37,7 +37,8 @@
 #include "TaskQueue.hpp"
 #include "VirtualKeys.hpp"
 
-class ActionRunner final {
+class ActionRunner final
+{
   public:
     auto Run(const std::vector<ButtonAction>& actions) -> void;
     auto Run(const ButtonAction& action) -> void;

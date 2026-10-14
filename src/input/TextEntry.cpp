@@ -26,21 +26,27 @@
 #include "TaskQueue.hpp"
 #include "views/Keyboard.hpp"
 
-namespace {
+namespace
+{
 
-auto PopCodepoint(std::string& text) -> void {
-    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U) {
+auto PopCodepoint(std::string& text) -> void
+{
+    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U)
+    {
         text.pop_back();
     }
-    if (!text.empty()) {
+    if (!text.empty())
+    {
         text.pop_back();
     }
 }
 
 } // namespace
 
-auto TextEntry::Begin(std::string id, std::string initial, TextCommit commit) -> void {
-    if (m_id && *m_id != id) {
+auto TextEntry::Begin(std::string id, std::string initial, TextCommit commit) -> void
+{
+    if (m_id && *m_id != id)
+    {
         auto previous = std::exchange(m_commit, nullptr);
         auto buffer = std::move(m_buffer);
         m_id.reset();
@@ -54,7 +60,8 @@ auto TextEntry::Begin(std::string id, std::string initial, TextCommit commit) ->
     Focus();
 }
 
-auto TextEntry::Capture(bool shortcut, KeysCaptured captured) -> void {
+auto TextEntry::Capture(bool shortcut, KeysCaptured captured) -> void
+{
     m_id.reset();
     m_commit = nullptr;
     m_shortcut = shortcut;
@@ -63,8 +70,10 @@ auto TextEntry::Capture(bool shortcut, KeysCaptured captured) -> void {
     Focus();
 }
 
-auto TextEntry::Commit() -> void {
-    if (!m_id) {
+auto TextEntry::Commit() -> void
+{
+    if (!m_id)
+    {
         return;
     }
     auto commit = std::exchange(m_commit, nullptr);
@@ -73,24 +82,32 @@ auto TextEntry::Commit() -> void {
     commit(buffer);
 }
 
-auto TextEntry::End() -> void {
+auto TextEntry::End() -> void
+{
     m_id.reset();
     m_buffer.clear();
     m_commit = nullptr;
     m_captured = nullptr;
     m_held.clear();
-    if (g_interaction->FocusedTextInput().get() == this) {
+    if (g_interaction->FocusedTextInput().get() == this)
+    {
         g_interaction->SetFocusedTextInput(nullptr);
     }
     Changed();
 }
 
-auto TextEntry::Key(VirtualKey key, uint8_t, std::string_view text) -> void {
-    if (m_captured) {
-        if (m_shortcut && VirtualKeys::ModifierOf(key) && !VirtualKeys::Latches(key)) {
-            if (const auto found = std::ranges::find(m_held, key); found != m_held.end()) {
+auto TextEntry::Key(VirtualKey key, uint8_t, std::string_view text) -> void
+{
+    if (m_captured)
+    {
+        if (m_shortcut && VirtualKeys::ModifierOf(key) && !VirtualKeys::Latches(key))
+        {
+            if (const auto found = std::ranges::find(m_held, key); found != m_held.end())
+            {
                 m_held.erase(found);
-            } else {
+            }
+            else
+            {
                 m_held.push_back(key);
             }
             Changed();
@@ -104,10 +121,12 @@ auto TextEntry::Key(VirtualKey key, uint8_t, std::string_view text) -> void {
         Changed();
         return;
     }
-    if (!m_id) {
+    if (!m_id)
+    {
         return;
     }
-    switch (key) {
+    switch (key)
+    {
     case VirtualKey::Return:
     case VirtualKey::KpEnter: Commit(); break;
     case VirtualKey::Escape: End(); break;
@@ -117,13 +136,16 @@ auto TextEntry::Key(VirtualKey key, uint8_t, std::string_view text) -> void {
     Changed();
 }
 
-auto TextEntry::Focus() -> void {
+auto TextEntry::Focus() -> void
+{
     g_interaction->SetFocusedTextInput(shared_from_this());
     g_tasks->Enqueue(
         ModifyOverlayTask{
             .selector = std::string(kKeyboardName),
-            .modify = [](View& overlay) -> void {
-                if (!overlay.WantVisible()) {
+            .modify = [](View& overlay) -> void
+            {
+                if (!overlay.WantVisible())
+                {
                     overlay.SetWantVisible(true);
                     overlay.Reset(false);
                 }
@@ -133,8 +155,10 @@ auto TextEntry::Focus() -> void {
     Changed();
 }
 
-auto TextEntry::Changed() -> void {
-    if (m_on_change) {
+auto TextEntry::Changed() -> void
+{
+    if (m_on_change)
+    {
         m_on_change();
     }
 }

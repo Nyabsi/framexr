@@ -40,9 +40,11 @@
 #include "TestApp.hpp"
 #include "Watch.hpp"
 
-namespace {
+namespace
+{
 
-auto RenderPixels(Compose& backend, std::vector<unsigned char>& pixels) -> void {
+auto RenderPixels(Compose& backend, std::vector<unsigned char>& pixels) -> void
+{
     const auto readiness = backend.ShouldRender();
     ASSERT_TRUE(readiness.has_value());
     EXPECT_EQ(*readiness, RenderReadiness::Should);
@@ -67,7 +69,8 @@ auto RenderPixels(Compose& backend, std::vector<unsigned char>& pixels) -> void 
     ASSERT_FALSE(pixels.empty());
 }
 
-auto RenderOverlay(View& overlay, const std::string& name) -> void {
+auto RenderOverlay(View& overlay, const std::string& name) -> void
+{
     std::vector<unsigned char> pixels;
     RenderPixels(*overlay.Composer(), pixels);
     EXPECT_GT(GpuReadback::DistinctColors(pixels), 2U);
@@ -78,13 +81,15 @@ auto RenderOverlay(View& overlay, const std::string& name) -> void {
 
 constexpr uint32_t kCornerCanvasSize = 64;
 
-auto AlphaAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> int {
+auto AlphaAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> int
+{
     return pixels[((static_cast<size_t>(y) * kCornerCanvasSize) + x) * 4 + 3];
 }
 
 } // namespace
 
-TEST(OverlayRender, Watch) {
+TEST(OverlayRender, Watch)
+{
     const auto overlays = Container::CreateEmpty();
     auto watch = Watch::Create();
     ASSERT_TRUE(watch.has_value());
@@ -92,9 +97,11 @@ TEST(OverlayRender, Watch) {
     RenderOverlay(**watch, "watch");
 }
 
-TEST(OverlayRender, KeyboardWithSessionKeymap) {
+TEST(OverlayRender, KeyboardWithSessionKeymap)
+{
     std::shared_ptr<const Keymap> keymap;
-    if (auto loaded = Keymap::FromWayland()) {
+    if (auto loaded = Keymap::FromWayland())
+    {
         keymap = std::make_shared<const Keymap>(std::move(*loaded));
     }
     auto keyboard = Keyboard::Create(keymap);
@@ -102,7 +109,8 @@ TEST(OverlayRender, KeyboardWithSessionKeymap) {
     RenderOverlay(**keyboard, "keyboard");
 }
 
-TEST(OverlayRender, KeyboardWithFinnishRegion) {
+TEST(OverlayRender, KeyboardWithFinnishRegion)
+{
     g_config->keyboard_region = "fi";
     auto keyboard = Keyboard::Create(nullptr);
     g_config->keyboard_region.clear();
@@ -110,8 +118,10 @@ TEST(OverlayRender, KeyboardWithFinnishRegion) {
     RenderOverlay(**keyboard, "keyboard-fi");
 }
 
-TEST(OverlayRender, ImeKeyboards) {
-    for (const auto* name : {"jis-full-size", "jis-tkl", "korean-full-size", "korean-tkl", "chinese-full-size", "chinese-tkl"}) {
+TEST(OverlayRender, ImeKeyboards)
+{
+    for (const auto* name : {"jis-full-size", "jis-tkl", "korean-full-size", "korean-tkl", "chinese-full-size", "chinese-tkl"})
+    {
         g_config->keyboard_profile = name;
         auto keyboard = Keyboard::Create(nullptr);
         ASSERT_TRUE(keyboard.has_value()) << name;
@@ -120,14 +130,16 @@ TEST(OverlayRender, ImeKeyboards) {
     g_config->keyboard_profile = "keychron-v1-ansi";
 }
 
-TEST(OverlayRender, SettingsPanel) {
+TEST(OverlayRender, SettingsPanel)
+{
     const auto overlays = Container::CreateEmpty();
     auto settings = Settings::Create("settings");
     ASSERT_NE(settings, nullptr);
     RenderOverlay(*settings, "settings");
 }
 
-TEST(OverlayRender, RoundedCornersUseTheirRadiusAndAreSmooth) {
+TEST(OverlayRender, RoundedCornersUseTheirRadiusAndAreSmooth)
+{
     auto form = std::make_unique<Form>("corner");
     form->SetSize({kCornerCanvasSize, kCornerCanvasSize});
     auto& panel = form->AddComponent<PanelComponent>();
@@ -149,7 +161,8 @@ TEST(OverlayRender, RoundedCornersUseTheirRadiusAndAreSmooth) {
     EXPECT_GT(AlphaAt(pixels, 7, 7), 200);
 
     bool partial = false;
-    for (uint32_t i = 0; i < 16; ++i) {
+    for (uint32_t i = 0; i < 16; ++i)
+    {
         const int alpha = AlphaAt(pixels, i, i);
         partial = partial || (alpha > 0 && alpha < 255);
     }

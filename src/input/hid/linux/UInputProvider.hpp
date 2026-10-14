@@ -35,13 +35,15 @@
 #include "InputMethod.hpp"
 #include "VirtualKeys.hpp"
 
-struct UInputEvent {
+struct UInputEvent
+{
     uint16_t type = 0;
     uint16_t code = 0;
     int32_t value = 0;
 };
 
-class UInputProvider final : public HidProvider {
+class UInputProvider final : public HidProvider
+{
   public:
     static auto Create() -> std::unique_ptr<UInputProvider>;
 

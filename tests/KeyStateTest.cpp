@@ -42,12 +42,14 @@
 #include "TestApp.hpp"
 #include "UdpSocket.hpp"
 
-namespace {
+namespace
+{
 
 constexpr uint32_t kKeyCanvasWidth = 160;
 constexpr uint32_t kKeyCanvasHeight = 80;
 
-auto Render(Compose& canvas, std::vector<unsigned char>& pixels) -> void {
+auto Render(Compose& canvas, std::vector<unsigned char>& pixels) -> void
+{
     auto target = g_device->CreateRenderTexture(
         kKeyCanvasWidth,
         kKeyCanvasHeight,
@@ -62,16 +64,19 @@ auto Render(Compose& canvas, std::vector<unsigned char>& pixels) -> void {
     pixels = GpuReadback::Read(**target);
 }
 
-auto PixelAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> Eigen::Vector4i {
+auto PixelAt(const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> Eigen::Vector4i
+{
     const size_t offset = ((static_cast<size_t>(y) * kKeyCanvasWidth) + x) * 4;
     return {pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]};
 }
 
 } // namespace
 
-TEST(KeyState, ModifierAppliesToTheNextKeyOnly) {
+TEST(KeyState, ModifierAppliesToTheNextKeyOnly)
+{
     KeyboardInput input;
-    const auto tap = [&input](VirtualKey key) -> void {
+    const auto tap = [&input](VirtualKey key) -> void
+    {
         input.Press(key, PointerMode::Left);
         input.Release(key);
     };
@@ -85,9 +90,11 @@ TEST(KeyState, ModifierAppliesToTheNextKeyOnly) {
     EXPECT_FALSE(input.Holds(kModShift));
 }
 
-TEST(KeyState, UppercaseFollowsCapsLockAndShift) {
+TEST(KeyState, UppercaseFollowsCapsLockAndShift)
+{
     KeyboardInput input;
-    const auto tap = [&input](VirtualKey key) -> void {
+    const auto tap = [&input](VirtualKey key) -> void
+    {
         input.Press(key, PointerMode::Left);
         input.Release(key);
     };
@@ -108,9 +115,11 @@ TEST(KeyState, UppercaseFollowsCapsLockAndShift) {
     EXPECT_TRUE(input.Uppercase());
 }
 
-TEST(KeyState, CapsLockLatchesUntilPressedAgain) {
+TEST(KeyState, CapsLockLatchesUntilPressedAgain)
+{
     KeyboardInput input;
-    const auto tap = [&input](VirtualKey key) -> void {
+    const auto tap = [&input](VirtualKey key) -> void
+    {
         input.Press(key, PointerMode::Left);
         input.Release(key);
     };
@@ -123,7 +132,8 @@ TEST(KeyState, CapsLockLatchesUntilPressedAgain) {
     EXPECT_FALSE(input.Latched(VirtualKey::Caps));
 }
 
-TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill) {
+TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill)
+{
     auto keyboard = Keyboard::Create(nullptr);
     ASSERT_TRUE(keyboard.has_value());
     auto& input = (*keyboard)->Input();
@@ -142,14 +152,20 @@ TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill) {
     caps.SetFontSize(18);
     caps.SetBgColor(Eigen::Vector4f::Zero());
     caps.SetLegends(KeyCapType::Regular, std::array<std::string, 1>{"Caps Lock"});
-    caps.SetHighlightColor([&input]() -> std::optional<Eigen::Vector4f> {
-        return input.Latched(VirtualKey::Caps) ? std::optional(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.16f)) : std::nullopt;
-    });
-    caps.SetOutline([&input]() -> std::optional<HighlightOutline> {
-        return input.Latched(VirtualKey::Caps)
-                 ? std::optional(HighlightOutline{.color = {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 1.0f}, .width = 3.0f})
-                 : std::nullopt;
-    });
+    caps.SetHighlightColor(
+        [&input]() -> std::optional<Eigen::Vector4f>
+        { return input.Latched(VirtualKey::Caps) ? std::optional(Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.16f)) : std::nullopt; }
+    );
+    caps.SetOutline(
+        [&input]() -> std::optional<HighlightOutline>
+        {
+            return input.Latched(VirtualKey::Caps)
+                     ? std::optional(
+                           HighlightOutline{.color = {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 1.0f}, .width = 3.0f}
+                       )
+                     : std::nullopt;
+        }
+    );
     auto canvas = Compose::Create(std::move(form));
     ASSERT_TRUE(canvas.has_value());
     ASSERT_TRUE((*canvas)->ShouldRender().has_value());
@@ -165,7 +181,8 @@ TEST(KeyState, LockedKeyRendersBrightOutlineAroundAContrastFill) {
     EXPECT_GT(inside.x() + inside.y() + inside.z(), outside.x() + outside.y() + outside.z());
 }
 
-TEST(KeyState, PressFlashesAndFadesAfterRelease) {
+TEST(KeyState, PressFlashesAndFadesAfterRelease)
+{
     auto form = std::make_unique<Form>("key");
     form->SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
     auto& key = form->AddComponent<ButtonComponent>("", "Key");
@@ -206,7 +223,8 @@ TEST(KeyState, PressFlashesAndFadesAfterRelease) {
     EXPECT_EQ(*readiness, RenderReadiness::Can);
 }
 
-TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
+TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters)
+{
     auto keyboard = Keyboard::Create(nullptr);
     ASSERT_TRUE(keyboard.has_value());
     auto& backend = *(*keyboard)->Composer();
@@ -215,7 +233,8 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
     const auto width = static_cast<float>(meta->extent.width);
     const auto height = static_cast<float>(meta->extent.height);
 
-    const auto render = [&]() -> std::vector<unsigned char> {
+    const auto render = [&]() -> std::vector<unsigned char>
+    {
         EXPECT_TRUE(backend.ShouldRender().has_value());
         auto target = g_device->CreateRenderTexture(
             meta->extent.width,
@@ -230,7 +249,8 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
         g_device->GraphicsQueue().WaitIdle();
         return GpuReadback::Read(**target);
     };
-    const auto brightness = [&](const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> int {
+    const auto brightness = [&](const std::vector<unsigned char>& pixels, uint32_t x, uint32_t y) -> int
+    {
         const size_t offset = ((static_cast<size_t>(y) * meta->extent.width) + x) * 4;
         return pixels[offset] + pixels[offset + 1] + pixels[offset + 2];
     };
@@ -247,7 +267,8 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
     EXPECT_GT(GpuReadback::DistinctColors(after), 2U);
 }
 
-TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt) {
+TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt)
+{
     uint16_t port = 0;
     {
         auto closed = UdpSocket::Bind(UdpAddress::Loopback, 0);
@@ -265,9 +286,10 @@ TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt) {
     const auto meta = backend.Meta();
     ASSERT_TRUE(meta.has_value());
     const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
-    const auto chat = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
-        return std::holds_alternative<ChatboxKey>(key.action);
-    });
+    const auto chat = std::ranges::find_if(
+        layout.Keys(),
+        [](const KeyDefinition& key) -> bool { return std::holds_alternative<ChatboxKey>(key.action); }
+    );
     ASSERT_NE(chat, layout.Keys().end());
     const auto rect = Keyboard::KeyRect(*chat, {});
     const PointerHit hit{
@@ -288,7 +310,8 @@ TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt) {
     g_osc = nullptr;
 }
 
-TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {
+TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne)
+{
     auto form = std::make_unique<Form>("key");
     form->SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
     auto& key = form->AddComponent<KeyComponent>();
@@ -298,10 +321,13 @@ TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {
     const std::vector<std::string> ime{"ㅂ", "ㅃ"};
     key.SetLegends(KeyCapType::Reversed, labels, ime);
     ASSERT_EQ(key.Legends().size(), 4U);
-    const auto bright = [&key]() -> std::string {
+    const auto bright = [&key]() -> std::string
+    {
         std::string found;
-        for (const auto* legend : key.Legends()) {
-            if (legend->FgColor().w() > 0.99f) {
+        for (const auto* legend : key.Legends())
+        {
+            if (legend->FgColor().w() > 0.99f)
+            {
                 found += legend->Text();
             }
         }

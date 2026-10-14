@@ -31,7 +31,8 @@
 #include "Yaml.hpp"
 #include "document/FormParser.hpp"
 
-namespace {
+namespace
+{
 
 constexpr std::string_view kSettingsName = "settings";
 
@@ -49,57 +50,75 @@ constexpr char kWatchYaml[] = {
 
 } // namespace
 
-auto Forms::Load(const std::string& name) -> Result<FormDocument> {
-    if (name == kSettingsName) {
+auto Forms::Load(const std::string& name) -> Result<FormDocument>
+{
+    if (name == kSettingsName)
+    {
         return ConfigStore::LoadKnownYaml<FormDocument>("settings.yaml", kSettingsYaml);
     }
     const auto filename = std::format("{}.yaml", name);
     const auto text = ConfigStore::LoadText(filename);
-    if (!text) {
+    if (!text)
+    {
         return Unexpected(std::format("Could not read file at {}", filename));
     }
     return FormParser::Parse(*text);
 }
 
-auto Forms::Watch(std::string_view profile) -> FormDocument {
-    if (const auto text = ConfigStore::ReadFile(WatchFile(profile))) {
-        if (auto parsed = FormParser::Parse(*text)) {
+auto Forms::Watch(std::string_view profile) -> FormDocument
+{
+    if (const auto text = ConfigStore::ReadFile(WatchFile(profile)))
+    {
+        if (auto parsed = FormParser::Parse(*text))
+        {
             return std::move(*parsed);
-        } else {
+        }
+        else
+        {
             LOG_ERROR("Watch layout {} is broken: {}", profile, parsed.error().Message());
         }
-    } else if (!IsBuiltInWatch(profile)) {
+    }
+    else if (!IsBuiltInWatch(profile))
+    {
         LOG_WARN("Unknown watch layout {}, using {}", profile, kDefaultWatch);
     }
     auto built_in = FormParser::Parse(kWatchYaml);
-    if (!built_in) {
+    if (!built_in)
+    {
         FatalError(std::format("Built-in watch is broken: {}", built_in.error().Message()));
     }
     return std::move(*built_in);
 }
 
-auto Forms::WatchFile(std::string_view profile) -> std::filesystem::path {
+auto Forms::WatchFile(std::string_view profile) -> std::filesystem::path
+{
     return ConfigStore::Root() / "watches" / std::format("{}.yaml", profile);
 }
 
-auto Forms::SaveWatch(std::string_view profile, const FormDocument& document) -> Result<> {
+auto Forms::SaveWatch(std::string_view profile, const FormDocument& document) -> Result<>
+{
     return ConfigStore::WriteFile(WatchFile(profile), Yaml::Emit(nlohmann::ordered_json(document)));
 }
 
-auto Forms::DeleteWatch(std::string_view profile) -> void {
+auto Forms::DeleteWatch(std::string_view profile) -> void
+{
     std::error_code error;
     std::filesystem::remove(WatchFile(profile), error);
 }
 
-auto Forms::IsBuiltInWatch(std::string_view profile) -> bool {
+auto Forms::IsBuiltInWatch(std::string_view profile) -> bool
+{
     return profile == kDefaultWatch;
 }
 
-auto Forms::WatchProfiles() -> std::vector<std::string> {
+auto Forms::WatchProfiles() -> std::vector<std::string>
+{
     std::vector<std::string> mine;
     std::error_code error;
-    for (const auto& entry : std::filesystem::directory_iterator(ConfigStore::Root() / "watches", error)) {
-        if (entry.path().extension() == ".yaml" && entry.path().stem() != kDefaultWatch) {
+    for (const auto& entry : std::filesystem::directory_iterator(ConfigStore::Root() / "watches", error))
+    {
+        if (entry.path().extension() == ".yaml" && entry.path().stem() != kDefaultWatch)
+        {
             mine.push_back(entry.path().stem().string());
         }
     }

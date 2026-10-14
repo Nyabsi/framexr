@@ -23,7 +23,8 @@
 #include "Config.hpp"
 #include "document/FormParser.hpp"
 
-auto DragMultiplierComponent::Parse(const nlohmann::json& json) -> DragMultiplierElement {
+auto DragMultiplierComponent::Parse(const nlohmann::json& json) -> DragMultiplierElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -31,16 +32,19 @@ auto DragMultiplierComponent::Parse(const nlohmann::json& json) -> DragMultiplie
     };
 }
 
-auto DragMultiplierComponent::Serialize(nlohmann::ordered_json& json, const DragMultiplierElement& element) -> void {
+auto DragMultiplierComponent::Serialize(nlohmann::ordered_json& json, const DragMultiplierElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
 }
 
 auto DragMultiplierComponent::Create(FormComponent& parent, const DragMultiplierElement& element, const FormContext& context)
-    -> DragMultiplierComponent& {
+    -> DragMultiplierComponent&
+{
     auto& component = parent.AddComponent<DragMultiplierComponent>("");
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
@@ -51,13 +55,16 @@ auto DragMultiplierComponent::Create(FormComponent& parent, const DragMultiplier
 
 DragMultiplierComponent::DragMultiplierComponent(std::string name)
     : FormComponent(std::move(name)),
-      m_label(AddComponent<LabelComponent>("label")) {
+      m_label(AddComponent<LabelComponent>("label"))
+{
 }
 
-auto DragMultiplierComponent::Layout() -> void {
+auto DragMultiplierComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }
 
-auto DragMultiplierComponent::Update() -> void {
+auto DragMultiplierComponent::Update() -> void
+{
     m_label.SetText(std::format("{:.1f}", g_config->space_drag_multiplier));
 }

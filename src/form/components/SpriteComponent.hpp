@@ -33,7 +33,8 @@
 #include "Image.hpp"
 #include "document/Common.hpp"
 
-struct SpriteElement {
+struct SpriteElement
+{
     std::array<float, 4> rect{};
     std::string sprite;
     std::optional<std::array<float, 4>> sprite_st;
@@ -41,7 +42,8 @@ struct SpriteElement {
     size_t form = 0;
 };
 
-class SpriteComponent final : public FormComponent {
+class SpriteComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Sprite";
 

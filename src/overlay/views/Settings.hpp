@@ -30,7 +30,8 @@
 #include "View.hpp"
 #include "document/FormDocument.hpp"
 
-class Settings final : public View {
+class Settings final : public View
+{
   public:
     static auto Create(std::string name) -> std::unique_ptr<Settings>;
 

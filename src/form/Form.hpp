@@ -29,7 +29,8 @@
 #include "document/FormElements.hpp"
 #include "document/FormDocument.hpp"
 
-class Form final : public FormComponent {
+class Form final : public FormComponent
+{
   public:
     explicit Form(std::string name = {});
 

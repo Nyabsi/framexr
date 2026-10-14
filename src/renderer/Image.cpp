@@ -23,22 +23,28 @@
 Image::Image(const ImageResources& resources, const ImageInfo& info)
     : m_resources(resources),
       m_info(info),
-      m_layout(info.initial_layout) {
+      m_layout(info.initial_layout)
+{
 }
 
-Image::~Image() {
+Image::~Image()
+{
     const auto device = g_device->Handle();
-    if (m_resources.view != VK_NULL_HANDLE) {
+    if (m_resources.view != VK_NULL_HANDLE)
+    {
         vkDestroyImageView(device, m_resources.view, nullptr);
     }
-    if (m_resources.allocation != VK_NULL_HANDLE) {
+    if (m_resources.allocation != VK_NULL_HANDLE)
+    {
         vmaDestroyImage(g_device->Allocator(), m_resources.image, m_resources.allocation);
         return;
     }
-    if (m_resources.owns_image) {
+    if (m_resources.owns_image)
+    {
         vkDestroyImage(device, m_resources.image, nullptr);
     }
-    if (m_resources.imported_memory != VK_NULL_HANDLE) {
+    if (m_resources.imported_memory != VK_NULL_HANDLE)
+    {
         vkFreeMemory(device, m_resources.imported_memory, nullptr);
     }
 }

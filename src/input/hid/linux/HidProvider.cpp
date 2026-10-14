@@ -24,18 +24,22 @@
 #include "NullHidProvider.hpp"
 #include "UInputProvider.hpp"
 
-auto HidProvider::Create() -> std::unique_ptr<HidProvider> {
-    if (!UseNative()) {
+auto HidProvider::Create() -> std::unique_ptr<HidProvider>
+{
+    if (!UseNative())
+    {
         LOG_INFO("Uinput disabled by user.");
         return std::make_unique<NullHidProvider>();
     }
-    if (auto uinput = UInputProvider::Create()) {
+    if (auto uinput = UInputProvider::Create())
+    {
         LOG_INFO("Initialized uinput.");
         return uinput;
     }
     LOG_ERROR("Could not create uinput provider. Keyboard/Mouse input will not work!");
     LOG_ERROR("To check if you're in input group, run: id -nG");
-    if (const char* user = std::getenv("USER")) {
+    if (const char* user = std::getenv("USER"))
+    {
         LOG_ERROR("To add yourself to the input group, run: sudo usermod -aG input {}", user);
         LOG_ERROR("After adding yourself to the input group, you will need to reboot.");
     }

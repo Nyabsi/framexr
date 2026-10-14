@@ -25,7 +25,8 @@
 
 #include "FormComponent.hpp"
 
-class StackComponent final : public FormComponent {
+class StackComponent final : public FormComponent
+{
   public:
     StackComponent(std::string name, float padding, float gap);
 

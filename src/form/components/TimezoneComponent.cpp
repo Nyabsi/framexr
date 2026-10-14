@@ -21,7 +21,8 @@
 #include "ClockComponent.hpp"
 #include "document/FormParser.hpp"
 
-auto TimezoneComponent::Parse(const nlohmann::json& json) -> TimezoneElement {
+auto TimezoneComponent::Parse(const nlohmann::json& json) -> TimezoneElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -30,25 +31,31 @@ auto TimezoneComponent::Parse(const nlohmann::json& json) -> TimezoneElement {
     };
 }
 
-auto TimezoneComponent::Serialize(nlohmann::ordered_json& json, const TimezoneElement& element) -> void {
+auto TimezoneComponent::Serialize(nlohmann::ordered_json& json, const TimezoneElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     FormParser::PutTimezone(json, element.timezone);
 }
 
 auto TimezoneComponent::Create(FormComponent& parent, const TimezoneElement& element, const FormContext& context)
-    -> TimezoneComponent& {
+    -> TimezoneComponent&
+{
     auto& component = parent.AddComponent<TimezoneComponent>("");
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
     component.Label().SetFgColor(FormParser::Color(element.fg_color, context.theme));
     component.Label().SetCentered(element.centered);
-    if (const auto name = ClockComponent::ZoneName(element.timezone)) {
+    if (const auto name = ClockComponent::ZoneName(element.timezone))
+    {
         component.Label().SetText(ClockComponent::City(*name));
-    } else {
+    }
+    else
+    {
         component.Label().SetText("Error");
         component.Label().SetFgColor(FormTheme::FallbackColor());
     }
@@ -57,9 +64,11 @@ auto TimezoneComponent::Create(FormComponent& parent, const TimezoneElement& ele
 
 TimezoneComponent::TimezoneComponent(std::string name, std::string_view zone)
     : FormComponent(std::move(name)),
-      m_label(AddComponent<LabelComponent>("label", zone)) {
+      m_label(AddComponent<LabelComponent>("label", zone))
+{
 }
 
-auto TimezoneComponent::Layout() -> void {
+auto TimezoneComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }

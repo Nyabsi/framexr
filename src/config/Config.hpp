@@ -38,7 +38,8 @@
 #include "Logger.hpp"
 #include "Yaml.hpp"
 
-enum class Handedness : uint8_t {
+enum class Handedness : uint8_t
+{
     Left,
     Right,
 };
@@ -46,14 +47,16 @@ enum class Handedness : uint8_t {
 auto from_json(const nlohmann::json& json, Handedness& value) -> void;
 auto to_json(nlohmann::json& json, const Handedness& value) -> void;
 
-enum class ToastTopic : uint8_t {
+enum class ToastTopic : uint8_t
+{
     System,
     DesktopNotification,
     XsNotification,
     IpdChange,
 };
 
-enum class ToastDisplay : uint8_t {
+enum class ToastDisplay : uint8_t
+{
     Hide,
     Center,
     Watch,
@@ -65,13 +68,15 @@ auto from_json(const nlohmann::json& json, ToastDisplay& value) -> void;
 auto to_json(nlohmann::json& json, const ToastDisplay& value) -> void;
 
 template <>
-class nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>> {
+class nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>>
+{
   public:
     static auto from_json(const nlohmann::json& json, std::map<ToastTopic, ToastDisplay>& value) -> void;
     static auto to_json(nlohmann::json& json, const std::map<ToastTopic, ToastDisplay>& value) -> void;
 };
 
-struct Config {
+struct Config
+{
     Eigen::Vector3f watch_pos{-0.03f, -0.01f, 0.125f};
     Eigen::Quaternionf watch_rot{0.0f, -0.707'106'6f, 0.000'796'361'8f, 0.707'106'6f};
     Handedness watch_hand = Handedness::Left;

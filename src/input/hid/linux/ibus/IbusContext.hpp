@@ -28,7 +28,8 @@
 #include "Error.hpp"
 #include "ImeContext.hpp"
 
-class IbusContext final : public ImeContext {
+class IbusContext final : public ImeContext
+{
   public:
     static auto Create(const std::string& address, ImeScript script) -> Result<std::unique_ptr<IbusContext>>;
 

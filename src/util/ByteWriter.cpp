@@ -27,18 +27,22 @@
 #include <cstring>
 #include <utility>
 
-auto ByteWriter::Byte(std::byte value) -> void {
+auto ByteWriter::Byte(std::byte value) -> void
+{
     m_bytes.push_back(value);
 }
 
-auto ByteWriter::Float(float value) -> void {
+auto ByteWriter::Float(float value) -> void
+{
     const auto raw = std::bit_cast<uint32_t>(value);
-    for (uint32_t shift = 0; shift < 32; shift += 8) {
+    for (uint32_t shift = 0; shift < 32; shift += 8)
+    {
         m_bytes.push_back(static_cast<std::byte>((raw >> shift) & 0xffU));
     }
 }
 
-auto ByteWriter::String(std::string_view value) -> void {
+auto ByteWriter::String(std::string_view value) -> void
+{
     const auto length = static_cast<uint16_t>(std::min<size_t>(value.size(), UINT16_MAX));
     m_bytes.push_back(static_cast<std::byte>(length & 0xffU));
     m_bytes.push_back(static_cast<std::byte>(length >> 8U));
@@ -47,6 +51,7 @@ auto ByteWriter::String(std::string_view value) -> void {
     m_bytes.insert(m_bytes.end(), data.begin(), data.end());
 }
 
-auto ByteWriter::Take() -> std::vector<std::byte> {
+auto ByteWriter::Take() -> std::vector<std::byte>
+{
     return std::move(m_bytes);
 }

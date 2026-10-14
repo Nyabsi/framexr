@@ -30,7 +30,8 @@
 #include "InputMethod.hpp"
 #include "Process.hpp"
 
-class DesktopInputMethod final : public InputMethod {
+class DesktopInputMethod final : public InputMethod
+{
   public:
     DesktopInputMethod();
     ~DesktopInputMethod() override;

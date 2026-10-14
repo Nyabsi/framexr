@@ -37,7 +37,8 @@
 #include "Frame.hpp"
 #include "FrameChannel.hpp"
 
-struct Duplication {
+struct Duplication
+{
     Microsoft::WRL::ComPtr<ID3D11Device> device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
     Microsoft::WRL::ComPtr<IDXGIOutputDuplication> duplication;
@@ -48,7 +49,8 @@ struct Duplication {
     LONG desktop_height = 0;
 };
 
-struct DxgiOutput {
+struct DxgiOutput
+{
     std::string name;
     std::wstring device;
     int32_t x = 0;
@@ -58,7 +60,8 @@ struct DxgiOutput {
     FrameTransform transform = FrameTransform::Normal;
 };
 
-class DxgiCapture final : public Capture {
+class DxgiCapture final : public Capture
+{
   public:
     static auto Outputs() -> Result<std::vector<DxgiOutput>>;
 

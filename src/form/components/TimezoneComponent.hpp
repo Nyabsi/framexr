@@ -30,7 +30,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct TimezoneElement {
+struct TimezoneElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -40,7 +41,8 @@ struct TimezoneElement {
     size_t form = 0;
 };
 
-class TimezoneComponent final : public FormComponent {
+class TimezoneComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Timezone";
 

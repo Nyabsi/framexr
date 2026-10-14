@@ -24,7 +24,8 @@
 
 #include "HidProvider.hpp"
 
-struct HidEvent {
+struct HidEvent
+{
     VirtualKey key = VirtualKey::Escape;
     bool down = false;
     uint8_t modifiers = 0;
@@ -32,14 +33,16 @@ struct HidEvent {
     auto operator==(const HidEvent&) const -> bool = default;
 };
 
-struct ButtonEvent {
+struct ButtonEvent
+{
     uint16_t button = 0;
     bool down = false;
 
     auto operator==(const ButtonEvent&) const -> bool = default;
 };
 
-class RecordingHid final : public HidProvider {
+class RecordingHid final : public HidProvider
+{
   public:
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_events; }
     [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_buttons; }

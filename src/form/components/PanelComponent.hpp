@@ -30,7 +30,8 @@
 #include "FormComponent.hpp"
 #include "document/Common.hpp"
 
-struct PanelElement {
+struct PanelElement
+{
     std::array<float, 4> rect{};
     std::optional<float> corner_radius;
     std::string bg_color;
@@ -38,7 +39,8 @@ struct PanelElement {
     size_t form = 0;
 };
 
-class PanelComponent final : public FormComponent {
+class PanelComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Panel";
 

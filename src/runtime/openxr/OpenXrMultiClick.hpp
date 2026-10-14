@@ -38,7 +38,8 @@
 
 class OpenXrInstance;
 
-class OpenXrMultiClick final {
+class OpenXrMultiClick final
+{
   public:
     OpenXrMultiClick() = default;
 

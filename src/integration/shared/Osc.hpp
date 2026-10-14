@@ -34,7 +34,8 @@
 
 using OscValue = std::variant<int32_t, float, std::string, bool>;
 
-class Osc final {
+class Osc final
+{
   public:
     static auto Create(uint16_t port) -> Result<std::unique_ptr<Osc>>;
 

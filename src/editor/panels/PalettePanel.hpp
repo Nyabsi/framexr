@@ -26,7 +26,8 @@ class Editor;
 
 class StackComponent;
 
-class PalettePanel final : public FormComponent {
+class PalettePanel final : public FormComponent
+{
   public:
     PalettePanel(Editor& editor, const Eigen::Vector2f& size);
 

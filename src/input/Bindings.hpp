@@ -30,7 +30,8 @@
 
 #include "Error.hpp"
 
-struct InputBinding {
+struct InputBinding
+{
     std::optional<std::string> left;
     std::optional<std::string> right;
     std::optional<std::array<float, 2>> threshold;
@@ -38,7 +39,8 @@ struct InputBinding {
     std::optional<bool> triple_click;
 };
 
-struct BindingProfile {
+struct BindingProfile
+{
     std::string profile;
     std::optional<InputBinding> pose;
     std::optional<InputBinding> click;
@@ -54,7 +56,8 @@ struct BindingProfile {
     std::optional<InputBinding> haptic;
 };
 
-class Bindings final {
+class Bindings final
+{
   public:
     static auto Load() -> std::vector<BindingProfile>;
     static auto Parse(const nlohmann::json& json) -> Result<std::vector<BindingProfile>>;

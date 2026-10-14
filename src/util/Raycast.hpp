@@ -31,7 +31,8 @@
 
 #include <Eigen/Geometry>
 
-class Raycast {
+class Raycast
+{
   public:
     static auto Plane(const Eigen::Affine3f& source, const Eigen::Vector3f& source_forward, const Eigen::Affine3f& plane)
         -> std::pair<float, Eigen::Vector2f>;

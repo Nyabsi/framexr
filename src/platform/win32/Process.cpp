@@ -27,10 +27,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-namespace {
+namespace
+{
 
-auto Widen(std::string_view text) -> std::wstring {
-    if (text.empty()) {
+auto Widen(std::string_view text) -> std::wstring
+{
+    if (text.empty())
+    {
         return {};
     }
     const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
@@ -39,19 +42,24 @@ auto Widen(std::string_view text) -> std::wstring {
     return wide;
 }
 
-auto LastError() -> std::string {
+auto LastError() -> std::string
+{
     const auto error = GetLastError();
     return std::format("{} (os error {})", std::system_category().message(static_cast<int>(error)), error);
 }
 
-auto Quote(const std::wstring& argument) -> std::wstring {
-    if (!argument.empty() && argument.find_first_of(L" \t\n\v\"") == std::wstring::npos) {
+auto Quote(const std::wstring& argument) -> std::wstring
+{
+    if (!argument.empty() && argument.find_first_of(L" \t\n\v\"") == std::wstring::npos)
+    {
         return argument;
     }
     std::wstring quoted = L"\"";
     size_t backslashes = 0;
-    for (const wchar_t character : argument) {
-        if (character == L'\\') {
+    for (const wchar_t character : argument)
+    {
+        if (character == L'\\')
+        {
             ++backslashes;
             continue;
         }
@@ -64,10 +72,13 @@ auto Quote(const std::wstring& argument) -> std::wstring {
     return quoted;
 }
 
-auto CommandLine(const std::vector<std::string>& command) -> std::wstring {
+auto CommandLine(const std::vector<std::string>& command) -> std::wstring
+{
     std::wstring line;
-    for (const auto& argument : command) {
-        if (!line.empty()) {
+    for (const auto& argument : command)
+    {
+        if (!line.empty())
+        {
             line.push_back(L' ');
         }
         line += Quote(Widen(argument));
@@ -75,25 +86,32 @@ auto CommandLine(const std::vector<std::string>& command) -> std::wstring {
     return line;
 }
 
-auto Environment(const ProcessOptions& options) -> std::wstring {
+auto Environment(const ProcessOptions& options) -> std::wstring
+{
     std::wstring block;
-    if (wchar_t* strings = GetEnvironmentStringsW()) {
-        for (const wchar_t* entry = strings; *entry != L'\0'; entry += std::wstring_view(entry).size() + 1) {
+    if (wchar_t* strings = GetEnvironmentStringsW())
+    {
+        for (const wchar_t* entry = strings; *entry != L'\0'; entry += std::wstring_view(entry).size() + 1)
+        {
             const std::wstring_view variable(entry);
             const auto name = variable.substr(0, variable.find(L'=', 1));
-            const auto overridden = std::ranges::any_of(options.set_env, [&](const auto& pair) -> bool {
-                return Widen(pair.first) == name;
-            });
-            const auto removed = std::ranges::any_of(options.unset_env, [&](const auto& unset) -> bool {
-                return Widen(unset) == name;
-            });
-            if (!overridden && !removed) {
+            const auto overridden = std::ranges::any_of(
+                options.set_env,
+                [&](const auto& pair) -> bool { return Widen(pair.first) == name; }
+            );
+            const auto removed = std::ranges::any_of(
+                options.unset_env,
+                [&](const auto& unset) -> bool { return Widen(unset) == name; }
+            );
+            if (!overridden && !removed)
+            {
                 block.append(variable).push_back(L'\0');
             }
         }
         FreeEnvironmentStringsW(strings);
     }
-    for (const auto& [name, value] : options.set_env) {
+    for (const auto& [name, value] : options.set_env)
+    {
         block.append(Widen(name)).append(L"=").append(Widen(value)).push_back(L'\0');
     }
     block.push_back(L'\0');
@@ -102,27 +120,32 @@ auto Environment(const ProcessOptions& options) -> std::wstring {
 
 } // namespace
 
-auto Process::Spawn(const std::vector<std::string>& command, const ProcessOptions& options) -> Result<Process> {
-    if (command.empty()) {
+auto Process::Spawn(const std::vector<std::string>& command, const ProcessOptions& options) -> Result<Process>
+{
+    if (command.empty())
+    {
         return Unexpected("empty command");
     }
 
     HANDLE read_pipe = nullptr;
     HANDLE write_pipe = nullptr;
-    if (options.capture_stdout) {
+    if (options.capture_stdout)
+    {
         SECURITY_ATTRIBUTES attributes{
             .nLength = sizeof(SECURITY_ATTRIBUTES),
             .lpSecurityDescriptor = nullptr,
             .bInheritHandle = TRUE
         };
-        if (CreatePipe(&read_pipe, &write_pipe, &attributes, 0) == 0) {
+        if (CreatePipe(&read_pipe, &write_pipe, &attributes, 0) == 0)
+        {
             return Unexpected(LastError());
         }
         SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
     }
 
     STARTUPINFOW startup{.cb = sizeof(STARTUPINFOW)};
-    if (options.capture_stdout) {
+    if (options.capture_stdout)
+    {
         startup.dwFlags = STARTF_USESTDHANDLES;
         startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
         startup.hStdOutput = write_pipe;
@@ -145,11 +168,14 @@ auto Process::Spawn(const std::vector<std::string>& command, const ProcessOption
         &information
     );
     const auto error = created == 0 ? LastError() : std::string();
-    if (write_pipe != nullptr) {
+    if (write_pipe != nullptr)
+    {
         CloseHandle(write_pipe);
     }
-    if (created == 0) {
-        if (read_pipe != nullptr) {
+    if (created == 0)
+    {
+        if (read_pipe != nullptr)
+        {
             CloseHandle(read_pipe);
         }
         return Unexpected(error);
@@ -158,14 +184,18 @@ auto Process::Spawn(const std::vector<std::string>& command, const ProcessOption
     return Process(information.hProcess, read_pipe);
 }
 
-Process::Process(void* process, void* stdout_pipe) : m_process(process), m_stdout_pipe(stdout_pipe) {
+Process::Process(void* process, void* stdout_pipe) : m_process(process), m_stdout_pipe(stdout_pipe)
+{
 }
 
-Process::~Process() {
-    if (m_stdout_pipe != nullptr) {
+Process::~Process()
+{
+    if (m_stdout_pipe != nullptr)
+    {
         CloseHandle(m_stdout_pipe);
     }
-    if (m_process != nullptr) {
+    if (m_process != nullptr)
+    {
         CloseHandle(m_process);
     }
 }
@@ -173,15 +203,20 @@ Process::~Process() {
 Process::Process(Process&& other) noexcept
     : m_process(std::exchange(other.m_process, nullptr)),
       m_stdout_pipe(std::exchange(other.m_stdout_pipe, nullptr)),
-      m_exit_status(other.m_exit_status) {
+      m_exit_status(other.m_exit_status)
+{
 }
 
-auto Process::operator=(Process&& other) noexcept -> Process& {
-    if (this != &other) {
-        if (m_stdout_pipe != nullptr) {
+auto Process::operator=(Process&& other) noexcept -> Process&
+{
+    if (this != &other)
+    {
+        if (m_stdout_pipe != nullptr)
+        {
             CloseHandle(m_stdout_pipe);
         }
-        if (m_process != nullptr) {
+        if (m_process != nullptr)
+        {
             CloseHandle(m_process);
         }
         m_process = std::exchange(other.m_process, nullptr);
@@ -191,43 +226,54 @@ auto Process::operator=(Process&& other) noexcept -> Process& {
     return *this;
 }
 
-auto Process::Pid() const -> uint32_t {
+auto Process::Pid() const -> uint32_t
+{
     return m_process != nullptr ? GetProcessId(m_process) : 0;
 }
 
-auto Process::TryWait() -> Result<std::optional<ExitStatus>> {
-    if (m_exit_status) {
+auto Process::TryWait() -> Result<std::optional<ExitStatus>>
+{
+    if (m_exit_status)
+    {
         return m_exit_status;
     }
     const DWORD waited = WaitForSingleObject(m_process, 0);
-    if (waited == WAIT_TIMEOUT) {
+    if (waited == WAIT_TIMEOUT)
+    {
         return std::nullopt;
     }
-    if (waited != WAIT_OBJECT_0) {
+    if (waited != WAIT_OBJECT_0)
+    {
         return Unexpected(LastError());
     }
     DWORD code = 0;
-    if (GetExitCodeProcess(m_process, &code) == 0) {
+    if (GetExitCodeProcess(m_process, &code) == 0)
+    {
         return Unexpected(LastError());
     }
     m_exit_status = ExitStatus(static_cast<int>(code));
     return m_exit_status;
 }
 
-auto Process::Signal(int) const -> void {
-    if (m_process != nullptr) {
+auto Process::Signal(int) const -> void
+{
+    if (m_process != nullptr)
+    {
         TerminateProcess(m_process, 1);
     }
 }
 
-auto Process::ReadStdout() -> std::optional<std::string> {
-    if (m_stdout_pipe == nullptr) {
+auto Process::ReadStdout() -> std::optional<std::string>
+{
+    if (m_stdout_pipe == nullptr)
+    {
         return std::nullopt;
     }
     std::string output;
     char buffer[4096];
     DWORD count = 0;
-    while (ReadFile(m_stdout_pipe, buffer, sizeof(buffer), &count, nullptr) != 0 && count > 0) {
+    while (ReadFile(m_stdout_pipe, buffer, sizeof(buffer), &count, nullptr) != 0 && count > 0)
+    {
         output.append(buffer, count);
     }
     CloseHandle(m_stdout_pipe);

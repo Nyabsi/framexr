@@ -24,7 +24,8 @@
 #include <vector>
 
 template <typename Document>
-class History {
+class History
+{
   public:
     static constexpr size_t kLimit = 100;
 
@@ -38,21 +39,25 @@ class History {
     [[nodiscard]] auto Version() const -> uint64_t { return m_version; }
 
     template <typename Change>
-    auto Edit(Change&& change) -> void {
+    auto Edit(Change&& change) -> void
+    {
         auto before = m_current;
         std::forward<Change>(change)(m_current);
         Commit(std::move(before));
     }
 
     template <typename Change>
-    auto Amend(Change&& change) -> void {
+    auto Amend(Change&& change) -> void
+    {
         std::forward<Change>(change)(m_current);
         m_version = ++m_next_version;
     }
 
-    auto Commit(Document before) -> void {
+    auto Commit(Document before) -> void
+    {
         m_undo.push_back({std::move(before), m_version});
-        if (m_undo.size() > kLimit) {
+        if (m_undo.size() > kLimit)
+        {
             m_undo.erase(m_undo.begin());
         }
         m_redo.clear();
@@ -63,7 +68,8 @@ class History {
     auto Redo() -> bool { return Step(m_redo, m_undo); }
     auto MarkSaved() -> void { m_saved_version = m_version; }
 
-    auto Reset(Document document) -> void {
+    auto Reset(Document document) -> void
+    {
         m_current = std::move(document);
         m_undo.clear();
         m_redo.clear();
@@ -72,13 +78,16 @@ class History {
     }
 
   private:
-    struct Entry {
+    struct Entry
+    {
         Document document;
         uint64_t version = 0;
     };
 
-    auto Step(std::vector<Entry>& from, std::vector<Entry>& to) -> bool {
-        if (from.empty()) {
+    auto Step(std::vector<Entry>& from, std::vector<Entry>& to) -> bool
+    {
+        if (from.empty())
+        {
             return false;
         }
         to.push_back({std::move(m_current), m_version});

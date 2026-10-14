@@ -42,7 +42,8 @@
 #include "Pipeline.hpp"
 #include "Queue.hpp"
 
-struct DeviceCreateInfo {
+struct DeviceCreateInfo
+{
     std::vector<std::string> instance_extensions;
     std::function<std::vector<std::string>(VkPhysicalDevice)> required_device_extensions;
     std::function<Result<VkInstance>(const VkInstanceCreateInfo&)> create_instance;
@@ -50,18 +51,21 @@ struct DeviceCreateInfo {
     std::function<Result<VkDevice>(VkPhysicalDevice, const VkDeviceCreateInfo&)> create_device;
 };
 
-struct QueueFamilyRequest {
+struct QueueFamilyRequest
+{
     uint32_t family = 0;
     uint32_t count = 0;
 };
 
-struct Submission {
+struct Submission
+{
     VkFence fence = VK_NULL_HANDLE;
     std::vector<std::pair<uint32_t, VkCommandPool>> pools;
     std::vector<std::shared_ptr<void>> retained;
 };
 
-class Device final {
+class Device final
+{
   public:
     static auto Create(const DeviceCreateInfo& create_info) -> Result<std::unique_ptr<Device>>;
     static auto FourccToFormat(uint32_t fourcc) -> Result<VkFormat>;

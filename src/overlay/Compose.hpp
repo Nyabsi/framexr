@@ -44,30 +44,35 @@
 
 class ScreenRenderer;
 
-enum class RenderReadiness : uint8_t {
+enum class RenderReadiness : uint8_t
+{
     Should,
     Can,
     Unable,
 };
 
-struct TexelFootprint {
+struct TexelFootprint
+{
     Eigen::Vector3f eye = Eigen::Vector3f::UnitZ();
     Eigen::Vector2f size = Eigen::Vector2f::Ones();
     Eigen::Vector2f display_pixels_per_radian = Eigen::Vector2f::Zero();
 };
 
-struct FrameMeta {
+struct FrameMeta
+{
     VkExtent2D extent{};
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
     VkFormat format = VK_FORMAT_UNDEFINED;
 };
 
-struct PressFlash {
+struct PressFlash
+{
     size_t index = 0;
     std::chrono::steady_clock::time_point released;
 };
 
-class Compose final {
+class Compose final
+{
   public:
     static auto Create(std::unique_ptr<Form> form, float scale = 1.0f) -> Result<std::unique_ptr<Compose>>;
 

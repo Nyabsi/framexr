@@ -24,36 +24,47 @@
 #include <olectl.h>
 #include <utility>
 
-namespace {
+namespace
+{
 
 constexpr TsViewCookie kView = 1;
 
 } // namespace
 
-TsfTextStore::TsfTextStore(HWND window) : m_window(window) {
+TsfTextStore::TsfTextStore(HWND window) : m_window(window)
+{
 }
 
-auto TsfTextStore::Clear() -> void {
+auto TsfTextStore::Clear() -> void
+{
     const auto length = static_cast<LONG>(m_text.size());
     m_text.clear();
     m_selection_start = 0;
     m_selection_end = 0;
-    if (m_sink && length > 0) {
+    if (m_sink && length > 0)
+    {
         const TS_TEXTCHANGE change{.acpStart = 0, .acpOldEnd = length, .acpNewEnd = 0};
         m_sink->OnTextChange(0, &change);
         m_sink->OnSelectionChange();
     }
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::QueryInterface(REFIID riid, void** object) -> HRESULT {
-    if (object == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::QueryInterface(REFIID riid, void** object) -> HRESULT
+{
+    if (object == nullptr)
+    {
         return E_INVALIDARG;
     }
-    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITextStoreACP)) {
+    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITextStoreACP))
+    {
         *object = static_cast<ITextStoreACP*>(this);
-    } else if (IsEqualIID(riid, IID_ITfContextOwnerCompositionSink)) {
+    }
+    else if (IsEqualIID(riid, IID_ITfContextOwnerCompositionSink))
+    {
         *object = static_cast<ITfContextOwnerCompositionSink*>(this);
-    } else {
+    }
+    else
+    {
         *object = nullptr;
         return E_NOINTERFACE;
     }
@@ -61,39 +72,50 @@ auto STDMETHODCALLTYPE TsfTextStore::QueryInterface(REFIID riid, void** object) 
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::AddRef() -> ULONG {
+auto STDMETHODCALLTYPE TsfTextStore::AddRef() -> ULONG
+{
     return ++m_references;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::Release() -> ULONG {
+auto STDMETHODCALLTYPE TsfTextStore::Release() -> ULONG
+{
     const ULONG references = --m_references;
-    if (references == 0) {
+    if (references == 0)
+    {
         delete this;
     }
     return references;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::AdviseSink(REFIID riid, IUnknown* sink, DWORD) -> HRESULT {
-    if (!IsEqualIID(riid, IID_ITextStoreACPSink) || sink == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::AdviseSink(REFIID riid, IUnknown* sink, DWORD) -> HRESULT
+{
+    if (!IsEqualIID(riid, IID_ITextStoreACPSink) || sink == nullptr)
+    {
         return E_INVALIDARG;
     }
-    if (m_sink) {
+    if (m_sink)
+    {
         return CONNECT_E_ADVISELIMIT;
     }
     return sink->QueryInterface(IID_PPV_ARGS(&m_sink));
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::UnadviseSink(IUnknown*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::UnadviseSink(IUnknown*) -> HRESULT
+{
     m_sink.Reset();
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::RequestLock(DWORD flags, HRESULT* session) -> HRESULT {
-    if (!m_sink || session == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::RequestLock(DWORD flags, HRESULT* session) -> HRESULT
+{
+    if (!m_sink || session == nullptr)
+    {
         return E_UNEXPECTED;
     }
-    if (m_lock != 0) {
-        if ((flags & TS_LF_SYNC) != 0) {
+    if (m_lock != 0)
+    {
+        if ((flags & TS_LF_SYNC) != 0)
+        {
             *session = TS_E_SYNCHRONOUS;
             return S_OK;
         }
@@ -104,7 +126,8 @@ auto STDMETHODCALLTYPE TsfTextStore::RequestLock(DWORD flags, HRESULT* session) 
     m_lock = flags;
     *session = m_sink->OnLockGranted(flags);
     m_lock = 0;
-    if (const DWORD pending = std::exchange(m_pending_lock, 0); pending != 0) {
+    if (const DWORD pending = std::exchange(m_pending_lock, 0); pending != 0)
+    {
         m_lock = pending;
         m_sink->OnLockGranted(pending);
         m_lock = 0;
@@ -112,8 +135,10 @@ auto STDMETHODCALLTYPE TsfTextStore::RequestLock(DWORD flags, HRESULT* session) 
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetStatus(TS_STATUS* status) -> HRESULT {
-    if (status == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetStatus(TS_STATUS* status) -> HRESULT
+{
+    if (status == nullptr)
+    {
         return E_INVALIDARG;
     }
     status->dwDynamicFlags = 0;
@@ -121,8 +146,10 @@ auto STDMETHODCALLTYPE TsfTextStore::GetStatus(TS_STATUS* status) -> HRESULT {
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::QueryInsert(LONG start, LONG end, ULONG, LONG* result_start, LONG* result_end) -> HRESULT {
-    if (result_start == nullptr || result_end == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::QueryInsert(LONG start, LONG end, ULONG, LONG* result_start, LONG* result_end) -> HRESULT
+{
+    if (result_start == nullptr || result_end == nullptr)
+    {
         return E_INVALIDARG;
     }
     *result_start = start;
@@ -130,12 +157,15 @@ auto STDMETHODCALLTYPE TsfTextStore::QueryInsert(LONG start, LONG end, ULONG, LO
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetSelection(ULONG, ULONG count, TS_SELECTION_ACP* selection, ULONG* fetched) -> HRESULT {
-    if (selection == nullptr || fetched == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetSelection(ULONG, ULONG count, TS_SELECTION_ACP* selection, ULONG* fetched) -> HRESULT
+{
+    if (selection == nullptr || fetched == nullptr)
+    {
         return E_INVALIDARG;
     }
     *fetched = 0;
-    if (count == 0) {
+    if (count == 0)
+    {
         return S_OK;
     }
     selection->acpStart = m_selection_start;
@@ -146,8 +176,10 @@ auto STDMETHODCALLTYPE TsfTextStore::GetSelection(ULONG, ULONG count, TS_SELECTI
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::SetSelection(ULONG count, const TS_SELECTION_ACP* selection) -> HRESULT {
-    if (count > 0 && selection != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::SetSelection(ULONG count, const TS_SELECTION_ACP* selection) -> HRESULT
+{
+    if (count > 0 && selection != nullptr)
+    {
         const auto size = static_cast<LONG>(m_text.size());
         m_selection_start = std::clamp(selection->acpStart, LONG{0}, size);
         m_selection_end = std::clamp(selection->acpEnd, m_selection_start, size);
@@ -165,129 +197,162 @@ auto STDMETHODCALLTYPE TsfTextStore::GetText(
     ULONG runs_size,
     ULONG* runs_length,
     LONG* next
-) -> HRESULT {
+) -> HRESULT
+{
     const auto size = static_cast<LONG>(m_text.size());
     start = std::clamp(start, LONG{0}, size);
     end = end < 0 ? size : std::clamp(end, start, size);
     const auto copied = std::min(static_cast<ULONG>(end - start), plain_size);
-    if (plain != nullptr && copied > 0) {
+    if (plain != nullptr && copied > 0)
+    {
         std::copy_n(m_text.data() + start, copied, plain);
     }
-    if (plain_length != nullptr) {
+    if (plain_length != nullptr)
+    {
         *plain_length = plain != nullptr ? copied : 0;
     }
-    if (runs_length != nullptr) {
+    if (runs_length != nullptr)
+    {
         *runs_length = 0;
     }
-    if (runs != nullptr && runs_size > 0 && runs_length != nullptr) {
+    if (runs != nullptr && runs_size > 0 && runs_length != nullptr)
+    {
         runs->uCount = copied;
         runs->type = TS_RT_PLAIN;
         *runs_length = 1;
     }
-    if (next != nullptr) {
+    if (next != nullptr)
+    {
         *next = start + static_cast<LONG>(copied);
     }
     return S_OK;
 }
 
 auto STDMETHODCALLTYPE TsfTextStore::SetText(DWORD, LONG start, LONG end, const WCHAR* text, ULONG length, TS_TEXTCHANGE* change)
-    -> HRESULT {
+    -> HRESULT
+{
     Replace(start, end, text, length, change);
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetFormattedText(LONG, LONG, IDataObject**) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::GetFormattedText(LONG, LONG, IDataObject**) -> HRESULT
+{
     return E_NOTIMPL;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetEmbedded(LONG, REFGUID, REFIID, IUnknown**) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::GetEmbedded(LONG, REFGUID, REFIID, IUnknown**) -> HRESULT
+{
     return E_NOTIMPL;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::QueryInsertEmbedded(const GUID*, const FORMATETC*, BOOL* insertable) -> HRESULT {
-    if (insertable != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::QueryInsertEmbedded(const GUID*, const FORMATETC*, BOOL* insertable) -> HRESULT
+{
+    if (insertable != nullptr)
+    {
         *insertable = FALSE;
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::InsertEmbedded(DWORD, LONG, LONG, IDataObject*, TS_TEXTCHANGE*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::InsertEmbedded(DWORD, LONG, LONG, IDataObject*, TS_TEXTCHANGE*) -> HRESULT
+{
     return E_NOTIMPL;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::RequestSupportedAttrs(DWORD, ULONG, const TS_ATTRID*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::RequestSupportedAttrs(DWORD, ULONG, const TS_ATTRID*) -> HRESULT
+{
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::RequestAttrsAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::RequestAttrsAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) -> HRESULT
+{
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::RequestAttrsTransitioningAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::RequestAttrsTransitioningAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) -> HRESULT
+{
     return S_OK;
 }
 
 auto STDMETHODCALLTYPE
 TsfTextStore::FindNextAttrTransition(LONG, LONG halt, ULONG, const TS_ATTRID*, DWORD, LONG* next, BOOL* found, LONG* offset)
-    -> HRESULT {
-    if (next != nullptr) {
+    -> HRESULT
+{
+    if (next != nullptr)
+    {
         *next = halt;
     }
-    if (found != nullptr) {
+    if (found != nullptr)
+    {
         *found = FALSE;
     }
-    if (offset != nullptr) {
+    if (offset != nullptr)
+    {
         *offset = 0;
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::RetrieveRequestedAttrs(ULONG, TS_ATTRVAL*, ULONG* fetched) -> HRESULT {
-    if (fetched != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::RetrieveRequestedAttrs(ULONG, TS_ATTRVAL*, ULONG* fetched) -> HRESULT
+{
+    if (fetched != nullptr)
+    {
         *fetched = 0;
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetEndACP(LONG* end) -> HRESULT {
-    if (end == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetEndACP(LONG* end) -> HRESULT
+{
+    if (end == nullptr)
+    {
         return E_INVALIDARG;
     }
     *end = static_cast<LONG>(m_text.size());
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetActiveView(TsViewCookie* view) -> HRESULT {
-    if (view == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetActiveView(TsViewCookie* view) -> HRESULT
+{
+    if (view == nullptr)
+    {
         return E_INVALIDARG;
     }
     *view = kView;
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetACPFromPoint(TsViewCookie, const POINT*, DWORD, LONG*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::GetACPFromPoint(TsViewCookie, const POINT*, DWORD, LONG*) -> HRESULT
+{
     return E_NOTIMPL;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetTextExt(TsViewCookie, LONG, LONG, RECT* rect, BOOL* clipped) -> HRESULT {
-    if (rect != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetTextExt(TsViewCookie, LONG, LONG, RECT* rect, BOOL* clipped) -> HRESULT
+{
+    if (rect != nullptr)
+    {
         *rect = RECT{};
     }
-    if (clipped != nullptr) {
+    if (clipped != nullptr)
+    {
         *clipped = FALSE;
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetScreenExt(TsViewCookie, RECT* rect) -> HRESULT {
-    if (rect != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetScreenExt(TsViewCookie, RECT* rect) -> HRESULT
+{
+    if (rect != nullptr)
+    {
         *rect = RECT{};
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::GetWnd(TsViewCookie, HWND* window) -> HRESULT {
-    if (window == nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::GetWnd(TsViewCookie, HWND* window) -> HRESULT
+{
+    if (window == nullptr)
+    {
         return E_INVALIDARG;
     }
     *window = m_window;
@@ -296,49 +361,60 @@ auto STDMETHODCALLTYPE TsfTextStore::GetWnd(TsViewCookie, HWND* window) -> HRESU
 
 auto STDMETHODCALLTYPE
 TsfTextStore::InsertTextAtSelection(DWORD flags, const WCHAR* text, ULONG length, LONG* start, LONG* end, TS_TEXTCHANGE* change)
-    -> HRESULT {
+    -> HRESULT
+{
     const LONG from = m_selection_start;
-    if ((flags & TS_IAS_QUERYONLY) == 0) {
+    if ((flags & TS_IAS_QUERYONLY) == 0)
+    {
         Replace(m_selection_start, m_selection_end, text, length, change);
     }
-    if (start != nullptr) {
+    if (start != nullptr)
+    {
         *start = from;
     }
-    if (end != nullptr) {
+    if (end != nullptr)
+    {
         *end = from + static_cast<LONG>(length);
     }
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::InsertEmbeddedAtSelection(DWORD, IDataObject*, LONG*, LONG*, TS_TEXTCHANGE*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::InsertEmbeddedAtSelection(DWORD, IDataObject*, LONG*, LONG*, TS_TEXTCHANGE*) -> HRESULT
+{
     return E_NOTIMPL;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::OnStartComposition(ITfCompositionView*, BOOL* accept) -> HRESULT {
-    if (accept != nullptr) {
+auto STDMETHODCALLTYPE TsfTextStore::OnStartComposition(ITfCompositionView*, BOOL* accept) -> HRESULT
+{
+    if (accept != nullptr)
+    {
         *accept = TRUE;
     }
     m_composing = true;
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::OnUpdateComposition(ITfCompositionView*, ITfRange*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::OnUpdateComposition(ITfCompositionView*, ITfRange*) -> HRESULT
+{
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfTextStore::OnEndComposition(ITfCompositionView*) -> HRESULT {
+auto STDMETHODCALLTYPE TsfTextStore::OnEndComposition(ITfCompositionView*) -> HRESULT
+{
     m_composing = false;
     return S_OK;
 }
 
-auto TsfTextStore::Replace(LONG start, LONG end, const WCHAR* text, ULONG length, TS_TEXTCHANGE* change) -> void {
+auto TsfTextStore::Replace(LONG start, LONG end, const WCHAR* text, ULONG length, TS_TEXTCHANGE* change) -> void
+{
     const auto size = static_cast<LONG>(m_text.size());
     start = std::clamp(start, LONG{0}, size);
     end = std::clamp(end, start, size);
     m_text.replace(static_cast<size_t>(start), static_cast<size_t>(end - start), text != nullptr ? text : L"", length);
     m_selection_start = start + static_cast<LONG>(length);
     m_selection_end = m_selection_start;
-    if (change != nullptr) {
+    if (change != nullptr)
+    {
         change->acpStart = start;
         change->acpOldEnd = end;
         change->acpNewEnd = start + static_cast<LONG>(length);

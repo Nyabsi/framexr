@@ -34,32 +34,40 @@
 
 FontCache* g_fonts = nullptr;
 
-auto FontCache::Create(std::string primary_font) -> Result<std::unique_ptr<FontCache>> {
+auto FontCache::Create(std::string primary_font) -> Result<std::unique_ptr<FontCache>>
+{
     FT_Library library = nullptr;
-    if (const auto error = FT_Init_FreeType(&library); error != 0) {
+    if (const auto error = FT_Init_FreeType(&library); error != 0)
+    {
         return Unexpected(std::format("Failed to initialize FreeType: {}", error));
     }
     return std::unique_ptr<FontCache>(new FontCache(std::move(primary_font), library));
 }
 
-FontCache::FontCache(std::string primary_font, FT_LibraryRec_* library) : m_library(library), m_lookup(std::move(primary_font)) {
+FontCache::FontCache(std::string primary_font, FT_LibraryRec_* library) : m_library(library), m_lookup(std::move(primary_font))
+{
 }
 
-FontCache::~FontCache() {
+FontCache::~FontCache()
+{
     ReleaseFaces();
     FT_Done_FreeType(m_library);
 }
 
-auto FontCache::SplitLines(std::string_view text) -> std::vector<std::string_view> {
+auto FontCache::SplitLines(std::string_view text) -> std::vector<std::string_view>
+{
     std::vector<std::string_view> lines;
-    while (!text.empty()) {
+    while (!text.empty())
+    {
         const auto newline = text.find('\n');
         auto line = text.substr(0, newline);
-        if (line.ends_with('\r')) {
+        if (line.ends_with('\r'))
+        {
             line.remove_suffix(1);
         }
         lines.push_back(line);
-        if (newline == std::string_view::npos) {
+        if (newline == std::string_view::npos)
+        {
             break;
         }
         text.remove_prefix(newline + 1);
@@ -67,33 +75,44 @@ auto FontCache::SplitLines(std::string_view text) -> std::vector<std::string_vie
     return lines;
 }
 
-auto FontCache::DecodeUtf8(std::string_view text) -> std::vector<uint32_t> {
+auto FontCache::DecodeUtf8(std::string_view text) -> std::vector<uint32_t>
+{
     constexpr uint32_t kReplacement = 0xFFFD;
     std::vector<uint32_t> codepoints;
     size_t index = 0;
-    while (index < text.size()) {
+    while (index < text.size())
+    {
         const auto lead = static_cast<uint8_t>(text[index]);
         size_t length = 1;
         uint32_t codepoint = lead;
-        if (lead >= 0xF0) {
+        if (lead >= 0xF0)
+        {
             length = 4;
             codepoint = lead & 0x07U;
-        } else if (lead >= 0xE0) {
+        }
+        else if (lead >= 0xE0)
+        {
             length = 3;
             codepoint = lead & 0x0FU;
-        } else if (lead >= 0xC0) {
+        }
+        else if (lead >= 0xC0)
+        {
             length = 2;
             codepoint = lead & 0x1FU;
-        } else if (lead >= 0x80) {
+        }
+        else if (lead >= 0x80)
+        {
             codepoints.push_back(kReplacement);
             ++index;
             continue;
         }
-        if (index + length > text.size()) {
+        if (index + length > text.size())
+        {
             codepoints.push_back(kReplacement);
             break;
         }
-        for (size_t offset = 1; offset < length; ++offset) {
+        for (size_t offset = 1; offset < length; ++offset)
+        {
             codepoint = (codepoint << 6) | (static_cast<uint8_t>(text[index + offset]) & 0x3FU);
         }
         codepoints.push_back(codepoint);
@@ -102,20 +121,29 @@ auto FontCache::DecodeUtf8(std::string_view text) -> std::vector<uint32_t> {
     return codepoints;
 }
 
-auto FontCache::EncodeUtf8(std::span<const uint32_t> codepoints) -> std::string {
+auto FontCache::EncodeUtf8(std::span<const uint32_t> codepoints) -> std::string
+{
     std::string text;
     const auto byte = [&text](uint32_t value) -> void { text += static_cast<char>(static_cast<unsigned char>(value)); };
-    for (const auto codepoint : codepoints) {
-        if (codepoint < 0x80U) {
+    for (const auto codepoint : codepoints)
+    {
+        if (codepoint < 0x80U)
+        {
             byte(codepoint);
-        } else if (codepoint < 0x800U) {
+        }
+        else if (codepoint < 0x800U)
+        {
             byte(0xC0U | (codepoint >> 6U));
             byte(0x80U | (codepoint & 0x3FU));
-        } else if (codepoint < 0x10000U) {
+        }
+        else if (codepoint < 0x10000U)
+        {
             byte(0xE0U | (codepoint >> 12U));
             byte(0x80U | ((codepoint >> 6U) & 0x3FU));
             byte(0x80U | (codepoint & 0x3FU));
-        } else {
+        }
+        else
+        {
             byte(0xF0U | (codepoint >> 18U));
             byte(0x80U | ((codepoint >> 12U) & 0x3FU));
             byte(0x80U | ((codepoint >> 6U) & 0x3FU));
@@ -125,67 +153,85 @@ auto FontCache::EncodeUtf8(std::span<const uint32_t> codepoints) -> std::string 
     return text;
 }
 
-auto FontCache::Width(std::string_view text, int size) -> float {
-    if (g_fonts != nullptr && g_device != nullptr) {
-        if (const auto measured = g_fonts->MeasureText(text, size)) {
+auto FontCache::Width(std::string_view text, int size) -> float
+{
+    if (g_fonts != nullptr && g_device != nullptr)
+    {
+        if (const auto measured = g_fonts->MeasureText(text, size))
+        {
             return measured->width;
         }
     }
     return 0.6f * static_cast<float>(size) * static_cast<float>(text.size());
 }
 
-auto FontCache::Ellipsize(std::string_view text, int size, float width) -> std::string {
-    if (Width(text, size) <= width) {
+auto FontCache::Ellipsize(std::string_view text, int size, float width) -> std::string
+{
+    if (Width(text, size) <= width)
+    {
         return std::string(text);
     }
     auto codepoints = DecodeUtf8(text);
-    while (!codepoints.empty()) {
+    while (!codepoints.empty())
+    {
         codepoints.pop_back();
         auto shortened = EncodeUtf8(codepoints) + "...";
-        if (Width(shortened, size) <= width) {
+        if (Width(shortened, size) <= width)
+        {
             return shortened;
         }
     }
     return "...";
 }
 
-auto FontCache::Families() -> const std::vector<std::string>& {
-    if (!m_families) {
+auto FontCache::Families() -> const std::vector<std::string>&
+{
+    if (!m_families)
+    {
         m_families = FontLookup::Families(m_library);
     }
     return *m_families;
 }
 
-auto FontCache::SetFamily(std::optional<std::string> family) -> void {
+auto FontCache::SetFamily(std::optional<std::string> family) -> void
+{
     m_lookup.SetFamily(std::move(family));
     ReleaseFaces();
 }
 
-auto FontCache::ReleaseFaces() -> void {
-    for (auto& [size, collection] : m_collections) {
-        for (auto& font : collection.fonts) {
+auto FontCache::ReleaseFaces() -> void
+{
+    for (auto& [size, collection] : m_collections)
+    {
+        for (auto& font : collection.fonts)
+        {
             FT_Done_Face(font.face);
         }
     }
     m_collections.clear();
 }
 
-auto FontCache::Collection(int size) -> FontCollection& {
+auto FontCache::Collection(int size) -> FontCollection&
+{
     auto [it, inserted] = m_collections.try_emplace(size);
-    if (inserted) {
+    if (inserted)
+    {
         it->second.zero_glyph = std::make_shared<Glyph>(Glyph{.advance = static_cast<float>(size) / 3.0f});
     }
     return it->second;
 }
 
-auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
+auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t
+{
     auto& collection = Collection(size);
-    if (const auto it = collection.codepoint_fonts.find(codepoint); it != collection.codepoint_fonts.end()) {
+    if (const auto it = collection.codepoint_fonts.find(codepoint); it != collection.codepoint_fonts.end())
+    {
         return it->second;
     }
 
     const auto located = m_lookup.Locate(m_library, codepoint, size);
-    if (!located) {
+    if (!located)
+    {
         collection.codepoint_fonts.emplace(codepoint, 0);
         return 0;
     }
@@ -194,13 +240,15 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
     LOG_DEBUG("Loading font: {} {}pt", name, size);
 
     FT_Face face = nullptr;
-    if (const auto error = FT_New_Face(m_library, path.c_str(), face_index, &face); error != 0) {
+    if (const auto error = FT_New_Face(m_library, path.c_str(), face_index, &face); error != 0)
+    {
         LOG_WARN("Failed to load font at {}: {}", path, error);
         collection.codepoint_fonts.emplace(codepoint, 0);
         return 0;
     }
     const auto char_size = static_cast<FT_F26Dot6>(size) << 6;
-    if (const auto error = FT_Set_Char_Size(face, char_size, char_size, 96, 96); error != 0) {
+    if (const auto error = FT_Set_Char_Size(face, char_size, char_size, 96, 96); error != 0)
+    {
         LOG_WARN("Failed to set font size: {}", error);
         FT_Done_Face(face);
         collection.codepoint_fonts.emplace(codepoint, 0);
@@ -210,10 +258,12 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
     const auto font_index = collection.fonts.size();
     FT_UInt glyph_index = 0;
     for (auto charcode = FT_Get_First_Char(face, &glyph_index); glyph_index != 0;
-         charcode = FT_Get_Next_Char(face, charcode, &glyph_index)) {
+         charcode = FT_Get_Next_Char(face, charcode, &glyph_index))
+    {
         collection.codepoint_fonts.emplace(static_cast<uint32_t>(charcode), font_index);
     }
-    if (!collection.codepoint_fonts.contains(codepoint)) {
+    if (!collection.codepoint_fonts.contains(codepoint))
+    {
         LOG_WARN("Got font '{}' for CP 0x{:x}, but CP is not present in font!", name, codepoint);
         collection.codepoint_fonts.emplace(codepoint, 0);
     }
@@ -225,42 +275,50 @@ auto FontCache::FontForCodepoint(uint32_t codepoint, int size) -> size_t {
 }
 
 auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, std::optional<CommandBuffer>& uploads)
-    -> Result<std::shared_ptr<Glyph>> {
+    -> Result<std::shared_ptr<Glyph>>
+{
     const auto font_index = FontForCodepoint(codepoint, size);
     auto& collection = Collection(size);
-    if (font_index >= collection.fonts.size()) {
+    if (font_index >= collection.fonts.size())
+    {
         LOG_WARN("No font found for codepoint: 0x{:x}", codepoint);
         return collection.zero_glyph;
     }
 
     auto& font = collection.fonts[font_index];
-    if (const auto it = font.glyphs.find(codepoint); it != font.glyphs.end()) {
+    if (const auto it = font.glyphs.find(codepoint); it != font.glyphs.end())
+    {
         return it->second;
     }
 
-    if (FT_Load_Char(font.face, codepoint, FT_LOAD_DEFAULT) != 0) {
+    if (FT_Load_Char(font.face, codepoint, FT_LOAD_DEFAULT) != 0)
+    {
         return collection.zero_glyph;
     }
     const auto* slot = font.face->glyph;
-    if (FT_Render_Glyph(font.face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
+    if (FT_Render_Glyph(font.face->glyph, FT_RENDER_MODE_NORMAL) != 0)
+    {
         return collection.zero_glyph;
     }
 
     const auto& bitmap = slot->bitmap;
     const auto pitch = static_cast<uint32_t>(std::abs(bitmap.pitch));
-    if (bitmap.buffer == nullptr || pitch == 0 || bitmap.rows == 0) {
+    if (bitmap.buffer == nullptr || pitch == 0 || bitmap.rows == 0)
+    {
         return collection.zero_glyph;
     }
 
     VkFormat format = VK_FORMAT_UNDEFINED;
-    switch (bitmap.pixel_mode) {
+    switch (bitmap.pixel_mode)
+    {
     case FT_PIXEL_MODE_GRAY: format = VK_FORMAT_R8_UNORM; break;
     case FT_PIXEL_MODE_GRAY2: format = VK_FORMAT_R16_SFLOAT; break;
     case FT_PIXEL_MODE_GRAY4: format = VK_FORMAT_R32_SFLOAT; break;
     default: return collection.zero_glyph;
     }
 
-    if (!uploads) {
+    if (!uploads)
+    {
         ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->TransferQueue()));
         uploads.emplace(std::move(command_buffer));
     }
@@ -281,7 +339,8 @@ auto FontCache::GlyphForCodepoint(uint32_t codepoint, int size, std::optional<Co
     return glyph;
 }
 
-auto FontCache::MeasureText(std::string_view text, int size) -> Result<TextSize> {
+auto FontCache::MeasureText(std::string_view text, int size) -> Result<TextSize>
+{
     const auto lines = SplitLines(text);
     const auto size_f = static_cast<float>(size);
     TextSize result{
@@ -290,31 +349,39 @@ auto FontCache::MeasureText(std::string_view text, int size) -> Result<TextSize>
     };
 
     std::optional<CommandBuffer> uploads;
-    for (const auto line : lines) {
+    for (const auto line : lines)
+    {
         float width = 0.0f;
-        for (const auto codepoint : DecodeUtf8(line)) {
-            if (const auto glyph = GlyphForCodepoint(codepoint, size, uploads)) {
+        for (const auto codepoint : DecodeUtf8(line))
+        {
+            if (const auto glyph = GlyphForCodepoint(codepoint, size, uploads))
+            {
                 width += (*glyph)->advance;
             }
         }
         result.width = std::max(result.width, width);
     }
-    if (uploads) {
+    if (uploads)
+    {
         RETURN_IF_ERROR(uploads->SubmitUpload());
     }
     return result;
 }
 
-auto FontCache::Glyphs(std::string_view text, int size) -> Result<std::vector<std::shared_ptr<Glyph>>> {
+auto FontCache::Glyphs(std::string_view text, int size) -> Result<std::vector<std::shared_ptr<Glyph>>>
+{
     std::vector<std::shared_ptr<Glyph>> glyphs;
     std::optional<CommandBuffer> uploads;
-    for (const auto line : SplitLines(text)) {
-        for (const auto codepoint : DecodeUtf8(line)) {
+    for (const auto line : SplitLines(text))
+    {
+        for (const auto codepoint : DecodeUtf8(line))
+        {
             ASSIGN_OR_RETURN(auto glyph, GlyphForCodepoint(codepoint, size, uploads));
             glyphs.push_back(std::move(glyph));
         }
     }
-    if (uploads) {
+    if (uploads)
+    {
         RETURN_IF_ERROR(uploads->SubmitUpload());
     }
     return glyphs;

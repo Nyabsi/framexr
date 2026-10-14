@@ -44,11 +44,13 @@ std::unique_ptr<FontCache> TestApp::m_fonts;
 std::unique_ptr<HidProvider> TestApp::m_hid;
 std::filesystem::path TestApp::m_output_dir;
 
-auto TestApp::OutputDir() -> const std::filesystem::path& {
+auto TestApp::OutputDir() -> const std::filesystem::path&
+{
     return m_output_dir;
 }
 
-auto TestApp::SetUp() -> void {
+auto TestApp::SetUp() -> void
+{
     const char* output = std::getenv("FRAMEXR_TEST_OUTPUT");
     m_output_dir = output != nullptr ? std::filesystem::path(output) : std::filesystem::current_path() / "test-output";
     std::filesystem::create_directories(m_output_dir);
@@ -82,7 +84,8 @@ auto TestApp::SetUp() -> void {
     g_hid = m_hid.get();
 }
 
-auto TestApp::TearDown() -> void {
+auto TestApp::TearDown() -> void
+{
     m_hid.reset();
     m_fonts.reset();
     g_fonts = nullptr;

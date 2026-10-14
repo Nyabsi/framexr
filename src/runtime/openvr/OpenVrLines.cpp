@@ -31,7 +31,8 @@
 #include "Compose.hpp"
 #include "Compose.hpp"
 
-auto OpenVrLines::Create() -> Result<OpenVrLines> {
+auto OpenVrLines::Create() -> Result<OpenVrLines>
+{
     ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->GraphicsQueue()));
     const std::array<std::byte, 16> white{
         std::byte{255},
@@ -65,10 +66,12 @@ OpenVrLines::OpenVrLines(std::shared_ptr<Image> image)
           Eigen::Vector4f(0.69f, 0.188f, 0.0f, 1.0f),
           Eigen::Vector4f(0.375f, 0.0f, 0.5f, 1.0f),
           Eigen::Vector4f(1.0f, 0.0f, 0.0f, 1.0f),
-      } {
+      }
+{
 }
 
-auto OpenVrLines::Allocate() -> size_t {
+auto OpenVrLines::Allocate() -> size_t
+{
     const size_t id = m_lines.empty() ? 1 : m_lines.back().id + 1;
 
     auto view = std::make_unique<View>(std::make_unique<Compose>(m_image->Extent()));
@@ -90,10 +93,13 @@ auto OpenVrLines::Allocate() -> size_t {
     return id;
 }
 
-auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void {
+auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void
+{
     const Eigen::Affine3f transform = Runtime::BeamPose(from, length, hmd) * Eigen::Scaling(1.0f, length / 0.002f, 1.0f);
-    for (auto& line : m_lines) {
-        if (line.id == id) {
+    for (auto& line : m_lines)
+    {
+        if (line.id == id)
+        {
             line.overlay->SetWantVisible(true);
             line.overlay->SetTransform(transform);
             line.data.color = m_colors.at(color);
@@ -103,21 +109,28 @@ auto OpenVrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t
     LOG_WARN("Line {} does not exist", id);
 }
 
-auto OpenVrLines::Hide(size_t id) -> void {
-    for (auto& line : m_lines) {
-        if (line.id == id) {
+auto OpenVrLines::Hide(size_t id) -> void
+{
+    for (auto& line : m_lines)
+    {
+        if (line.id == id)
+        {
             line.overlay->SetWantVisible(false);
         }
     }
 }
 
-auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe) -> Result<> {
-    for (auto& line : m_lines) {
+auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe) -> Result<>
+{
+    for (auto& line : m_lines)
+    {
         RETURN_IF_ERROR(OpenVrOverlay::AfterInput(*line.overlay, line.data));
-        if (!line.overlay->WantVisible()) {
+        if (!line.overlay->WantVisible())
+        {
             continue;
         }
-        if (line.overlay->Dirty()) {
+        if (line.overlay->Dirty())
+        {
             OpenVrOverlay::UploadTexture(*line.overlay, line.data);
             line.overlay->SetDirty(false);
         }
@@ -127,8 +140,10 @@ auto OpenVrLines::Update(vr::ETrackingUniverseOrigin universe) -> Result<> {
     return {};
 }
 
-auto OpenVrLines::MarkDirty() -> void {
-    for (auto& line : m_lines) {
+auto OpenVrLines::MarkDirty() -> void
+{
+    for (auto& line : m_lines)
+    {
         line.overlay->SetDirty(true);
     }
 }

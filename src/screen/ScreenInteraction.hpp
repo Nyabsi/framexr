@@ -36,7 +36,8 @@
 #include "Frame.hpp"
 #include "methods/LaserPointer.hpp"
 
-class ScreenInteraction final {
+class ScreenInteraction final
+{
   public:
     ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform);
 

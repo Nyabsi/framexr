@@ -38,7 +38,8 @@
 #include "OpenXrState.hpp"
 #include "methods/LaserPointer.hpp"
 
-struct OpenXrHandActions {
+struct OpenXrHandActions
+{
     XrAction pose = XR_NULL_HANDLE;
     XrAction scroll = XR_NULL_HANDLE;
     XrAction haptics = XR_NULL_HANDLE;
@@ -53,7 +54,8 @@ struct OpenXrHandActions {
     OpenXrClickAction move_mouse;
 };
 
-class OpenXrHand {
+class OpenXrHand
+{
   public:
     [[nodiscard]] auto Actions() const -> const OpenXrHandActions& { return m_actions; }
     [[nodiscard]] auto Actions() -> OpenXrHandActions& { return m_actions; }

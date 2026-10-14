@@ -34,7 +34,8 @@
 #include "HidProvider.hpp"
 #include "VirtualKeys.hpp"
 
-class NullHidProvider final : public HidProvider {
+class NullHidProvider final : public HidProvider
+{
   public:
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
     auto SendButton(uint16_t button, bool down) -> void override;

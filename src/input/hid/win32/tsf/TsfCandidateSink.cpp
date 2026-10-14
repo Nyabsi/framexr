@@ -23,14 +23,18 @@
 #include "ITfCandidateListUIElement.hpp"
 #include "Utf16.hpp"
 
-TsfCandidateSink::TsfCandidateSink(Microsoft::WRL::ComPtr<ITfUIElementMgr> elements) : m_elements(std::move(elements)) {
+TsfCandidateSink::TsfCandidateSink(Microsoft::WRL::ComPtr<ITfUIElementMgr> elements) : m_elements(std::move(elements))
+{
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::QueryInterface(REFIID riid, void** object) -> HRESULT {
-    if (object == nullptr) {
+auto STDMETHODCALLTYPE TsfCandidateSink::QueryInterface(REFIID riid, void** object) -> HRESULT
+{
+    if (object == nullptr)
+    {
         return E_INVALIDARG;
     }
-    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfUIElementSink)) {
+    if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_ITfUIElementSink))
+    {
         *object = static_cast<ITfUIElementSink*>(this);
         AddRef();
         return S_OK;
@@ -39,30 +43,37 @@ auto STDMETHODCALLTYPE TsfCandidateSink::QueryInterface(REFIID riid, void** obje
     return E_NOINTERFACE;
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::AddRef() -> ULONG {
+auto STDMETHODCALLTYPE TsfCandidateSink::AddRef() -> ULONG
+{
     return ++m_references;
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::Release() -> ULONG {
+auto STDMETHODCALLTYPE TsfCandidateSink::Release() -> ULONG
+{
     const ULONG references = --m_references;
-    if (references == 0) {
+    if (references == 0)
+    {
         delete this;
     }
     return references;
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::BeginUIElement(DWORD id, BOOL* show) -> HRESULT {
-    if (show != nullptr) {
+auto STDMETHODCALLTYPE TsfCandidateSink::BeginUIElement(DWORD id, BOOL* show) -> HRESULT
+{
+    if (show != nullptr)
+    {
         *show = FALSE;
     }
     return UpdateUIElement(id);
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::UpdateUIElement(DWORD id) -> HRESULT {
+auto STDMETHODCALLTYPE TsfCandidateSink::UpdateUIElement(DWORD id) -> HRESULT
+{
     Microsoft::WRL::ComPtr<ITfUIElement> element;
     Microsoft::WRL::ComPtr<ITfCandidateListUIElement> list;
     if (FAILED(m_elements->GetUIElement(id, &element))
-        || FAILED(element->QueryInterface(ITfCandidateListUIElement::kIid, reinterpret_cast<void**>(list.GetAddressOf())))) {
+        || FAILED(element->QueryInterface(ITfCandidateListUIElement::kIid, reinterpret_cast<void**>(list.GetAddressOf()))))
+    {
         return S_OK;
     }
     UINT count = 0;
@@ -72,15 +83,18 @@ auto STDMETHODCALLTYPE TsfCandidateSink::UpdateUIElement(DWORD id) -> HRESULT {
     list->GetCurrentPage(&page);
     list->GetPageIndex(nullptr, 0, &pages);
     std::vector<UINT> starts(pages);
-    if (pages > 0) {
+    if (pages > 0)
+    {
         list->GetPageIndex(starts.data(), pages, &pages);
     }
     const UINT first = page < pages ? starts[page] : 0;
     const UINT last = page + 1 < pages ? starts[page + 1] : count;
     m_candidates.clear();
-    for (UINT index = first; index < last; ++index) {
+    for (UINT index = first; index < last; ++index)
+    {
         BSTR text = nullptr;
-        if (SUCCEEDED(list->GetString(index, &text)) && text != nullptr) {
+        if (SUCCEEDED(list->GetString(index, &text)) && text != nullptr)
+        {
             m_candidates.push_back(Utf16::Narrow(text));
             SysFreeString(text);
         }
@@ -88,7 +102,8 @@ auto STDMETHODCALLTYPE TsfCandidateSink::UpdateUIElement(DWORD id) -> HRESULT {
     return S_OK;
 }
 
-auto STDMETHODCALLTYPE TsfCandidateSink::EndUIElement(DWORD) -> HRESULT {
+auto STDMETHODCALLTYPE TsfCandidateSink::EndUIElement(DWORD) -> HRESULT
+{
     m_candidates.clear();
     return S_OK;
 }

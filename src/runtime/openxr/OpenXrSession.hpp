@@ -38,7 +38,8 @@
 #include "Error.hpp"
 #include "OpenXrInstance.hpp"
 
-class OpenXrSession final {
+class OpenXrSession final
+{
   public:
     static auto Create(const OpenXrInstance& instance) -> Result<std::unique_ptr<OpenXrSession>>;
 

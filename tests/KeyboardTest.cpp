@@ -34,18 +34,23 @@
 #include "KeyboardLayout.hpp"
 #include "Yaml.hpp"
 
-namespace {
+namespace
+{
 
-auto KeyNamed(const KeyboardLayout& layout, VirtualKey wanted) -> const KeyDefinition* {
-    for (const auto& key : layout.Keys()) {
-        if (const auto* typed = std::get_if<TypeKey>(&key.action); typed != nullptr && typed->key == wanted) {
+auto KeyNamed(const KeyboardLayout& layout, VirtualKey wanted) -> const KeyDefinition*
+{
+    for (const auto& key : layout.Keys())
+    {
+        if (const auto* typed = std::get_if<TypeKey>(&key.action); typed != nullptr && typed->key == wanted)
+        {
             return &key;
         }
     }
     return nullptr;
 }
 
-auto Emit(const KeyboardLayout& layout) -> std::string {
+auto Emit(const KeyboardLayout& layout) -> std::string
+{
     return Yaml::Emit(nlohmann::ordered_json(layout));
 }
 
@@ -53,7 +58,8 @@ constexpr std::string_view kBase = "name: base\ncolumns: 1\nrows: 1\nkeys:\n  - 
 
 } // namespace
 
-TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
+TEST(KeyboardLayout, BundledLayoutLoadsAndValidates)
+{
     const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
     EXPECT_FALSE(layout.Keys().empty());
     EXPECT_FLOAT_EQ(layout.Columns(), 16.0f);
@@ -61,7 +67,8 @@ TEST(KeyboardLayout, BundledLayoutLoadsAndValidates) {
     EXPECT_TRUE(layout.Validate().has_value());
 }
 
-TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
+TEST(KeyboardLayout, DefaultIsKeychronV1Ansi)
+{
     const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
     EXPECT_EQ(layout.Name(), "keychron-v1-ansi");
     const auto* caps = KeyNamed(layout, VirtualKey::Caps);
@@ -77,20 +84,23 @@ TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
     ASSERT_NE(up, nullptr);
     EXPECT_EQ(up->row, 4);
     EXPECT_FLOAT_EQ(up->x, 14.0f);
-    const auto profile = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
-        return std::holds_alternative<ProfileKey>(key.action);
-    });
+    const auto profile = std::ranges::find_if(
+        layout.Keys(),
+        [](const KeyDefinition& key) -> bool { return std::holds_alternative<ProfileKey>(key.action); }
+    );
     ASSERT_NE(profile, layout.Keys().end());
     EXPECT_EQ(layout.Labels(*profile), std::vector<std::string>{"Layout"});
-    const auto chatbox = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
-        return std::holds_alternative<ChatboxKey>(key.action);
-    });
+    const auto chatbox = std::ranges::find_if(
+        layout.Keys(),
+        [](const KeyDefinition& key) -> bool { return std::holds_alternative<ChatboxKey>(key.action); }
+    );
     ASSERT_NE(chatbox, layout.Keys().end());
     EXPECT_EQ(chatbox->row, 5);
     EXPECT_FLOAT_EQ(chatbox->x, 11.0f);
 }
 
-TEST(KeyboardLayout, LabelsFollowOriginalRules) {
+TEST(KeyboardLayout, LabelsFollowOriginalRules)
+{
     EXPECT_EQ(KeyboardLayout::DefaultLabel("a"), std::vector<std::string>{"a"});
     EXPECT_EQ(KeyboardLayout::DefaultLabel("KP_Multiply"), std::vector<std::string>{"Multiply"});
     EXPECT_EQ(KeyboardLayout::DefaultLabel("KP_Begin_X"), std::vector<std::string>{"Begin"});
@@ -110,11 +120,15 @@ TEST(KeyboardLayout, LabelsFollowOriginalRules) {
     EXPECT_EQ(layout.Labels(*f5), std::vector<std::string>{"F5"});
 }
 
-TEST(KeyboardLayout, ActionKeysRunShortcutsAndCommands) {
+TEST(KeyboardLayout, ActionKeysRunShortcutsAndCommands)
+{
     const auto& layout = KeyboardLayout::Find("full-size");
-    const auto action_key = [&layout](std::string_view label) -> const ActionKey* {
-        for (const auto& key : layout.Keys()) {
-            if (key.label && key.label->size() == 1 && key.label->front() == label) {
+    const auto action_key = [&layout](std::string_view label) -> const ActionKey*
+    {
+        for (const auto& key : layout.Keys())
+        {
+            if (key.label && key.label->size() == 1 && key.label->front() == label)
+            {
                 return std::get_if<ActionKey>(&key.action);
             }
         }
@@ -148,8 +162,10 @@ keys:
     EXPECT_EQ(parsed->Labels(parsed->Keys()[0]), std::vector<std::string>{"Talk"});
 }
 
-TEST(KeyboardLayout, SavedProfilesLoadBackTheSameKeyboard) {
-    for (const auto& profile : KeyboardLayout::All()) {
+TEST(KeyboardLayout, SavedProfilesLoadBackTheSameKeyboard)
+{
+    for (const auto& profile : KeyboardLayout::All())
+    {
         const auto saved = Emit(profile);
         const auto reloaded = KeyboardLayout::Parse(saved);
         ASSERT_TRUE(reloaded.has_value()) << profile.Name() << ": " << reloaded.error().Message();
@@ -158,7 +174,8 @@ TEST(KeyboardLayout, SavedProfilesLoadBackTheSameKeyboard) {
     }
 }
 
-TEST(KeyboardLayout, GridQueriesFindKeysAndFreeCells) {
+TEST(KeyboardLayout, GridQueriesFindKeysAndFreeCells)
+{
     auto layout = *KeyboardLayout::Parse(R"(
 name: grid
 columns: 4
@@ -178,7 +195,8 @@ keys:
     EXPECT_FLOAT_EQ(KeyboardLayout::Snap(1.13f), 1.25f);
 }
 
-TEST(KeyboardProfiles, BuiltInProfilesKeepTheOriginalLayout) {
+TEST(KeyboardProfiles, BuiltInProfilesKeepTheOriginalLayout)
+{
     const auto& profiles = KeyboardLayout::All();
     ASSERT_GE(profiles.size(), 2U);
     EXPECT_EQ(profiles[0].Name(), "keychron-v1-ansi");
@@ -191,7 +209,8 @@ TEST(KeyboardProfiles, BuiltInProfilesKeepTheOriginalLayout) {
     EXPECT_EQ(KeyboardLayout::Find("no-such-profile").Name(), "keychron-v1-ansi");
 }
 
-TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
+TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns)
+{
     const auto directory = std::filesystem::temp_directory_path()
                          / std::format("framexr-profiles-{}", ::testing::UnitTest::GetInstance()->random_seed());
     std::filesystem::create_directories(directory);
@@ -212,7 +231,8 @@ TEST(KeyboardProfiles, UserProfilesReplaceOrExtendBuiltIns) {
     EXPECT_FLOAT_EQ(profiles[1].Columns(), 3.0f);
 }
 
-TEST(KeyboardProfiles, OverlappingOrOutOfGridKeysAreRejected) {
+TEST(KeyboardProfiles, OverlappingOrOutOfGridKeysAreRejected)
+{
     EXPECT_FALSE(
         KeyboardLayout::Parse(
             "name: bad\ncolumns: 2\nrows: 1\nkeys:\n  - { at: [0, 0], key: A, width: 1.5 }\n"
@@ -226,20 +246,28 @@ TEST(KeyboardProfiles, OverlappingOrOutOfGridKeysAreRejected) {
     EXPECT_TRUE(KeyboardLayout::Parse("name: gaps\ncolumns: 4\nrows: 2\nkeys:\n  - { at: [1, 1], key: A }\n").has_value());
 }
 
-TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
-    const auto has = [](const KeyboardLayout& layout, VirtualKey wanted) -> bool {
-        return std::ranges::any_of(layout.Keys(), [wanted](const KeyDefinition& key) -> bool {
-            const auto* typed = std::get_if<TypeKey>(&key.action);
-            return typed != nullptr && typed->key == wanted;
-        });
+TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad)
+{
+    const auto has = [](const KeyboardLayout& layout, VirtualKey wanted) -> bool
+    {
+        return std::ranges::any_of(
+            layout.Keys(),
+            [wanted](const KeyDefinition& key) -> bool
+            {
+                const auto* typed = std::get_if<TypeKey>(&key.action);
+                return typed != nullptr && typed->key == wanted;
+            }
+        );
     };
     const auto ime = std::to_array<std::tuple<std::string_view, std::string_view, VirtualKey>>({
         {"jis", "jp", VirtualKey::Henkan},
         {"korean", "kr", VirtualKey::Hanja},
         {"chinese", "cn", VirtualKey::Space},
     });
-    for (const auto& [family, region, special] : ime) {
-        for (const auto* variant : {"full-size", "tkl"}) {
+    for (const auto& [family, region, special] : ime)
+    {
+        for (const auto* variant : {"full-size", "tkl"})
+        {
             const auto name = std::format("{}-{}", family, variant);
             ASSERT_TRUE(KeyboardLayout::IsBuiltIn(name)) << name;
             const auto& layout = KeyboardLayout::Find(name);
@@ -248,15 +276,24 @@ TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
             EXPECT_EQ(layout.Region(), std::optional<std::string>(region)) << name;
             EXPECT_TRUE(has(layout, special)) << name;
             EXPECT_EQ(has(layout, VirtualKey::Kp5), std::string_view(variant) == "full-size") << name;
-            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
-                return std::holds_alternative<ProfileKey>(key.action);
-            })) << name;
-            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
-                return std::holds_alternative<ChatboxKey>(key.action);
-            })) << name;
-            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
-                return std::holds_alternative<ImeKey>(key.action);
-            })) << name;
+            EXPECT_TRUE(
+                std::ranges::any_of(
+                    layout.Keys(),
+                    [](const KeyDefinition& key) -> bool { return std::holds_alternative<ProfileKey>(key.action); }
+                )
+            ) << name;
+            EXPECT_TRUE(
+                std::ranges::any_of(
+                    layout.Keys(),
+                    [](const KeyDefinition& key) -> bool { return std::holds_alternative<ChatboxKey>(key.action); }
+                )
+            ) << name;
+            EXPECT_TRUE(
+                std::ranges::any_of(
+                    layout.Keys(),
+                    [](const KeyDefinition& key) -> bool { return std::holds_alternative<ImeKey>(key.action); }
+                )
+            ) << name;
         }
     }
     EXPECT_TRUE(has(KeyboardLayout::Find("jis-tkl"), VirtualKey::Yen));
@@ -264,13 +301,19 @@ TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
     EXPECT_TRUE(has(KeyboardLayout::Find("korean-tkl"), VirtualKey::Hanja));
 }
 
-TEST(KeyboardProfiles, ImeKeyboardsPrintTheirNativeScript) {
-    const auto label = [](std::string_view profile, VirtualKey wanted) -> std::vector<std::string> {
+TEST(KeyboardProfiles, ImeKeyboardsPrintTheirNativeScript)
+{
+    const auto label = [](std::string_view profile, VirtualKey wanted) -> std::vector<std::string>
+    {
         const auto& layout = KeyboardLayout::Find(profile);
-        const auto found = std::ranges::find_if(layout.Keys(), [wanted](const KeyDefinition& key) -> bool {
-            const auto* typed = std::get_if<TypeKey>(&key.action);
-            return typed != nullptr && typed->key == wanted;
-        });
+        const auto found = std::ranges::find_if(
+            layout.Keys(),
+            [wanted](const KeyDefinition& key) -> bool
+            {
+                const auto* typed = std::get_if<TypeKey>(&key.action);
+                return typed != nullptr && typed->key == wanted;
+            }
+        );
         return found == layout.Keys().end() ? std::vector<std::string>{} : layout.ImeLabels(*found);
     };
     EXPECT_EQ(label("korean-tkl", VirtualKey::Q), (std::vector<std::string>{"ㅂ", "ㅃ"}));
@@ -286,10 +329,10 @@ TEST(KeyboardProfiles, ImeKeyboardsPrintTheirNativeScript) {
     EXPECT_EQ(reparsed->Ime(), ImeScript::Hangul);
 }
 
-TEST(KeyboardProfiles, LocalePicksTheDefaultKeyboard) {
-    const auto pick = [](std::string_view locale) -> std::string {
-        return KeyboardLayout::ForLocale(KeyboardLayout::All(), locale).Name();
-    };
+TEST(KeyboardProfiles, LocalePicksTheDefaultKeyboard)
+{
+    const auto pick = [](std::string_view locale) -> std::string
+    { return KeyboardLayout::ForLocale(KeyboardLayout::All(), locale).Name(); };
     EXPECT_EQ(pick("ko_KR.UTF-8"), "korean-tkl");
     EXPECT_EQ(pick("ja-JP"), "jis-tkl");
     EXPECT_EQ(pick("ja_JP@custom"), "jis-tkl");
@@ -298,7 +341,8 @@ TEST(KeyboardProfiles, LocalePicksTheDefaultKeyboard) {
     EXPECT_EQ(pick(""), "keychron-v1-ansi");
 }
 
-TEST(KeyboardProfiles, OwnProfilesClaimTheirLocales) {
+TEST(KeyboardProfiles, OwnProfilesClaimTheirLocales)
+{
     std::vector<KeyboardLayout> profiles(KeyboardLayout::All().begin(), KeyboardLayout::All().end());
     auto zhuyin = KeyboardLayout::Find("chinese-tkl");
     zhuyin.SetName("zhuyin");
@@ -308,9 +352,8 @@ TEST(KeyboardProfiles, OwnProfilesClaimTheirLocales) {
     klingon.SetName("klingon");
     klingon.SetLocales({"tlh"});
     profiles.push_back(klingon);
-    const auto pick = [&profiles](std::string_view locale) -> std::string {
-        return KeyboardLayout::ForLocale(profiles, locale).Name();
-    };
+    const auto pick = [&profiles](std::string_view locale) -> std::string
+    { return KeyboardLayout::ForLocale(profiles, locale).Name(); };
     EXPECT_EQ(pick("zh_TW.UTF-8"), "zhuyin");
     EXPECT_EQ(pick("zh-TW"), "zhuyin");
     EXPECT_EQ(pick("zh_CN.UTF-8"), "chinese-tkl");

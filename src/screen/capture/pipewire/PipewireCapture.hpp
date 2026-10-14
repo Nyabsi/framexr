@@ -34,13 +34,15 @@
 #include "Capture.hpp"
 #include "FrameChannel.hpp"
 
-enum class PipewireCommand : uint8_t {
+enum class PipewireCommand : uint8_t
+{
     Pause,
     Resume,
     Stop,
 };
 
-class PipewireCapture final : public Capture {
+class PipewireCapture final : public Capture
+{
   public:
     PipewireCapture(std::string name, uint32_t node_id);
     ~PipewireCapture() override;

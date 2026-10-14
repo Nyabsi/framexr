@@ -43,7 +43,8 @@ constexpr uint32_t kZOrderWatch = 68;
 
 constexpr uint32_t kZOrderDefault = 0;
 
-enum class RelativeTo : uint8_t {
+enum class RelativeTo : uint8_t
+{
     None,
     Head,
     LeftHand,
@@ -51,7 +52,8 @@ enum class RelativeTo : uint8_t {
     Stage,
 };
 
-class View {
+class View
+{
   public:
     explicit View(std::unique_ptr<Compose> compose = nullptr);
     virtual ~View() = default;
@@ -102,12 +104,14 @@ class View {
     auto SetSpawnScale(float spawn_scale) -> void { m_spawn_scale = spawn_scale; }
     auto SetSpawnPoint(Eigen::Vector3f spawn_point) -> void { m_spawn_point = std::move(spawn_point); }
     auto SetSpawnRotation(Eigen::Quaternionf spawn_rotation) -> void { m_spawn_rotation = std::move(spawn_rotation); }
-    auto SetSavedTransform(std::optional<Eigen::Affine3f> saved_transform) -> void {
+    auto SetSavedTransform(std::optional<Eigen::Affine3f> saved_transform) -> void
+    {
         m_saved_transform = std::move(saved_transform);
     }
     auto SetAttachedTo(RelativeTo attached_to) -> void { m_attached_to = attached_to; }
     auto SetCurvature(std::optional<float> curvature) -> void { m_curvature = curvature; }
-    auto SetInteractionTransform(Eigen::Affine2f interaction_transform) -> void {
+    auto SetInteractionTransform(Eigen::Affine2f interaction_transform) -> void
+    {
         m_interaction_transform = std::move(interaction_transform);
     }
     auto SetExtentHint(VkExtent2D extent_hint) -> void { m_extent_hint = extent_hint; }

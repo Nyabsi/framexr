@@ -29,7 +29,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct IpdElement {
+struct IpdElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -38,7 +39,8 @@ struct IpdElement {
     size_t form = 0;
 };
 
-class IpdComponent final : public FormComponent {
+class IpdComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Ipd";
 

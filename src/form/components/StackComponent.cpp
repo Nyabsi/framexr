@@ -23,33 +23,41 @@
 StackComponent::StackComponent(std::string name, float padding, float gap)
     : FormComponent(std::move(name)),
       m_padding(padding),
-      m_gap(gap) {
+      m_gap(gap)
+{
 }
 
-auto StackComponent::Bottom() const -> float {
+auto StackComponent::Bottom() const -> float
+{
     float y = m_padding;
-    for (const auto& child : Children()) {
+    for (const auto& child : Children())
+    {
         y += child->Size().y() + m_gap;
     }
     return y;
 }
 
-auto StackComponent::SetBgColor(const Eigen::Vector4f& color) -> void {
+auto StackComponent::SetBgColor(const Eigen::Vector4f& color) -> void
+{
     m_background = color;
     MarkDirty();
 }
 
-auto StackComponent::Emit(FormState& state, const FormFrame& frame) -> void {
-    if (m_background) {
+auto StackComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
+    if (m_background)
+    {
         const float radius = FormTheme::Resolve(std::nullopt, frame.rounding, Shape::Panel) * frame.scale;
         state.push_back(FillItem{.rect = frame.rect, .radius = radius, .color = *m_background, .owner = this});
     }
 }
 
-auto StackComponent::Layout() -> void {
+auto StackComponent::Layout() -> void
+{
     const float width = Size().x() - 2.0f * m_padding;
     float y = m_padding;
-    for (const auto& child : Children()) {
+    for (const auto& child : Children())
+    {
         child->SetRect({m_padding, y, width, child->Size().y()});
         y += child->Size().y() + m_gap;
     }

@@ -32,7 +32,8 @@
 
 struct zwlr_export_dmabuf_frame_v1;
 
-struct DmabufFrameRequest {
+struct DmabufFrameRequest
+{
     DmabufFrame frame;
     FrameTransform transform = FrameTransform::Undefined;
     bool started = false;
@@ -40,7 +41,8 @@ struct DmabufFrameRequest {
     bool finished = false;
 };
 
-class WlrDmabufCapture final : public Capture {
+class WlrDmabufCapture final : public Capture
+{
   public:
     WlrDmabufCapture(std::unique_ptr<WaylandClient> client, uint32_t output_id);
     ~WlrDmabufCapture() override;

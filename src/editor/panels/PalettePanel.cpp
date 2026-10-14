@@ -26,7 +26,8 @@
 
 PalettePanel::PalettePanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("palette"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
@@ -34,7 +35,8 @@ PalettePanel::PalettePanel(Editor& editor, const Eigen::Vector2f& size)
     const auto subtle = FormTheme::Rgba("@subtle");
     const auto surface = FormTheme::Rgba("@surface");
 
-    if (editor.Target() == EditTarget::Theme) {
+    if (editor.Target() == EditTarget::Theme)
+    {
         m_stack.AddComponent<TextLineComponent>("title", "Theme", PanelStyle::kTitleFont, text, PanelStyle::kTitleHeight);
         m_stack.AddComponent<TextLineComponent>(
             "hint",
@@ -62,8 +64,10 @@ PalettePanel::PalettePanel(Editor& editor, const Eigen::Vector2f& size)
         PanelStyle::kCaptionHeight
     );
 
-    if (editor.Target() == EditTarget::Watch) {
-        for (const auto part : FormDesigner::kParts) {
+    if (editor.Target() == EditTarget::Watch)
+    {
+        for (const auto part : FormDesigner::kParts)
+        {
             auto& item = m_stack.AddComponent<ButtonComponent>("part", FormDesigner::PartName(part));
             item.SetSize({0.0f, PanelStyle::kRowHeight});
             item.SetFontSize(PanelStyle::kTextFont);
@@ -75,7 +79,8 @@ PalettePanel::PalettePanel(Editor& editor, const Eigen::Vector2f& size)
         return;
     }
 
-    for (const auto key_template : KeyboardDesigner::kTemplates) {
+    for (const auto key_template : KeyboardDesigner::kTemplates)
+    {
         auto& item = m_stack.AddComponent<ButtonComponent>("template", KeyboardDesigner::TemplateName(key_template));
         item.SetSize({0.0f, PanelStyle::kRowHeight});
         item.SetFontSize(PanelStyle::kTextFont);

@@ -22,21 +22,26 @@
 #include <cmath>
 #include <numbers>
 
-OneEuroFilter::OneEuroFilter(OneEuroSettings settings) : m_settings(settings) {
+OneEuroFilter::OneEuroFilter(OneEuroSettings settings) : m_settings(settings)
+{
 }
 
-auto OneEuroFilter::Alpha(float cutoff, float delta_seconds) -> float {
+auto OneEuroFilter::Alpha(float cutoff, float delta_seconds) -> float
+{
     const float tau = 1.0f / (2.0f * std::numbers::pi_v<float> * cutoff);
     return 1.0f / (1.0f + tau / std::max(delta_seconds, kMinDeltaSeconds));
 }
 
-auto OneEuroFilter::Reset() -> void {
+auto OneEuroFilter::Reset() -> void
+{
     m_value.reset();
     m_derivative = Eigen::Vector3f::Zero();
 }
 
-auto OneEuroFilter::Filter(const Eigen::Vector3f& value, float delta_seconds) -> Eigen::Vector3f {
-    if (!m_value) {
+auto OneEuroFilter::Filter(const Eigen::Vector3f& value, float delta_seconds) -> Eigen::Vector3f
+{
+    if (!m_value)
+    {
         m_value = value;
         return value;
     }

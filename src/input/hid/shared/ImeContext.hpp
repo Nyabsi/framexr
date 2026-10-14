@@ -28,7 +28,8 @@
 #include "ImeScript.hpp"
 #include "VirtualKeys.hpp"
 
-class ImeContext {
+class ImeContext
+{
   public:
     static auto Connect(ImeScript script) -> Result<std::unique_ptr<ImeContext>>;
 

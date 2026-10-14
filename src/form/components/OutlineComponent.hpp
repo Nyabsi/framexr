@@ -25,7 +25,8 @@
 
 #include "FormComponent.hpp"
 
-class OutlineComponent final : public FormComponent {
+class OutlineComponent final : public FormComponent
+{
   public:
     explicit OutlineComponent(
         std::string name = {},

@@ -31,19 +31,22 @@
 
 class Monado;
 
-struct OpenXrPlayspaceDrag {
+struct OpenXrPlayspaceDrag
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     size_t hand = 0;
     Eigen::Vector3f hand_position = Eigen::Vector3f::Zero();
 };
 
-struct OpenXrPlayspaceRotate {
+struct OpenXrPlayspaceRotate
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     size_t hand = 0;
     Eigen::Quaternionf hand_rotation = Eigen::Quaternionf::Identity();
 };
 
-class OpenXrPlayspace final {
+class OpenXrPlayspace final
+{
   public:
     static auto Create(Monado& monado) -> Result<OpenXrPlayspace>;
 

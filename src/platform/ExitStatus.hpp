@@ -24,7 +24,8 @@
 #include <utility>
 #include <vector>
 
-class ExitStatus final {
+class ExitStatus final
+{
   public:
     explicit ExitStatus(int code, std::optional<int> signal = std::nullopt) : m_code(code), m_signal(signal) {}
 

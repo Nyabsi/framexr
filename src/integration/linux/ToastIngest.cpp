@@ -25,7 +25,8 @@
 #include "Error.hpp"
 #include "Toast.hpp"
 
-auto ToastIngest::FromDbusNotify(DBusMessage* message) -> Result<ToastMessage> {
+auto ToastIngest::FromDbusNotify(DBusMessage* message) -> Result<ToastMessage>
+{
     const char* app_name = nullptr;
     dbus_uint32_t replaces_id = 0;
     const char* app_icon = nullptr;
@@ -48,7 +49,8 @@ auto ToastIngest::FromDbusNotify(DBusMessage* message) -> Result<ToastMessage> {
             &body,
             DBUS_TYPE_INVALID
         )
-        == FALSE) {
+        == FALSE)
+    {
         auto text = std::string(error.message != nullptr ? error.message : "invalid Notify arguments");
         dbus_error_free(&error);
         return Unexpected(std::move(text));

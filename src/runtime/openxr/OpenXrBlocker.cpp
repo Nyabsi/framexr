@@ -28,45 +28,61 @@
 #include "Logger.hpp"
 #include "Monado.hpp"
 
-auto OpenXrBlocker::Update(OverlayId watch_id, Monado& monado) -> void {
-    if (!g_config->block_game_input) {
+auto OpenXrBlocker::Update(OverlayId watch_id, Monado& monado) -> void
+{
+    if (!g_config->block_game_input)
+    {
         return;
     }
 
-    const bool any_hovered = std::ranges::any_of(g_interaction->Pointers(), [&](const LaserPointer& pointer) -> bool {
-        const auto& hovered = pointer.Interaction().hovered_id;
-        return hovered && (*hovered != watch_id || !g_config->block_game_input_ignore_watch);
-    });
+    const bool any_hovered = std::ranges::any_of(
+        g_interaction->Pointers(),
+        [&](const LaserPointer& pointer) -> bool
+        {
+            const auto& hovered = pointer.Interaction().hovered_id;
+            return hovered && (*hovered != watch_id || !g_config->block_game_input_ignore_watch);
+        }
+    );
 
-    if (any_hovered && !m_hovered_last_frame) {
+    if (any_hovered && !m_hovered_last_frame)
+    {
         LOG_INFO("Blocking input");
         SetClientsIoActive(monado, false);
-    } else if (!any_hovered && m_hovered_last_frame) {
+    }
+    else if (!any_hovered && m_hovered_last_frame)
+    {
         LOG_INFO("Unblocking input");
         SetClientsIoActive(monado, true);
     }
     m_hovered_last_frame = any_hovered;
 }
 
-auto OpenXrBlocker::SetClientsIoActive(Monado& monado, bool active) -> void {
+auto OpenXrBlocker::SetClientsIoActive(Monado& monado, bool active) -> void
+{
     const auto clients = monado.Clients();
-    if (!clients) {
+    if (!clients)
+    {
         LOG_WARN("Failed to get clients from Monado: {}", Monado::ResultName(clients.error()));
         return;
     }
-    for (const auto client : *clients) {
+    for (const auto client : *clients)
+    {
         const auto name = monado.ClientName(client);
-        if (!name) {
+        if (!name)
+        {
             LOG_WARN("Failed to get client name: {}", Monado::ResultName(name.error()));
             continue;
         }
         const auto state = monado.ClientState(client);
-        if (!state) {
+        if (!state)
+        {
             LOG_WARN("Failed to get client state: {}", Monado::ResultName(state.error()));
             continue;
         }
-        if (*name != "framexr" && (*state & kMonadoClientSessionVisible) != 0) {
-            if (const auto result = monado.SetClientIoActive(client, active); !result) {
+        if (*name != "framexr" && (*state & kMonadoClientSessionVisible) != 0)
+        {
+            if (const auto result = monado.SetClientIoActive(client, active); !result)
+            {
                 LOG_WARN("Failed to set io active for client: {}", Monado::ResultName(result.error()));
             }
         }

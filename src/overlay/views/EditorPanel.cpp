@@ -38,7 +38,8 @@
 #include "panels/ToolbarPanel.hpp"
 #include "panels/WatchProperties.hpp"
 
-EditorPanel::EditorPanel(const std::shared_ptr<Editor>& editor, PanelKind kind) : m_editor(editor), m_kind(kind) {
+EditorPanel::EditorPanel(const std::shared_ptr<Editor>& editor, PanelKind kind) : m_editor(editor), m_kind(kind)
+{
     const Eigen::Vector2f size = editor->PanelSize(kind).array().round();
     SetName(std::string(PanelPlacement::PanelName(kind)));
     SetWantVisible(kind != PanelKind::Dialog && kind != PanelKind::Ghost && !PanelPlacement::LayerOf(kind));
@@ -51,24 +52,31 @@ EditorPanel::EditorPanel(const std::shared_ptr<Editor>& editor, PanelKind kind) 
     Update();
 }
 
-auto EditorPanel::Update() -> void {
+auto EditorPanel::Update() -> void
+{
     const auto editor = m_editor.lock();
-    if (!editor || editor->Revision(m_kind) == m_built) {
+    if (!editor || editor->Revision(m_kind) == m_built)
+    {
         return;
     }
     m_built = editor->Revision(m_kind);
     Rebuild(*editor);
 }
 
-auto EditorPanel::Rebuild(Editor& editor) -> void {
+auto EditorPanel::Rebuild(Editor& editor) -> void
+{
     const Eigen::Vector2f size = editor.PanelSize(m_kind).array().round();
     auto form = std::make_unique<Form>(std::string(PanelPlacement::PanelName(m_kind)));
     form->SetSize(size);
-    switch (m_kind) {
+    switch (m_kind)
+    {
     case PanelKind::Preview:
-        if (editor.Target() == EditTarget::Keyboard) {
+        if (editor.Target() == EditTarget::Keyboard)
+        {
             editor.KeyboardDesign().Draw(*form, g_interaction->TypingKeymap());
-        } else {
+        }
+        else
+        {
             editor.WatchDesign().Draw(*form);
         }
         break;
@@ -79,18 +87,26 @@ auto EditorPanel::Rebuild(Editor& editor) -> void {
     case PanelKind::Toolbar: form->AddComponent<ToolbarPanel>(editor, size); break;
     case PanelKind::Palette: form->AddComponent<PalettePanel>(editor, size); break;
     case PanelKind::Properties:
-        if (editor.Text().Capturing()) {
+        if (editor.Text().Capturing())
+        {
             form->AddComponent<CapturePanel>(editor, size);
-        } else if (editor.Target() == EditTarget::Watch) {
+        }
+        else if (editor.Target() == EditTarget::Watch)
+        {
             form->AddComponent<WatchProperties>(editor, size);
-        } else if (editor.Target() == EditTarget::Keyboard) {
+        }
+        else if (editor.Target() == EditTarget::Keyboard)
+        {
             form->AddComponent<KeyboardProperties>(editor, size);
-        } else {
+        }
+        else
+        {
             form->AddComponent<ThemeProperties>(editor, size);
         }
         break;
     case PanelKind::Dialog:
-        switch (editor.Dialog()) {
+        switch (editor.Dialog())
+        {
         case DialogKind::Color: form->AddComponent<ColorPanel>(editor, size); break;
         case DialogKind::Actions: form->AddComponent<ActionsPanel>(editor, size); break;
         case DialogKind::KeyPicker: form->AddComponent<KeyPickerPanel>(editor, size); break;
@@ -100,85 +116,110 @@ auto EditorPanel::Rebuild(Editor& editor) -> void {
         }
         break;
     }
-    if (auto result = Composer()->SetForm(std::move(form)); !result) {
+    if (auto result = Composer()->SetForm(std::move(form)); !result)
+    {
         LOG_ERROR("{}: {}", Name(), result.error().Message());
     }
 }
 
-auto EditorPanel::IsPreview() const -> bool {
+auto EditorPanel::IsPreview() const -> bool
+{
     return m_kind == PanelKind::Preview || PanelPlacement::LayerOf(m_kind).has_value();
 }
 
-auto EditorPanel::ToPanel(const PointerHit& hit) const -> Eigen::Vector2f {
+auto EditorPanel::ToPanel(const PointerHit& hit) const -> Eigen::Vector2f
+{
     const auto editor = m_editor.lock();
     return editor ? Eigen::Vector2f(hit.uv.cwiseProduct(editor->PanelSize(m_kind).array().round().matrix()))
                   : Eigen::Vector2f::Zero();
 }
 
-auto EditorPanel::Accepts(const Eigen::Vector2f& uv) const -> bool {
+auto EditorPanel::Accepts(const Eigen::Vector2f& uv) const -> bool
+{
     const auto editor = m_editor.lock();
-    if (!editor || !PanelPlacement::LayerOf(m_kind)) {
+    if (!editor || !PanelPlacement::LayerOf(m_kind))
+    {
         return true;
     }
     return editor->Accepts(m_kind, uv.cwiseProduct(editor->PanelSize(m_kind)));
 }
 
-auto EditorPanel::OnHover(const PointerHit& hit) -> std::optional<Haptics> {
+auto EditorPanel::OnHover(const PointerHit& hit) -> std::optional<Haptics>
+{
     const auto editor = m_editor.lock();
-    if (!editor || !editor->Allows(hit.pointer)) {
+    if (!editor || !editor->Allows(hit.pointer))
+    {
         return std::nullopt;
     }
-    if (IsPreview()) {
+    if (IsPreview())
+    {
         return editor->PreviewHover(ToPanel(hit));
     }
-    if (m_kind == PanelKind::Dialog && editor->Dialog() == DialogKind::Color && editor->Colors().Hover(*editor, ToPanel(hit))) {
+    if (m_kind == PanelKind::Dialog && editor->Dialog() == DialogKind::Color && editor->Colors().Hover(*editor, ToPanel(hit)))
+    {
         return std::nullopt;
     }
     return View::OnHover(hit);
 }
 
-auto EditorPanel::OnLeft(size_t pointer) -> void {
+auto EditorPanel::OnLeft(size_t pointer) -> void
+{
     const auto editor = m_editor.lock();
-    if (!editor || !editor->Allows(pointer)) {
+    if (!editor || !editor->Allows(pointer))
+    {
         return;
     }
-    if (IsPreview()) {
+    if (IsPreview())
+    {
         editor->PreviewLeft();
         return;
     }
     View::OnLeft(pointer);
 }
 
-auto EditorPanel::OnPointer(const PointerHit& hit, bool pressed) -> void {
+auto EditorPanel::OnPointer(const PointerHit& hit, bool pressed) -> void
+{
     const auto editor = m_editor.lock();
-    if (!editor || !editor->Allows(hit.pointer)) {
+    if (!editor || !editor->Allows(hit.pointer))
+    {
         return;
     }
-    if (pressed) {
+    if (pressed)
+    {
         editor->Claim(hit.pointer);
     }
-    if (IsPreview()) {
+    if (IsPreview())
+    {
         editor->PreviewPointer(m_kind, hit, ToPanel(hit), pressed);
-    } else if (!(m_kind == PanelKind::Dialog && editor->Dialog() == DialogKind::Color
-                 && editor->Colors().Pointer(*editor, ToPanel(hit), pressed))) {
-        if (pressed) {
+    }
+    else if (!(m_kind == PanelKind::Dialog && editor->Dialog() == DialogKind::Color
+               && editor->Colors().Pointer(*editor, ToPanel(hit), pressed)))
+    {
+        if (pressed)
+        {
             editor->Text().Commit();
-        } else {
+        }
+        else
+        {
             editor->PanelReleased(m_kind, hit);
         }
         View::OnPointer(hit, pressed);
     }
-    if (!pressed) {
+    if (!pressed)
+    {
         editor->Unclaim(hit.pointer);
     }
 }
 
-auto EditorPanel::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void {
+auto EditorPanel::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void
+{
     const auto editor = m_editor.lock();
-    if (!editor || !editor->Allows(hit.pointer)) {
+    if (!editor || !editor->Allows(hit.pointer))
+    {
         return;
     }
-    if (IsPreview()) {
+    if (IsPreview())
+    {
         return;
     }
     View::OnScroll(hit, delta_y, delta_x);

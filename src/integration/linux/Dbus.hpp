@@ -24,7 +24,8 @@
 
 #include "Error.hpp"
 
-class Dbus final {
+class Dbus final
+{
   public:
     static constexpr char kNotificationsInterface[] = "org.freedesktop.Notifications";
     static constexpr char kNotificationsPath[] = "/org/freedesktop/Notifications";

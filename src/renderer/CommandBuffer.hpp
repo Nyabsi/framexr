@@ -34,7 +34,8 @@
 #include "Pipeline.hpp"
 #include "Queue.hpp"
 
-class CommandBuffer final {
+class CommandBuffer final
+{
   public:
     CommandBuffer(Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer);
     ~CommandBuffer();

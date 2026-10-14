@@ -49,13 +49,15 @@
 #include "View.hpp"
 #include "Runtime.hpp"
 
-struct OpenXrPendingDelete {
+struct OpenXrPendingDelete
+{
     std::unique_ptr<View> overlay;
     OpenXrOverlay data;
     size_t frame = 0;
 };
 
-class OpenXrRuntime final : public Runtime {
+class OpenXrRuntime final : public Runtime
+{
   public:
     static auto Connect() -> std::unique_ptr<OpenXrRuntime>;
 

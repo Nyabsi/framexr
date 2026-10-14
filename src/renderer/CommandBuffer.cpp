@@ -32,11 +32,14 @@
 CommandBuffer::CommandBuffer(Queue& queue, VkCommandPool pool, VkCommandBuffer command_buffer)
     : m_queue(&queue),
       m_pool(pool),
-      m_command_buffer(command_buffer) {
+      m_command_buffer(command_buffer)
+{
 }
 
-CommandBuffer::~CommandBuffer() {
-    if (m_pool != VK_NULL_HANDLE) {
+CommandBuffer::~CommandBuffer()
+{
+    if (m_pool != VK_NULL_HANDLE)
+    {
         g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
     }
 }
@@ -47,12 +50,16 @@ CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
       m_command_buffer(std::exchange(other.m_command_buffer, VK_NULL_HANDLE)),
       m_retained(std::move(other.m_retained)),
       m_render_target(std::move(other.m_render_target)),
-      m_pending_passes(std::move(other.m_pending_passes)) {
+      m_pending_passes(std::move(other.m_pending_passes))
+{
 }
 
-auto CommandBuffer::operator=(CommandBuffer&& other) noexcept -> CommandBuffer& {
-    if (this != &other) {
-        if (m_pool != VK_NULL_HANDLE) {
+auto CommandBuffer::operator=(CommandBuffer&& other) noexcept -> CommandBuffer&
+{
+    if (this != &other)
+    {
+        if (m_pool != VK_NULL_HANDLE)
+        {
             g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
         }
         m_queue = other.m_queue;
@@ -65,13 +72,16 @@ auto CommandBuffer::operator=(CommandBuffer&& other) noexcept -> CommandBuffer& 
     return *this;
 }
 
-auto CommandBuffer::Retain(std::shared_ptr<void> resource) -> void {
+auto CommandBuffer::Retain(std::shared_ptr<void> resource) -> void
+{
     m_retained.push_back(std::move(resource));
 }
 
-auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void {
+auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void
+{
     const auto old_layout = image.Layout();
-    if (old_layout == layout) {
+    if (old_layout == layout)
+    {
         return;
     }
     const VkImageMemoryBarrier barrier{
@@ -106,25 +116,32 @@ auto CommandBuffer::Barrier(Image& image, VkImageLayout layout) -> void {
     image.SetLayout(layout);
 }
 
-auto CommandBuffer::BeginRendering(std::shared_ptr<Image> target) -> void {
+auto CommandBuffer::BeginRendering(std::shared_ptr<Image> target) -> void
+{
     m_render_target = std::move(target);
     m_pending_passes.clear();
 }
 
-auto CommandBuffer::Draw(const Pass& pass) -> void {
+auto CommandBuffer::Draw(const Pass& pass) -> void
+{
     m_pending_passes.push_back(pass);
 }
 
-auto CommandBuffer::EndRendering() -> void {
+auto CommandBuffer::EndRendering() -> void
+{
     auto target = std::exchange(m_render_target, nullptr);
-    if (!target) {
+    if (!target)
+    {
         LOG_ERROR("EndRendering called without a render target");
         return;
     }
 
-    for (const auto& pass : m_pending_passes) {
-        for (const auto& descriptor_set : pass.descriptor_sets) {
-            if (const auto& texture = descriptor_set->Texture()) {
+    for (const auto& pass : m_pending_passes)
+    {
+        for (const auto& descriptor_set : pass.descriptor_sets)
+        {
+            if (const auto& texture = descriptor_set->Texture())
+            {
                 Barrier(*texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             }
         }
@@ -149,7 +166,8 @@ auto CommandBuffer::EndRendering() -> void {
     vkCmdBeginRendering(m_command_buffer, &rendering_info);
 
     const auto& indices = g_device->QuadIndices();
-    for (auto& pass : m_pending_passes) {
+    for (auto& pass : m_pending_passes)
+    {
         const VkViewport viewport{
             .x = 0.0f,
             .y = 0.0f,
@@ -163,11 +181,13 @@ auto CommandBuffer::EndRendering() -> void {
 
         std::vector<VkDescriptorSet> sets;
         sets.reserve(pass.descriptor_sets.size());
-        for (const auto& descriptor_set : pass.descriptor_sets) {
+        for (const auto& descriptor_set : pass.descriptor_sets)
+        {
             sets.push_back(descriptor_set->Handle());
             Retain(descriptor_set);
         }
-        if (!sets.empty()) {
+        if (!sets.empty())
+        {
             vkCmdBindDescriptorSets(
                 m_command_buffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -204,7 +224,8 @@ auto CommandBuffer::UploadImage(
     VkFormat format,
     std::span<const std::byte> data,
     uint32_t row_length
-) -> Result<std::shared_ptr<Image>> {
+) -> Result<std::shared_ptr<Image>>
+{
     LOG_DEBUG("Texture2D: {}x{} {}MB", width, height, data.size() / (size_t{1024} * 1024));
 
     ASSIGN_OR_RETURN(
@@ -243,24 +264,29 @@ auto CommandBuffer::UploadImage(
     return image;
 }
 
-auto CommandBuffer::UploadDds(std::span<const std::byte> data) -> Result<std::shared_ptr<Image>> {
+auto CommandBuffer::UploadDds(std::span<const std::byte> data) -> Result<std::shared_ptr<Image>>
+{
     ASSIGN_OR_RETURN(const auto dds, DdsImage::Parse(data));
     return UploadImage(dds.Width(), dds.Height(), dds.Format(), dds.Data());
 }
 
-auto CommandBuffer::TransitionLayout(const std::shared_ptr<Image>& image, VkImageLayout layout) -> void {
+auto CommandBuffer::TransitionLayout(const std::shared_ptr<Image>& image, VkImageLayout layout) -> void
+{
     Barrier(*image, layout);
     Retain(image);
 }
 
-auto CommandBuffer::Finish() -> Result<> {
-    if (const auto result = vkEndCommandBuffer(m_command_buffer); result != VK_SUCCESS) {
+auto CommandBuffer::Finish() -> Result<>
+{
+    if (const auto result = vkEndCommandBuffer(m_command_buffer); result != VK_SUCCESS)
+    {
         return Unexpected(std::format("vkEndCommandBuffer failed: {}", static_cast<int>(result)));
     }
     return {};
 }
 
-auto CommandBuffer::Submit() -> Result<> {
+auto CommandBuffer::Submit() -> Result<>
+{
     RETURN_IF_ERROR(Finish());
     Submission submission{
         .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
@@ -269,7 +295,8 @@ auto CommandBuffer::Submit() -> Result<> {
     return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), false);
 }
 
-auto CommandBuffer::SubmitAndWait() -> Result<> {
+auto CommandBuffer::SubmitAndWait() -> Result<>
+{
     RETURN_IF_ERROR(Finish());
     Submission submission{
         .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
@@ -278,8 +305,10 @@ auto CommandBuffer::SubmitAndWait() -> Result<> {
     return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), true);
 }
 
-auto CommandBuffer::SubmitUpload() -> Result<> {
-    if (m_queue == &g_device->GraphicsQueue()) {
+auto CommandBuffer::SubmitUpload() -> Result<>
+{
+    if (m_queue == &g_device->GraphicsQueue())
+    {
         return Submit();
     }
     return SubmitAndWait();

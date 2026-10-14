@@ -27,114 +27,154 @@
 
 #include <yaml-cpp/yaml.h>
 
-namespace {
+namespace
+{
 
-auto IsNullLiteral(const std::string& text) -> bool {
+auto IsNullLiteral(const std::string& text) -> bool
+{
     return text.empty() || text == "~" || text == "null" || text == "Null" || text == "NULL";
 }
 
-auto ParseBoolLiteral(const std::string& text) -> std::optional<bool> {
-    if (text == "true" || text == "True" || text == "TRUE") {
+auto ParseBoolLiteral(const std::string& text) -> std::optional<bool>
+{
+    if (text == "true" || text == "True" || text == "TRUE")
+    {
         return true;
     }
-    if (text == "false" || text == "False" || text == "FALSE") {
+    if (text == "false" || text == "False" || text == "FALSE")
+    {
         return false;
     }
     return std::nullopt;
 }
 
-auto ParseIntegerLiteral(std::string_view text) -> std::optional<int64_t> {
+auto ParseIntegerLiteral(std::string_view text) -> std::optional<int64_t>
+{
     const bool negative = text.starts_with('-');
-    if (negative || text.starts_with('+')) {
+    if (negative || text.starts_with('+'))
+    {
         text.remove_prefix(1);
     }
     int base = 10;
-    if (text.starts_with("0x")) {
+    if (text.starts_with("0x"))
+    {
         base = 16;
-    } else if (text.starts_with("0o")) {
+    }
+    else if (text.starts_with("0o"))
+    {
         base = 8;
-    } else if (text.starts_with("0b")) {
+    }
+    else if (text.starts_with("0b"))
+    {
         base = 2;
     }
-    if (base != 10) {
+    if (base != 10)
+    {
         text.remove_prefix(2);
     }
-    if (text.empty()) {
+    if (text.empty())
+    {
         return std::nullopt;
     }
     int64_t value = 0;
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value, base);
-    if (error != std::errc{} || end != text.data() + text.size()) {
+    if (error != std::errc{} || end != text.data() + text.size())
+    {
         return std::nullopt;
     }
     return negative ? -value : value;
 }
 
-auto ParseFloatLiteral(std::string_view text) -> std::optional<double> {
+auto ParseFloatLiteral(std::string_view text) -> std::optional<double>
+{
     const bool negative = text.starts_with('-');
-    if (negative || text.starts_with('+')) {
+    if (negative || text.starts_with('+'))
+    {
         text.remove_prefix(1);
     }
-    if (text == ".inf" || text == ".Inf" || text == ".INF") {
+    if (text == ".inf" || text == ".Inf" || text == ".INF")
+    {
         return negative ? -std::numeric_limits<double>::infinity() : std::numeric_limits<double>::infinity();
     }
-    if (text == ".nan" || text == ".NaN" || text == ".NAN") {
+    if (text == ".nan" || text == ".NaN" || text == ".NAN")
+    {
         return std::numeric_limits<double>::quiet_NaN();
     }
     const bool numeric = !text.empty() && text.find_first_not_of("0123456789.eE+-") == std::string_view::npos
                       && text.find_first_of("0123456789") != std::string_view::npos;
-    if (!numeric) {
+    if (!numeric)
+    {
         return std::nullopt;
     }
     double value = 0.0;
     const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
-    if (error != std::errc{} || end != text.data() + text.size()) {
+    if (error != std::errc{} || end != text.data() + text.size())
+    {
         return std::nullopt;
     }
     return negative ? -value : value;
 }
 
-auto ResolvesToNonString(const std::string& text) -> bool {
+auto ResolvesToNonString(const std::string& text) -> bool
+{
     return IsNullLiteral(text) || ParseBoolLiteral(text) || ParseIntegerLiteral(text) || ParseFloatLiteral(text);
 }
 
-auto IsWholeNumber(double value) -> bool {
+auto IsWholeNumber(double value) -> bool
+{
     return std::isfinite(value) && std::trunc(value) == value && std::abs(value) < 1e15;
 }
 
 template <typename JsonType>
-auto EmitJson(const JsonType& value) -> std::string {
+auto EmitJson(const JsonType& value) -> std::string
+{
     YAML::Emitter emitter;
-    const auto emit = [&](const auto& self, const JsonType& node) -> void {
-        if (node.is_object()) {
+    const auto emit = [&](const auto& self, const JsonType& node) -> void
+    {
+        if (node.is_object())
+        {
             emitter << YAML::BeginMap;
-            for (const auto& [key, item] : node.items()) {
+            for (const auto& [key, item] : node.items())
+            {
                 emitter << YAML::Key << key << YAML::Value;
                 self(self, item);
             }
             emitter << YAML::EndMap;
-        } else if (node.is_array()) {
+        }
+        else if (node.is_array())
+        {
             const bool flat = !node.empty()
                            && std::ranges::all_of(node, [](const JsonType& item) -> bool { return item.is_primitive(); });
-            if (flat) {
+            if (flat)
+            {
                 emitter << YAML::Flow;
             }
             emitter << YAML::BeginSeq;
-            for (const auto& item : node) {
+            for (const auto& item : node)
+            {
                 self(self, item);
             }
             emitter << YAML::EndSeq;
-        } else if (node.is_string()) {
+        }
+        else if (node.is_string())
+        {
             const auto text = node.template get<std::string>();
-            if (ResolvesToNonString(text)) {
+            if (ResolvesToNonString(text))
+            {
                 emitter << YAML::DoubleQuoted;
             }
             emitter << text;
-        } else if (node.is_null()) {
+        }
+        else if (node.is_null())
+        {
             emitter << YAML::Null;
-        } else if (node.is_number_float() && IsWholeNumber(node.template get<double>())) {
+        }
+        else if (node.is_number_float() && IsWholeNumber(node.template get<double>()))
+        {
             emitter << static_cast<int64_t>(node.template get<double>());
-        } else {
+        }
+        else
+        {
             emitter << node.dump();
         }
     };
@@ -144,54 +184,70 @@ auto EmitJson(const JsonType& value) -> std::string {
 
 } // namespace
 
-auto Yaml::Parse(std::string_view text) -> Result<nlohmann::json> {
-    try {
-        for (const auto& document : YAML::LoadAll(std::string(text))) {
-            if (document.IsDefined() && !document.IsNull()) {
+auto Yaml::Parse(std::string_view text) -> Result<nlohmann::json>
+{
+    try
+    {
+        for (const auto& document : YAML::LoadAll(std::string(text)))
+        {
+            if (document.IsDefined() && !document.IsNull())
+            {
                 return Convert(document);
             }
         }
         return nlohmann::json::object();
-    } catch (const YAML::Exception& exception) {
+    }
+    catch (const YAML::Exception& exception)
+    {
         return Unexpected(exception.what());
     }
 }
 
-auto Yaml::ConvertScalar(const YAML::Node& node) -> nlohmann::json {
+auto Yaml::ConvertScalar(const YAML::Node& node) -> nlohmann::json
+{
     const auto& text = node.Scalar();
-    if (node.Tag() == "!") {
+    if (node.Tag() == "!")
+    {
         return text;
     }
-    if (IsNullLiteral(text)) {
+    if (IsNullLiteral(text))
+    {
         return nullptr;
     }
-    if (const auto value = ParseBoolLiteral(text)) {
+    if (const auto value = ParseBoolLiteral(text))
+    {
         return *value;
     }
-    if (const auto value = ParseIntegerLiteral(text)) {
+    if (const auto value = ParseIntegerLiteral(text))
+    {
         return *value;
     }
-    if (const auto value = ParseFloatLiteral(text)) {
+    if (const auto value = ParseFloatLiteral(text))
+    {
         return *value;
     }
     return text;
 }
 
-auto Yaml::Convert(const YAML::Node& node) -> nlohmann::json {
+auto Yaml::Convert(const YAML::Node& node) -> nlohmann::json
+{
     nlohmann::json value;
-    switch (node.Type()) {
+    switch (node.Type())
+    {
     case YAML::NodeType::Null:
     case YAML::NodeType::Undefined: value = nullptr; break;
     case YAML::NodeType::Scalar: value = ConvertScalar(node); break;
     case YAML::NodeType::Sequence:
         value = nlohmann::json::array();
-        for (const auto& item : node) {
+        for (const auto& item : node)
+        {
             value.push_back(Convert(item));
         }
         break;
     case YAML::NodeType::Map:
         value = nlohmann::json::object();
-        for (const auto& entry : node) {
+        for (const auto& entry : node)
+        {
             const auto key = Convert(entry.first);
             value[key.is_string() ? key.get<std::string>() : key.dump()] = Convert(entry.second);
         }
@@ -199,16 +255,19 @@ auto Yaml::Convert(const YAML::Node& node) -> nlohmann::json {
     }
 
     const auto& tag = node.Tag();
-    if (tag.size() > 1 && tag.starts_with('!') && !tag.starts_with("!!")) {
+    if (tag.size() > 1 && tag.starts_with('!') && !tag.starts_with("!!"))
+    {
         return nlohmann::json{{tag.substr(1), value}};
     }
     return value;
 }
 
-auto Yaml::Emit(const nlohmann::json& value) -> std::string {
+auto Yaml::Emit(const nlohmann::json& value) -> std::string
+{
     return EmitJson(value);
 }
 
-auto Yaml::Emit(const nlohmann::ordered_json& value) -> std::string {
+auto Yaml::Emit(const nlohmann::ordered_json& value) -> std::string
+{
     return EmitJson(value);
 }

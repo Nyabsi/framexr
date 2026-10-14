@@ -25,7 +25,8 @@
 #include <memory>
 #include <span>
 
-class ProcessedFrame {
+class ProcessedFrame
+{
   public:
     virtual ~ProcessedFrame() = default;
 };

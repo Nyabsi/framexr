@@ -30,18 +30,23 @@
 
 ToolbarPanel::ToolbarPanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("toolbar"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
-    if (editor.ClosingPrompt()) {
+    if (editor.ClosingPrompt())
+    {
         AddClosingPrompt(editor);
-    } else {
+    }
+    else
+    {
         AddTools(editor);
     }
 }
 
-auto ToolbarPanel::AddTools(Editor& editor) -> void {
+auto ToolbarPanel::AddTools(Editor& editor) -> void
+{
     const auto text = FormTheme::Rgba("@text");
     const auto surface = FormTheme::Rgba("@surface");
     const auto shadow = FormTheme::Rgba("@shadow");
@@ -52,11 +57,14 @@ auto ToolbarPanel::AddTools(Editor& editor) -> void {
     bool can_undo = editor.ThemeHistory().CanUndo();
     bool can_redo = editor.ThemeHistory().CanRedo();
     bool dirty = editor.ThemeHistory().Dirty();
-    if (editor.Target() == EditTarget::Watch) {
+    if (editor.Target() == EditTarget::Watch)
+    {
         can_undo = editor.WatchDesign().Revisions().CanUndo();
         can_redo = editor.WatchDesign().Revisions().CanRedo();
         dirty = editor.WatchDesign().Revisions().Dirty();
-    } else if (editor.Target() == EditTarget::Keyboard) {
+    }
+    else if (editor.Target() == EditTarget::Keyboard)
+    {
         can_undo = editor.KeyboardDesign().Revisions().CanUndo();
         can_redo = editor.KeyboardDesign().Revisions().CanRedo();
         dirty = editor.KeyboardDesign().Revisions().Dirty();
@@ -102,17 +110,21 @@ auto ToolbarPanel::AddTools(Editor& editor) -> void {
     redo.SetEllipsize(true);
     redo.SetOnRelease([&editor]() -> void { editor.Redo(); });
 
-    if (on_watch) {
+    if (on_watch)
+    {
         const bool snapping = editor.WatchDesign().Snap();
         auto& snap = row.AddComponent<ButtonComponent>("snap", "Snap");
         snap.SetFontSize(PanelStyle::kTextFont);
         snap.SetFgColor(snapping ? on_accent : text);
         snap.SetBgColor(snapping ? accent : surface);
         snap.SetEllipsize(true);
-        snap.SetOnRelease([&editor]() -> void {
-            editor.WatchDesign().SetSnap(!editor.WatchDesign().Snap());
-            editor.Touch();
-        });
+        snap.SetOnRelease(
+            [&editor]() -> void
+            {
+                editor.WatchDesign().SetSnap(!editor.WatchDesign().Snap());
+                editor.Touch();
+            }
+        );
 
         auto& layers = row.AddComponent<ButtonComponent>("layers", "Layers");
         layers.SetFontSize(PanelStyle::kTextFont);
@@ -128,10 +140,13 @@ auto ToolbarPanel::AddTools(Editor& editor) -> void {
     hand.SetFgColor(on_hand ? on_accent : text);
     hand.SetBgColor(on_hand ? accent : surface);
     hand.SetEllipsize(true);
-    hand.SetOnRelease([&editor]() -> void {
-        editor.Placement().SetPaletteOnHand(!editor.Placement().PaletteOnHand());
-        editor.Touch();
-    });
+    hand.SetOnRelease(
+        [&editor]() -> void
+        {
+            editor.Placement().SetPaletteOnHand(!editor.Placement().PaletteOnHand());
+            editor.Touch();
+        }
+    );
 
     auto& save = row.AddComponent<ButtonComponent>("save", dirty ? "Save*" : "Save");
     save.SetFontSize(PanelStyle::kTextFont);
@@ -155,14 +170,16 @@ auto ToolbarPanel::AddTools(Editor& editor) -> void {
     done.SetOnRelease([&editor]() -> void { editor.Done(); });
 
     std::vector<float> weights;
-    for (const auto& child : row.Children()) {
+    for (const auto& child : row.Children())
+    {
         const auto& button = dynamic_cast<const ButtonComponent&>(*child);
         weights.push_back(FontCache::Width(button.Text(), PanelStyle::kTextFont) + 24.0f);
     }
     row.SetWeights(std::move(weights));
 }
 
-auto ToolbarPanel::AddClosingPrompt(Editor& editor) -> void {
+auto ToolbarPanel::AddClosingPrompt(Editor& editor) -> void
+{
     const auto text = FormTheme::Rgba("@text");
     const auto subtle = FormTheme::Rgba("@subtle");
     const auto surface = FormTheme::Rgba("@surface");

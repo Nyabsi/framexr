@@ -36,22 +36,27 @@
 
 class View;
 
-enum class OverlayId : uint64_t {};
+enum class OverlayId : uint64_t
+{
+};
 
-enum class PointerMode : uint8_t {
+enum class PointerMode : uint8_t
+{
     Left,
     Right,
     Middle,
     Special,
 };
 
-struct Haptics {
+struct Haptics
+{
     float intensity = 0.0f;
     float duration = 0.0f;
     float frequency = 0.0f;
 };
 
-struct PointerHit {
+struct PointerHit
+{
     size_t pointer = 0;
     OverlayId overlay{};
     PointerMode mode = PointerMode::Left;
@@ -60,7 +65,8 @@ struct PointerHit {
     float dist = 0.0f;
 };
 
-struct PointerState {
+struct PointerState
+{
     float scroll_x = 0.0f;
     float scroll_y = 0.0f;
     bool click = false;
@@ -74,7 +80,8 @@ struct PointerState {
     bool move_mouse = false;
 };
 
-struct GrabData {
+struct GrabData
+{
     Eigen::Affine3f offset = Eigen::Affine3f::Identity();
     OverlayId grabbed_id{};
     Eigen::Vector3f grab_point = Eigen::Vector3f::Zero();
@@ -84,14 +91,16 @@ struct GrabData {
     float bend_curvature = 0.0f;
 };
 
-struct RayHit {
+struct RayHit
+{
     OverlayId overlay{};
     Eigen::Vector3f global_position = Eigen::Vector3f::Zero();
     Eigen::Vector2f local_position = Eigen::Vector2f::Zero();
     float dist = 0.0f;
 };
 
-struct InteractionState {
+struct InteractionState
+{
     PointerMode mode = PointerMode::Left;
     std::optional<GrabData> grabbed;
     std::optional<OverlayId> clicked_id;
@@ -99,13 +108,15 @@ struct InteractionState {
     std::optional<float> haptics;
 };
 
-struct InteractionResult {
+struct InteractionResult
+{
     float length = 0.0f;
     std::optional<Haptics> haptics;
     std::optional<Eigen::Vector3f> target;
 };
 
-class LaserPointer {
+class LaserPointer
+{
   public:
     explicit LaserPointer(size_t index);
 

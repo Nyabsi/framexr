@@ -18,15 +18,18 @@
 
 #include "PoseFilter.hpp"
 
-PoseFilter::PoseFilter(OneEuroSettings position, OneEuroSettings rotation) : m_position(position), m_rotation(rotation) {
+PoseFilter::PoseFilter(OneEuroSettings position, OneEuroSettings rotation) : m_position(position), m_rotation(rotation)
+{
 }
 
-auto PoseFilter::Reset() -> void {
+auto PoseFilter::Reset() -> void
+{
     m_position.Reset();
     m_rotation.Reset();
 }
 
-auto PoseFilter::Filter(const Eigen::Affine3f& pose, float delta_seconds) -> Eigen::Affine3f {
+auto PoseFilter::Filter(const Eigen::Affine3f& pose, float delta_seconds) -> Eigen::Affine3f
+{
     const Eigen::Matrix3f linear = pose.linear();
     Eigen::Affine3f filtered = Eigen::Affine3f::Identity();
     filtered.linear() = m_rotation.Filter(Eigen::Quaternionf(linear), delta_seconds).toRotationMatrix();

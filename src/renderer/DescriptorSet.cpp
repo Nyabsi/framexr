@@ -23,9 +23,11 @@
 
 #include "Device.hpp"
 
-DescriptorSet::DescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) : m_pool(pool), m_set(set) {
+DescriptorSet::DescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) : m_pool(pool), m_set(set)
+{
 }
 
-DescriptorSet::~DescriptorSet() {
+DescriptorSet::~DescriptorSet()
+{
     g_device->FreeDescriptorSet(m_pool, m_set);
 }

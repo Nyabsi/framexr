@@ -32,7 +32,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct ClockElement {
+struct ClockElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -44,7 +45,8 @@ struct ClockElement {
     size_t form = 0;
 };
 
-class ClockComponent final : public FormComponent {
+class ClockComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Clock";
 

@@ -27,7 +27,8 @@
 #include <string_view>
 #include <vector>
 
-enum class LogLevel : std::uint8_t {
+enum class LogLevel : std::uint8_t
+{
     Error,
     Warn,
     Info,
@@ -35,12 +36,14 @@ enum class LogLevel : std::uint8_t {
     Trace,
 };
 
-struct LogModuleFilter {
+struct LogModuleFilter
+{
     std::string module;
     LogLevel level;
 };
 
-class Logger final {
+class Logger final
+{
   public:
     Logger();
 
@@ -70,11 +73,13 @@ class Logger final {
 
 extern Logger* g_logger;
 
-#define LOG_IMPL(level, ...)                                               \
-    do {                                                                   \
-        if (g_logger != nullptr && g_logger->IsEnabled(level, __FILE__)) { \
-            g_logger->Write(level, __FILE__, std::format(__VA_ARGS__));    \
-        }                                                                  \
+#define LOG_IMPL(level, ...)                                             \
+    do                                                                   \
+    {                                                                    \
+        if (g_logger != nullptr && g_logger->IsEnabled(level, __FILE__)) \
+        {                                                                \
+            g_logger->Write(level, __FILE__, std::format(__VA_ARGS__));  \
+        }                                                                \
     } while (false)
 
 #define LOG_ERROR(...) LOG_IMPL(LogLevel::Error, __VA_ARGS__)

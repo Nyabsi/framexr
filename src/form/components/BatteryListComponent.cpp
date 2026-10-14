@@ -24,13 +24,15 @@
 #include "Json.hpp"
 #include "document/FormParser.hpp"
 
-namespace {
+namespace
+{
 
 constexpr float kInset = 2.0f;
 
 } // namespace
 
-auto BatteryListComponent::Parse(const nlohmann::json& json) -> BatteryListElement {
+auto BatteryListComponent::Parse(const nlohmann::json& json) -> BatteryListElement
+{
     return {
         .corner_radius = FormParser::Optional<float>(json, "corner_radius"),
         .font_size = json.at("font_size").get<int>(),
@@ -43,7 +45,8 @@ auto BatteryListComponent::Parse(const nlohmann::json& json) -> BatteryListEleme
     };
 }
 
-auto BatteryListComponent::Serialize(nlohmann::ordered_json& json, const BatteryListElement& element) -> void {
+auto BatteryListComponent::Serialize(nlohmann::ordered_json& json, const BatteryListElement& element) -> void
+{
     FormParser::PutRadius(json, element.corner_radius);
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
@@ -55,7 +58,8 @@ auto BatteryListComponent::Serialize(nlohmann::ordered_json& json, const Battery
 }
 
 auto BatteryListComponent::Create(FormComponent& parent, const BatteryListElement& element, const FormContext& context)
-    -> BatteryListComponent& {
+    -> BatteryListComponent&
+{
     auto& list = parent.AddComponent<BatteryListComponent>();
     list.SetRect(FormParser::ToRect(element.rect));
     const auto count = static_cast<float>(std::max<size_t>(element.num_devices, 1));
@@ -66,20 +70,25 @@ auto BatteryListComponent::Create(FormComponent& parent, const BatteryListElemen
     const auto charging = FormParser::Color(element.fg_color_charging, context.theme);
     float x = 0.0f;
     float y = 0.0f;
-    for (size_t device = 0; device < element.num_devices; ++device) {
+    for (size_t device = 0; device < element.num_devices; ++device)
+    {
         auto& battery = list.AddComponent<BatteryComponent>("", device, element.low_threshold * 0.01f);
         battery.SetRect({x + kInset, y + kInset, cell_w - 2.0f * kInset, cell_h - 2.0f * kInset});
         battery.SetColors(normal, low, charging);
         battery.Label().SetFontSize(element.font_size);
         battery.Label().SetCentered(true);
-        if (element.layout == ListLayout::Horizontal) {
+        if (element.layout == ListLayout::Horizontal)
+        {
             x += cell_w;
-        } else {
+        }
+        else
+        {
             y += cell_h;
         }
     }
     return list;
 }
 
-BatteryListComponent::BatteryListComponent(std::string name) : FormComponent(std::move(name)) {
+BatteryListComponent::BatteryListComponent(std::string name) : FormComponent(std::move(name))
+{
 }

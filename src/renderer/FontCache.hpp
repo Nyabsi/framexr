@@ -40,7 +40,8 @@
 struct FT_LibraryRec_;
 struct FT_FaceRec_;
 
-struct Glyph {
+struct Glyph
+{
     std::shared_ptr<Image> texture;
     float top = 0.0f;
     float left = 0.0f;
@@ -49,23 +50,27 @@ struct Glyph {
     float advance = 0.0f;
 };
 
-struct FontFace {
+struct FontFace
+{
     FT_FaceRec_* face = nullptr;
     std::unordered_map<uint32_t, std::shared_ptr<Glyph>> glyphs;
 };
 
-struct FontCollection {
+struct FontCollection
+{
     std::vector<FontFace> fonts;
     std::unordered_map<uint32_t, size_t> codepoint_fonts;
     std::shared_ptr<Glyph> zero_glyph;
 };
 
-struct TextSize {
+struct TextSize
+{
     float width = 0.0f;
     float height = 0.0f;
 };
 
-class FontCache final {
+class FontCache final
+{
   public:
     static auto Create(std::string primary_font) -> Result<std::unique_ptr<FontCache>>;
     static auto SplitLines(std::string_view text) -> std::vector<std::string_view>;

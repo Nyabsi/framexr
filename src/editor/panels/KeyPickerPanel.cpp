@@ -31,7 +31,8 @@
 #include "TextLineComponent.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kLetters = std::to_array<VirtualKey>({
     VirtualKey::A, VirtualKey::B, VirtualKey::C, VirtualKey::D, VirtualKey::E, VirtualKey::F, VirtualKey::G,
@@ -148,11 +149,14 @@ constexpr auto kKeyCategories = std::to_array<KeyGroup>({
 
 } // namespace
 
-auto KeyPickerPanel::Caption(VirtualKey key) -> std::string {
+auto KeyPickerPanel::Caption(VirtualKey key) -> std::string
+{
     const KeyboardLayout empty;
     std::string caption;
-    for (const auto& label : empty.Labels({.action = TypeKey{.key = key}})) {
-        if (!caption.empty()) {
+    for (const auto& label : empty.Labels({.action = TypeKey{.key = key}}))
+    {
+        if (!caption.empty())
+        {
             caption += ' ';
         }
         caption += label;
@@ -162,13 +166,15 @@ auto KeyPickerPanel::Caption(VirtualKey key) -> std::string {
 
 KeyPickerPanel::KeyPickerPanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("key-picker"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
     const auto& keyboard = editor.KeyboardDesign();
     const auto selected = keyboard.Selected();
-    if (editor.Target() == EditTarget::Watch || !selected || *selected >= keyboard.Document().Keys().size()) {
+    if (editor.Target() == EditTarget::Watch || !selected || *selected >= keyboard.Document().Keys().size())
+    {
         return;
     }
     const size_t index = *selected;
@@ -183,7 +189,8 @@ KeyPickerPanel::KeyPickerPanel(Editor& editor, const Eigen::Vector2f& size)
     );
 
     std::vector<std::string> categories;
-    for (const auto& category : kKeyCategories) {
+    for (const auto& category : kKeyCategories)
+    {
         categories.emplace_back(category.name);
     }
     const size_t category = std::min(editor.KeyCategory(), kKeyCategories.size() - 1);
@@ -195,22 +202,30 @@ KeyPickerPanel::KeyPickerPanel(Editor& editor, const Eigen::Vector2f& size)
     const auto keys = kKeyCategories.at(category).keys;
     std::vector<std::string> captions;
     std::optional<size_t> current;
-    for (const auto key : keys) {
-        if (typed != nullptr && typed->key == key) {
+    for (const auto key : keys)
+    {
+        if (typed != nullptr && typed->key == key)
+        {
             current = captions.size();
         }
         captions.push_back(Caption(key));
     }
     auto& grid = m_stack.AddComponent<ChoiceGridComponent>("keys", captions, current, 4, PanelStyle::kListRow);
-    grid.SetOnChoose([&editor, index, keys](size_t chosen) -> void {
-        const auto key = keys[chosen];
-        editor.EditKeyboard([index, key](KeyboardLayout& edited) -> void {
-            auto& changed = edited.Keys().at(index);
-            changed.action = TypeKey{.key = key};
-            changed.label.reset();
-            changed.shifted_label.reset();
-        });
-    });
+    grid.SetOnChoose(
+        [&editor, index, keys](size_t chosen) -> void
+        {
+            const auto key = keys[chosen];
+            editor.EditKeyboard(
+                [index, key](KeyboardLayout& edited) -> void
+                {
+                    auto& changed = edited.Keys().at(index);
+                    changed.action = TypeKey{.key = key};
+                    changed.label.reset();
+                    changed.shifted_label.reset();
+                }
+            );
+        }
+    );
 
     m_stack.AddComponent<FormComponent>("spacer");
 

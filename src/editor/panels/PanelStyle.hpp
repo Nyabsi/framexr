@@ -18,7 +18,8 @@
 
 #pragma once
 
-namespace PanelStyle {
+namespace PanelStyle
+{
 
 constexpr float kPadding = 12.0f;
 constexpr float kGap = 6.0f;

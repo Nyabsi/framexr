@@ -27,7 +27,8 @@
 #include <string>
 #include <string_view>
 
-enum class VirtualKey : uint8_t {
+enum class VirtualKey : uint8_t
+{
     Escape = 9,
     N1 = 10,
     N2 = 11,
@@ -182,7 +183,8 @@ enum class VirtualKey : uint8_t {
     Xf86LaunchB = 210,
     Xf86Search = 225,
 };
-enum class KeyType : uint8_t {
+enum class KeyType : uint8_t
+{
     Symbol,
     NumPad,
     Other,
@@ -196,7 +198,8 @@ constexpr uint8_t kModNumLock = 0x10;
 constexpr uint8_t kModSuper = 0x40;
 constexpr uint8_t kModMeta = 0x80;
 
-class VirtualKeys {
+class VirtualKeys
+{
   public:
     static auto All() -> std::span<const VirtualKey>;
     static auto Parse(std::string_view name) -> std::optional<VirtualKey>;

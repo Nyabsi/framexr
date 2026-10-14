@@ -25,7 +25,8 @@
 
 #include "Config.hpp"
 
-auto ActionBinding::Bind(FormComponent& button, const ButtonData& data) -> void {
+auto ActionBinding::Bind(FormComponent& button, const ButtonData& data) -> void
+{
     auto binding = std::make_shared<ActionBinding>(data);
     button.SetOnPress([binding](PointerMode mode) -> void { binding->Press(mode); });
     button.SetOnRelease([binding]() -> void { binding->Release(); });
@@ -33,13 +34,16 @@ auto ActionBinding::Bind(FormComponent& button, const ButtonData& data) -> void 
     button.SetHighlightColor([binding]() -> std::optional<Eigen::Vector4f> { return binding->Highlight(); });
 }
 
-ActionBinding::ActionBinding(ButtonData data) : m_data(std::move(data)), m_last_down(std::chrono::steady_clock::now()) {
+ActionBinding::ActionBinding(ButtonData data) : m_data(std::move(data)), m_last_down(std::chrono::steady_clock::now())
+{
 }
 
-auto ActionBinding::Press(PointerMode mode) -> void {
+auto ActionBinding::Press(PointerMode mode) -> void
+{
     m_last_down = std::chrono::steady_clock::now();
     m_last_mode = mode;
-    switch (mode) {
+    switch (mode)
+    {
     case PointerMode::Left: Run(m_data.click_down); break;
     case PointerMode::Right: Run(m_data.right_down); break;
     case PointerMode::Middle: Run(m_data.middle_down); break;
@@ -47,10 +51,12 @@ auto ActionBinding::Press(PointerMode mode) -> void {
     }
 }
 
-auto ActionBinding::Release() -> void {
+auto ActionBinding::Release() -> void
+{
     const auto held = std::chrono::duration<float>(std::chrono::steady_clock::now() - m_last_down).count();
     const bool long_press = held > g_config->long_press_duration;
-    switch (m_last_mode) {
+    switch (m_last_mode)
+    {
     case PointerMode::Left: Run(long_press ? m_data.long_click_up : m_data.click_up); break;
     case PointerMode::Right: Run(long_press ? m_data.long_right_up : m_data.right_up); break;
     case PointerMode::Middle: Run(long_press ? m_data.long_middle_up : m_data.middle_up); break;
@@ -58,29 +64,36 @@ auto ActionBinding::Release() -> void {
     }
 }
 
-auto ActionBinding::Scroll(float delta_y) -> void {
+auto ActionBinding::Scroll(float delta_y) -> void
+{
     Run(delta_y < 0.0f ? m_data.scroll_down : m_data.scroll_up);
 }
 
-auto ActionBinding::Highlight() const -> std::optional<Eigen::Vector4f> {
-    if (!m_data.highlight) {
+auto ActionBinding::Highlight() const -> std::optional<Eigen::Vector4f>
+{
+    if (!m_data.highlight)
+    {
         return std::nullopt;
     }
     bool lit = false;
-    switch (*m_data.highlight) {
+    switch (*m_data.highlight)
+    {
     case HighlightTest::AllowSliding: lit = g_config->allow_sliding; break;
     case HighlightTest::NotificationSounds: lit = g_config->notifications_sound_enabled; break;
     case HighlightTest::Notifications: lit = g_config->notifications_enabled; break;
     case HighlightTest::RotateLock: lit = !g_config->space_rotate_unlocked; break;
     }
-    if (lit) {
+    if (lit)
+    {
         return Eigen::Vector4f(1.0f, 1.0f, 1.0f, 0.5f);
     }
     return std::nullopt;
 }
 
-auto ActionBinding::Run(const std::optional<std::vector<ButtonAction>>& actions) -> void {
-    if (actions) {
+auto ActionBinding::Run(const std::optional<std::vector<ButtonAction>>& actions) -> void
+{
+    if (actions)
+    {
         m_runner.Run(*actions);
     }
 }

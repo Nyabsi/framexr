@@ -22,8 +22,10 @@
 #include "NullHidProvider.hpp"
 #include "SendInputProvider.hpp"
 
-auto HidProvider::Create() -> std::unique_ptr<HidProvider> {
-    if (!UseNative()) {
+auto HidProvider::Create() -> std::unique_ptr<HidProvider>
+{
+    if (!UseNative())
+    {
         LOG_INFO("Input injection disabled by user.");
         return std::make_unique<NullHidProvider>();
     }

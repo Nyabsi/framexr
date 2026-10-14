@@ -24,21 +24,25 @@
 
 RecordingView::RecordingView(VkExtent2D extent, std::shared_ptr<std::vector<RecordedEvent>> events)
     : View(std::make_unique<Compose>(extent)),
-      m_events(std::move(events)) {
+      m_events(std::move(events))
+{
 }
 
-auto RecordingView::OnHover(const PointerHit& hit) -> std::optional<Haptics> {
+auto RecordingView::OnHover(const PointerHit& hit) -> std::optional<Haptics>
+{
     m_events->push_back(
         {.kind = RecordedKind::Hover, .pointer = hit.pointer, .uv = hit.uv, .mode = hit.mode, .primary = hit.primary}
     );
     return std::nullopt;
 }
 
-auto RecordingView::OnLeft(size_t pointer) -> void {
+auto RecordingView::OnLeft(size_t pointer) -> void
+{
     m_events->push_back({.kind = RecordedKind::Left, .pointer = pointer});
 }
 
-auto RecordingView::OnPointer(const PointerHit& hit, bool pressed) -> void {
+auto RecordingView::OnPointer(const PointerHit& hit, bool pressed) -> void
+{
     m_events->push_back(
         {.kind = RecordedKind::Press,
          .pointer = hit.pointer,
@@ -49,6 +53,7 @@ auto RecordingView::OnPointer(const PointerHit& hit, bool pressed) -> void {
     );
 }
 
-auto RecordingView::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void {
+auto RecordingView::OnScroll(const PointerHit& hit, float delta_y, float delta_x) -> void
+{
     m_events->push_back({.kind = RecordedKind::Scroll, .pointer = hit.pointer, .delta_y = delta_y, .delta_x = delta_x});
 }

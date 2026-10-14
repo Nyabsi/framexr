@@ -33,7 +33,8 @@
 #include "Compose.hpp"
 #include "Form.hpp"
 
-Watch::Watch() {
+Watch::Watch()
+{
     SetName(std::string(kWatchName));
     SetWantVisible(true);
     SetInteractable(true);
@@ -43,17 +44,20 @@ Watch::Watch() {
     SetAttachedTo(g_config->watch_hand == Handedness::Left ? RelativeTo::LeftHand : RelativeTo::RightHand);
 }
 
-auto Watch::Create() -> Result<std::unique_ptr<Watch>> {
+auto Watch::Create() -> Result<std::unique_ptr<Watch>>
+{
     auto watch = std::unique_ptr<Watch>(new Watch());
     RETURN_IF_ERROR(watch->Rebuild());
     return watch;
 }
 
-auto Watch::Rebuild() -> Result<> {
+auto Watch::Rebuild() -> Result<>
+{
     return Apply(Forms::Watch(g_config->watch_profile));
 }
 
-auto Watch::Apply(const FormDocument& config) -> Result<> {
+auto Watch::Apply(const FormDocument& config) -> Result<>
+{
     ASSIGN_OR_RETURN(auto canvas, Compose::Create(Form::FromDocument(config, std::string(kWatchName), ActionBinding::Bind)));
     const auto size = config.Size();
     SetComposer(std::move(canvas));
@@ -63,8 +67,10 @@ auto Watch::Apply(const FormDocument& config) -> Result<> {
     return {};
 }
 
-auto Watch::Update() -> void {
-    if (SavedTransform()) {
+auto Watch::Update() -> void
+{
+    if (SavedTransform())
+    {
         SetWantVisible(false);
         return;
     }
@@ -73,7 +79,8 @@ auto Watch::Update() -> void {
     const float dot = to_hmd.dot(normal);
     const auto& config = *g_config;
     SetWantVisible(dot >= config.watch_view_angle_min);
-    if (WantVisible()) {
+    if (WantVisible())
+    {
         const float alpha = (dot - config.watch_view_angle_min) / (config.watch_view_angle_max - config.watch_view_angle_min)
                           + 0.1f;
         SetAlpha(std::clamp(alpha, 0.0f, 1.0f));

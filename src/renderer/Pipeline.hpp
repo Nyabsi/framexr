@@ -34,24 +34,28 @@
 #include "Error.hpp"
 #include "Image.hpp"
 
-struct Vertex {
+struct Vertex
+{
     std::array<float, 2> position;
     std::array<float, 2> uv;
 };
 
-enum class Blend : uint8_t {
+enum class Blend : uint8_t
+{
     Disabled,
     SquareSource,
     Alpha,
     AlphaMaxCoverage,
 };
 
-enum class DescriptorKind : uint8_t {
+enum class DescriptorKind : uint8_t
+{
     Texture,
     Uniform,
 };
 
-struct ShaderProgram {
+struct ShaderProgram
+{
     std::span<const unsigned char> vertex;
     std::span<const unsigned char> fragment;
     std::vector<DescriptorKind> descriptor_sets;
@@ -59,14 +63,16 @@ struct ShaderProgram {
 
 class Pipeline;
 
-struct Pass {
+struct Pass
+{
     std::shared_ptr<Pipeline> pipeline;
     VkExtent2D viewport{};
     std::shared_ptr<Buffer> vertices;
     std::vector<std::shared_ptr<DescriptorSet>> descriptor_sets;
 };
 
-class Pipeline final : public std::enable_shared_from_this<Pipeline> {
+class Pipeline final : public std::enable_shared_from_this<Pipeline>
+{
   public:
     Pipeline(VkPipeline pipeline, VkPipelineLayout layout, std::vector<VkDescriptorSetLayout> set_layouts, VkFormat format);
     ~Pipeline();

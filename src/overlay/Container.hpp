@@ -39,19 +39,22 @@ class Keymap;
 class WaylandClient;
 class Desktop;
 
-struct ViewRect {
+struct ViewRect
+{
     float min_azimuth = 0.0f;
     float max_azimuth = 0.0f;
     float min_elevation = 0.0f;
     float max_elevation = 0.0f;
 };
 
-struct EditorLine {
+struct EditorLine
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     float length = 0.0f;
 };
 
-class Container final {
+class Container final
+{
   public:
     static auto Create() -> Result<std::unique_ptr<Container>>;
     static auto CreateEmpty() -> std::unique_ptr<Container>;

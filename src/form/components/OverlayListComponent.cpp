@@ -26,29 +26,34 @@
 #include "Desktop.hpp"
 #include "document/FormParser.hpp"
 
-namespace {
+namespace
+{
 
 constexpr float kInset = 2.0f;
 
-auto ScreenActions(const std::optional<OverlayAction>& action, OverlayId id) -> std::optional<std::vector<ButtonAction>> {
-    if (!action) {
+auto ScreenActions(const std::optional<OverlayAction>& action, OverlayId id) -> std::optional<std::vector<ButtonAction>>
+{
+    if (!action)
+    {
         return std::nullopt;
     }
     return std::vector<ButtonAction>{OverlayButtonAction{.target = id, .action = *action}};
 }
 
-auto Put(nlohmann::ordered_json& json, std::string_view key, const std::optional<OverlayAction>& action) -> void {
-    if (action) {
+auto Put(nlohmann::ordered_json& json, std::string_view key, const std::optional<OverlayAction>& action) -> void
+{
+    if (action)
+    {
         json[key] = *action;
     }
 }
 
 } // namespace
 
-auto OverlayListComponent::Parse(const nlohmann::json& json) -> OverlayListElement {
-    const auto action = [&json](std::string_view key) -> std::optional<OverlayAction> {
-        return FormParser::Optional<OverlayAction>(json, key);
-    };
+auto OverlayListComponent::Parse(const nlohmann::json& json) -> OverlayListElement
+{
+    const auto action = [&json](std::string_view key) -> std::optional<OverlayAction>
+    { return FormParser::Optional<OverlayAction>(json, key); };
     return {
         .corner_radius = FormParser::Optional<float>(json, "corner_radius"),
         .font_size = json.at("font_size").get<int>(),
@@ -71,7 +76,8 @@ auto OverlayListComponent::Parse(const nlohmann::json& json) -> OverlayListEleme
     };
 }
 
-auto OverlayListComponent::Serialize(nlohmann::ordered_json& json, const OverlayListElement& element) -> void {
+auto OverlayListComponent::Serialize(nlohmann::ordered_json& json, const OverlayListElement& element) -> void
+{
     FormParser::PutRadius(json, element.corner_radius);
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
@@ -92,7 +98,8 @@ auto OverlayListComponent::Serialize(nlohmann::ordered_json& json, const Overlay
 }
 
 auto OverlayListComponent::Create(FormComponent& parent, const OverlayListElement& element, const FormContext& context)
-    -> OverlayListComponent& {
+    -> OverlayListComponent&
+{
     auto& list = parent.AddComponent<OverlayListComponent>();
     list.SetRect(FormParser::ToRect(element.rect));
     const auto count = static_cast<float>(std::max<size_t>(g_container->Desktops().size(), 1));
@@ -103,7 +110,8 @@ auto OverlayListComponent::Create(FormComponent& parent, const OverlayListElemen
     const auto& actions = element.overlay_template;
     float x = 0.0f;
     float y = 0.0f;
-    for (const auto* screen : g_container->Desktops()) {
+    for (const auto* screen : g_container->Desktops())
+    {
         const ButtonData data{
             .click_down = ScreenActions(actions.click_down, screen->Id()),
             .click_up = ScreenActions(actions.click_up, screen->Id()),
@@ -123,17 +131,22 @@ auto OverlayListComponent::Create(FormComponent& parent, const OverlayListElemen
         button.SetFontSize(element.font_size);
         button.SetFgColor(fg_color);
         button.SetBgColor(bg_color);
-        if (context.bind) {
+        if (context.bind)
+        {
             context.bind(button, data);
         }
-        if (element.layout == ListLayout::Horizontal) {
+        if (element.layout == ListLayout::Horizontal)
+        {
             x += cell_w;
-        } else {
+        }
+        else
+        {
             y += cell_h;
         }
     }
     return list;
 }
 
-OverlayListComponent::OverlayListComponent(std::string name) : FormComponent(std::move(name)) {
+OverlayListComponent::OverlayListComponent(std::string name) : FormComponent(std::move(name))
+{
 }

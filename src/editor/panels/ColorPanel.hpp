@@ -30,7 +30,8 @@ class Editor;
 
 class StackComponent;
 
-class ColorPanel final : public FormComponent {
+class ColorPanel final : public FormComponent
+{
   public:
     ColorPanel(Editor& editor, const Eigen::Vector2f& size);
 

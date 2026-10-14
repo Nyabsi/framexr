@@ -34,7 +34,7 @@ AllowShortLoopsOnASingleLine: false
 PackConstructorInitializers: CurrentLine
 BinPackArguments: false
 BinPackParameters: false
-BreakBeforeBraces: Attach
+BreakBeforeBraces: Allman
 Cpp11BracedListStyle: true
 SpaceBeforeParens: ControlStatements
 ExperimentalAutoDetectBinPacking: false

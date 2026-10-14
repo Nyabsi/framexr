@@ -31,7 +31,8 @@
 #include "Yaml.hpp"
 #include "document/FormDocument.hpp"
 
-namespace {
+namespace
+{
 
 constexpr char kWatchYaml[] = {
 #embed "watch.yaml"
@@ -154,21 +155,26 @@ components:
     low_threshold: 33
 )";
 
-auto Parse(std::string_view text) -> FormDocument {
+auto Parse(std::string_view text) -> FormDocument
+{
     const auto parsed = Yaml::Parse(text);
     EXPECT_TRUE(parsed.has_value());
     return parsed ? parsed->get<FormDocument>() : FormDocument{};
 }
 
-auto Emit(const FormDocument& config) -> std::string {
+auto Emit(const FormDocument& config) -> std::string
+{
     return Yaml::Emit(nlohmann::ordered_json(config));
 }
 
-auto ToolbarRects(const FormDocument& config) -> std::vector<std::array<float, 4>> {
+auto ToolbarRects(const FormDocument& config) -> std::vector<std::array<float, 4>>
+{
     std::vector<std::array<float, 4>> rects;
     const auto arranged = config.Arrange();
-    for (size_t i = 0; i < config.Components().size(); ++i) {
-        if (FormElements::RegionOf(config.Components()[i]) == Region::Toolbar) {
+    for (size_t i = 0; i < config.Components().size(); ++i)
+    {
+        if (FormElements::RegionOf(config.Components()[i]) == Region::Toolbar)
+        {
             rects.push_back(FormElements::Rect(arranged[i]));
         }
     }
@@ -177,7 +183,8 @@ auto ToolbarRects(const FormDocument& config) -> std::vector<std::array<float, 4
 
 } // namespace
 
-TEST(FormDocument, WatchHasAFormAndAToolbarBelowIt) {
+TEST(FormDocument, WatchHasAFormAndAToolbarBelowIt)
+{
     const auto watch = ConfigStore::LoadKnownYaml<FormDocument>("watch.yaml", kWatchYaml);
     ASSERT_TRUE(watch.Form().toolbar.has_value());
     EXPECT_EQ(watch.Size(), (std::array<uint32_t, 2>{400, 200}));
@@ -185,7 +192,8 @@ TEST(FormDocument, WatchHasAFormAndAToolbarBelowIt) {
     const auto rects = ToolbarRects(watch);
     ASSERT_GE(rects.size(), 5U);
     float previous_right = 0.0f;
-    for (const auto& [x, y, w, h] : rects) {
+    for (const auto& [x, y, w, h] : rects)
+    {
         EXPECT_GE(x, previous_right);
         EXPECT_GE(y, 160.0f);
         EXPECT_LE(y + h, 200.0f);
@@ -194,7 +202,8 @@ TEST(FormDocument, WatchHasAFormAndAToolbarBelowIt) {
     EXPECT_LE(previous_right, 400.0f);
 }
 
-TEST(FormDocument, FormElementsAreRelativeToTheForm) {
+TEST(FormDocument, FormElementsAreRelativeToTheForm)
+{
     auto config = Parse(kEveryActionYaml);
     EXPECT_EQ(config.Size(), (std::array<uint32_t, 2>{300, 134}));
     EXPECT_FLOAT_EQ(config.FormRect().y, 34.0f);
@@ -206,7 +215,8 @@ TEST(FormDocument, FormElementsAreRelativeToTheForm) {
     EXPECT_FLOAT_EQ(FormElements::Rect(config.Arrange()[0])[1], 0.0f);
 }
 
-TEST(FormDocument, ToolbarSpreadsItemsEvenlyAndPadsButtons) {
+TEST(FormDocument, ToolbarSpreadsItemsEvenlyAndPadsButtons)
+{
     const auto config = Parse(kEveryActionYaml);
     const auto rects = ToolbarRects(config);
     ASSERT_EQ(rects.size(), 2U);
@@ -219,7 +229,8 @@ TEST(FormDocument, ToolbarSpreadsItemsEvenlyAndPadsButtons) {
     EXPECT_FLOAT_EQ(rects[1][3], 30.0f);
 }
 
-TEST(FormDocument, CrowdedToolbarShrinksItemsToFit) {
+TEST(FormDocument, CrowdedToolbarShrinksItemsToFit)
+{
     auto config = Parse(kEveryActionYaml);
     config.Form().width = 100.0f;
     const auto rects = ToolbarRects(config);
@@ -229,18 +240,21 @@ TEST(FormDocument, CrowdedToolbarShrinksItemsToFit) {
     EXPECT_NEAR(rects[1][2] / rects[0][2], 2.0f, 1e-4f);
 }
 
-TEST(FormDocument, FormWithoutAToolbarFillsTheCanvas) {
+TEST(FormDocument, FormWithoutAToolbarFillsTheCanvas)
+{
     const auto settings = ConfigStore::LoadKnownYaml<FormDocument>("settings.yaml", kSettingsYaml);
     EXPECT_FALSE(settings.Form().toolbar.has_value());
     EXPECT_EQ(settings.Size(), (std::array<uint32_t, 2>{600, 700}));
     const auto arranged = settings.Arrange();
     ASSERT_EQ(arranged.size(), settings.Components().size());
-    for (size_t i = 0; i < arranged.size(); ++i) {
+    for (size_t i = 0; i < arranged.size(); ++i)
+    {
         EXPECT_EQ(FormElements::Rect(arranged[i]), FormElements::Rect(settings.Components()[i]));
     }
 }
 
-TEST(FormDocument, EveryElementAndActionSurvivesASaveAndLoad) {
+TEST(FormDocument, EveryElementAndActionSurvivesASaveAndLoad)
+{
     const auto config = Parse(kEveryActionYaml);
     const auto saved = Emit(config);
     const auto reloaded = Parse(saved);
@@ -256,15 +270,18 @@ TEST(FormDocument, EveryElementAndActionSurvivesASaveAndLoad) {
     EXPECT_EQ(button.data.highlight, HighlightTest::Notifications);
 }
 
-TEST(FormDocument, BundledLayoutsSurviveASaveAndLoad) {
-    for (const auto& [name, text] : {std::pair{"watch.yaml", std::string_view(kWatchYaml)}, {"settings.yaml", kSettingsYaml}}) {
+TEST(FormDocument, BundledLayoutsSurviveASaveAndLoad)
+{
+    for (const auto& [name, text] : {std::pair{"watch.yaml", std::string_view(kWatchYaml)}, {"settings.yaml", kSettingsYaml}})
+    {
         const auto config = ConfigStore::LoadKnownYaml<FormDocument>(name, text);
         const auto saved = Emit(config);
         EXPECT_EQ(Emit(Parse(saved)), saved) << name;
     }
 }
 
-TEST(Theme, RoundingScalesTheDefaultRadiusAndCustomRadiusWins) {
+TEST(Theme, RoundingScalesTheDefaultRadiusAndCustomRadiusWins)
+{
     EXPECT_FLOAT_EQ(FormTheme::Radius(Rounding::Square, Shape::Key), 0.0f);
     EXPECT_FLOAT_EQ(FormTheme::Radius(Rounding::Subtle, Shape::Control), FormTheme::Radius(Rounding::Round, Shape::Control) / 2.0f);
     EXPECT_GT(FormTheme::Radius(Rounding::Round, Shape::Panel), FormTheme::Radius(Rounding::Round, Shape::Control));

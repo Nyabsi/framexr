@@ -27,7 +27,8 @@
 #include "Yaml.hpp"
 #include "framexr_config.h"
 
-namespace {
+namespace
+{
 
 constexpr char kWatchYaml[] = {
 #embed "watch.yaml"
@@ -55,7 +56,8 @@ constexpr char kOpenXrActionsJson[] = {
     '\0'
 };
 
-auto ExpectFormDocument(std::string_view name, std::string_view text) -> void {
+auto ExpectFormDocument(std::string_view name, std::string_view text) -> void
+{
     const auto ui = ConfigStore::LoadKnownYaml<FormDocument>(name, text);
     EXPECT_FALSE(ui.Components().empty()) << name;
     EXPECT_GT(ui.Size()[0], 0U) << name;
@@ -65,22 +67,27 @@ auto ExpectFormDocument(std::string_view name, std::string_view text) -> void {
 
 } // namespace
 
-TEST(BundledResources, WatchParsesIntoFormDocument) {
+TEST(BundledResources, WatchParsesIntoFormDocument)
+{
     ExpectFormDocument("watch.yaml", kWatchYaml);
 }
 
-TEST(BundledResources, SettingsParsesIntoFormDocument) {
+TEST(BundledResources, SettingsParsesIntoFormDocument)
+{
     ExpectFormDocument("settings.yaml", kSettingsYaml);
 }
 
-TEST(BundledResources, ExampleConfigIsValidYaml) {
+TEST(BundledResources, ExampleConfigIsValidYaml)
+{
     EXPECT_TRUE(Yaml::Parse(kConfigYaml).has_value());
 }
 
-TEST(BundledResources, OpenVrActionManifestIsValidJson) {
+TEST(BundledResources, OpenVrActionManifestIsValidJson)
+{
     EXPECT_FALSE(nlohmann::json::parse(kActionsJson, nullptr, false).is_discarded());
 }
 
-TEST(BundledResources, OpenXrActionsAreValidJsonWithComments) {
+TEST(BundledResources, OpenXrActionsAreValidJsonWithComments)
+{
     EXPECT_FALSE(nlohmann::json::parse(kOpenXrActionsJson, nullptr, false, true).is_discarded());
 }

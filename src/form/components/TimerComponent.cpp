@@ -24,7 +24,8 @@
 
 #include "document/FormParser.hpp"
 
-auto TimerComponent::Parse(const nlohmann::json& json) -> TimerElement {
+auto TimerComponent::Parse(const nlohmann::json& json) -> TimerElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -33,16 +34,19 @@ auto TimerComponent::Parse(const nlohmann::json& json) -> TimerElement {
     };
 }
 
-auto TimerComponent::Serialize(nlohmann::ordered_json& json, const TimerElement& element) -> void {
+auto TimerComponent::Serialize(nlohmann::ordered_json& json, const TimerElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     json["format"] = element.format;
 }
 
-auto TimerComponent::Create(FormComponent& parent, const TimerElement& element, const FormContext& context) -> TimerComponent& {
+auto TimerComponent::Create(FormComponent& parent, const TimerElement& element, const FormContext& context) -> TimerComponent&
+{
     auto& component = parent.AddComponent<TimerComponent>("", element.format);
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
@@ -55,22 +59,25 @@ TimerComponent::TimerComponent(std::string name, std::string format)
     : FormComponent(std::move(name)),
       m_label(AddComponent<LabelComponent>("label")),
       m_format(std::move(format)),
-      m_start(std::chrono::steady_clock::now()) {
+      m_start(std::chrono::steady_clock::now())
+{
 }
 
-auto TimerComponent::Layout() -> void {
+auto TimerComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }
 
-auto TimerComponent::Update() -> void {
+auto TimerComponent::Update() -> void
+{
     auto formatted = m_format;
-    std::ranges::transform(formatted, formatted.begin(), [](unsigned char c) -> char {
-        return static_cast<char>(std::tolower(c));
-    });
+    std::ranges::transform(formatted, formatted.begin(), [](unsigned char c) -> char { return static_cast<char>(std::tolower(c)); });
     const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_start).count();
-    const auto replace_all = [&](std::string_view token, const std::string& replacement) -> void {
+    const auto replace_all = [&](std::string_view token, const std::string& replacement) -> void
+    {
         for (auto position = formatted.find(token); position != std::string::npos;
-             position = formatted.find(token, position + replacement.size())) {
+             position = formatted.find(token, position + replacement.size()))
+        {
             formatted.replace(position, token.size(), replacement);
         }
     };

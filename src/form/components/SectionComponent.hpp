@@ -27,7 +27,8 @@ class PanelComponent;
 
 class TextLineComponent;
 
-class SectionComponent final : public FormComponent {
+class SectionComponent final : public FormComponent
+{
   public:
     static constexpr float kSpacing = 6.0f;
     static constexpr float kTitleHeight = 18.0f;

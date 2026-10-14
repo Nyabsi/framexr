@@ -32,7 +32,8 @@
 
 #include "Error.hpp"
 
-class OpenXrInstance final {
+class OpenXrInstance final
+{
   public:
     static auto Create() -> Result<std::unique_ptr<OpenXrInstance>>;
 

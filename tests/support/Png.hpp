@@ -22,7 +22,8 @@
 #include <filesystem>
 #include <span>
 
-class Png final {
+class Png final
+{
   public:
     static auto Write(const std::filesystem::path& path, uint32_t width, uint32_t height, std::span<const unsigned char> rgba)
         -> void;

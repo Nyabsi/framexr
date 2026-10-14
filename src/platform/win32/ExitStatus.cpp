@@ -20,6 +20,7 @@
 
 #include <format>
 
-auto ExitStatus::Describe() const -> std::string {
+auto ExitStatus::Describe() const -> std::string
+{
     return std::format("exit status: {}", m_code);
 }

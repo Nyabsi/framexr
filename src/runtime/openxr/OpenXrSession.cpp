@@ -26,7 +26,8 @@
 #if FRAMEXR_FEATURE_OSC
 #endif
 
-auto OpenXrSession::Create(const OpenXrInstance& instance) -> Result<std::unique_ptr<OpenXrSession>> {
+auto OpenXrSession::Create(const OpenXrInstance& instance) -> Result<std::unique_ptr<OpenXrSession>>
+{
     ASSIGN_OR_RETURN(const auto handle, instance.CreateOverlaySession());
     auto session = std::unique_ptr<OpenXrSession>(new OpenXrSession(handle));
     ASSIGN_OR_RETURN(session->m_stage, CreateReferenceSpace(instance, handle, XR_REFERENCE_SPACE_TYPE_STAGE));
@@ -34,21 +35,26 @@ auto OpenXrSession::Create(const OpenXrInstance& instance) -> Result<std::unique
     return session;
 }
 
-OpenXrSession::OpenXrSession(XrSession session) : m_session(session) {
+OpenXrSession::OpenXrSession(XrSession session) : m_session(session)
+{
 }
 
-OpenXrSession::~OpenXrSession() {
-    if (m_view != XR_NULL_HANDLE) {
+OpenXrSession::~OpenXrSession()
+{
+    if (m_view != XR_NULL_HANDLE)
+    {
         xrDestroySpace(m_view);
     }
-    if (m_stage != XR_NULL_HANDLE) {
+    if (m_stage != XR_NULL_HANDLE)
+    {
         xrDestroySpace(m_stage);
     }
     xrDestroySession(m_session);
 }
 
 auto OpenXrSession::CreateReferenceSpace(const OpenXrInstance& instance, XrSession session, XrReferenceSpaceType type)
-    -> Result<XrSpace> {
+    -> Result<XrSpace>
+{
     const XrReferenceSpaceCreateInfo create_info{
         .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
         .referenceSpaceType = type,

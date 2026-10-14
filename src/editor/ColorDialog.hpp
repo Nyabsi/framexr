@@ -34,7 +34,8 @@ class Editor;
 
 class Image;
 
-struct ColorTarget {
+struct ColorTarget
+{
     std::string title;
     std::function<std::string()> get;
     std::function<void(const std::string&)> set;
@@ -42,13 +43,15 @@ struct ColorTarget {
     bool tokens = true;
 };
 
-enum class ColorDrag : uint8_t {
+enum class ColorDrag : uint8_t
+{
     None,
     Wheel,
     Brightness,
 };
 
-class ColorDialog final {
+class ColorDialog final
+{
   public:
     [[nodiscard]] auto Target() const -> const std::optional<ColorTarget>& { return m_target; }
     [[nodiscard]] auto Hsv() const -> const std::array<float, 3>& { return m_hsv; }

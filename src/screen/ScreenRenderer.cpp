@@ -42,11 +42,13 @@
 #include "DxgiCapture.hpp"
 #endif
 
-namespace {
+namespace
+{
 
 constexpr uint32_t kMaxScreenHeight = 2560;
 
-auto ExtentFromFormat(const FrameFormat& format) -> VkExtent2D {
+auto ExtentFromFormat(const FrameFormat& format) -> VkExtent2D
+{
     const uint32_t height_limit = g_config->screen_render_down ? std::min<uint32_t>(g_config->screen_max_height, kMaxScreenHeight)
                                                                : kMaxScreenHeight;
     const uint32_t height = std::min(format.height, height_limit);
@@ -56,14 +58,15 @@ auto ExtentFromFormat(const FrameFormat& format) -> VkExtent2D {
     return {width, height};
 }
 
-auto AffineFromFormat(const FrameFormat& format) -> Eigen::Affine3f {
-    const auto rotation = [](float angle) -> Eigen::Affine3f {
-        return Eigen::Affine3f(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ()));
-    };
+auto AffineFromFormat(const FrameFormat& format) -> Eigen::Affine3f
+{
+    const auto rotation = [](float angle) -> Eigen::Affine3f
+    { return Eigen::Affine3f(Eigen::AngleAxisf(angle, Eigen::Vector3f::UnitZ())); };
     Eigen::Affine3f flip_x(Eigen::Scaling(-1.0f, 1.0f, 1.0f));
     constexpr float kPi = std::numbers::pi_v<float>;
 
-    switch (format.transform) {
+    switch (format.transform)
+    {
     case FrameTransform::Rotated90: return rotation(-kPi / 2.0f);
     case FrameTransform::Rotated180: return rotation(kPi);
     case FrameTransform::Rotated270: return rotation(kPi / 2.0f);
@@ -77,7 +80,8 @@ auto AffineFromFormat(const FrameFormat& format) -> Eigen::Affine3f {
     return Eigen::Affine3f::Identity();
 }
 
-auto AllowsDmabuf(const std::string& method) -> bool {
+auto AllowsDmabuf(const std::string& method) -> bool
+{
     return method != "pw_fallback" && method != "screencopy";
 }
 
@@ -85,28 +89,37 @@ auto AllowsDmabuf(const std::string& method) -> bool {
 
 ScreenRenderer::ScreenRenderer(std::string name, std::unique_ptr<Capture> capture)
     : m_name(std::move(name)),
-      m_capture(std::move(capture)) {
+      m_capture(std::move(capture))
+{
 }
 
-auto ScreenRenderer::Start() -> void {
+auto ScreenRenderer::Start() -> void
+{
     const bool supports_dmabuf = g_device->SupportsDmabuf() && m_capture->SupportsDmabuf();
     const auto& capture_method = g_config->capture_method;
     const bool allow_dmabuf = AllowsDmabuf(capture_method);
 
     std::span<const DrmFormat> dmabuf_formats;
-    if (!supports_dmabuf || !allow_dmabuf) {
-        if (!supports_dmabuf) {
+    if (!supports_dmabuf || !allow_dmabuf)
+    {
+        if (!supports_dmabuf)
+        {
             LOG_INFO("Capture method does not support DMA-buf");
-        } else {
+        }
+        else
+        {
             LOG_INFO("Not using DMA-buf capture due to {}", capture_method);
         }
-        if (g_device->CaptureQueue() == nullptr) {
+        if (g_device->CaptureQueue() == nullptr)
+        {
             LOG_WARN(
                 "Current GPU does not support multiple queues. Software capture will take place on the main thread. Expect "
                 "degraded performance."
             );
         }
-    } else {
+    }
+    else
+    {
         LOG_WARN("Using DMA-buf capture. If screens are blank for you, switch to SHM using:");
         LOG_WARN("echo 'capture_method: pw_fallback' > ~/.config/framexr/conf.d/pw_fallback.yaml");
         dmabuf_formats = g_device->DrmFormats();
@@ -116,36 +129,50 @@ auto ScreenRenderer::Start() -> void {
     m_main_thread = capture_queue == nullptr;
     m_uploader = std::make_shared<FrameUploader>(m_name, m_main_thread ? g_device->TransferQueue() : *capture_queue);
 
-    if (m_main_thread) {
-        m_capture->Start(dmabuf_formats, [](Frame&& frame) -> std::unique_ptr<ProcessedFrame> {
-            return std::make_unique<PendingFrame>(std::move(frame));
-        });
-    } else {
-        m_capture->Start(dmabuf_formats, [uploader = m_uploader](Frame&& frame) -> std::unique_ptr<ProcessedFrame> {
-            return uploader->Process(std::move(frame));
-        });
+    if (m_main_thread)
+    {
+        m_capture->Start(
+            dmabuf_formats,
+            [](Frame&& frame) -> std::unique_ptr<ProcessedFrame> { return std::make_unique<PendingFrame>(std::move(frame)); }
+        );
+    }
+    else
+    {
+        m_capture->Start(
+            dmabuf_formats,
+            [uploader = m_uploader](Frame&& frame) -> std::unique_ptr<ProcessedFrame>
+            { return uploader->Process(std::move(frame)); }
+        );
     }
     m_capture->RequestNewFrame();
 }
 
-auto ScreenRenderer::ShouldRender() -> Result<RenderReadiness> {
-    if (!m_capture->IsStarted()) {
+auto ScreenRenderer::ShouldRender() -> Result<RenderReadiness>
+{
+    if (!m_capture->IsStarted())
+    {
         Start();
         return RenderReadiness::Unable;
     }
 
-    if (auto received = m_capture->Receive()) {
-        if (m_main_thread) {
+    if (auto received = m_capture->Receive())
+    {
+        if (m_main_thread)
+        {
             auto& pending = static_cast<PendingFrame&>(*received);
-            if (auto processed = m_uploader->Process(std::move(pending.Source()))) {
+            if (auto processed = m_uploader->Process(std::move(pending.Source())))
+            {
                 m_current = std::move(processed);
             }
-        } else {
+        }
+        else
+        {
             m_current.reset(static_cast<CapturedFrame*>(received.release()));
         }
     }
 
-    if (m_current && !m_meta) {
+    if (m_current && !m_meta)
+    {
         m_meta = FrameMeta{
             .extent = ExtentFromFormat(m_current->Format()),
             .transform = AffineFromFormat(m_current->Format()),
@@ -158,12 +185,15 @@ auto ScreenRenderer::ShouldRender() -> Result<RenderReadiness> {
     return m_current ? RenderReadiness::Should : RenderReadiness::Unable;
 }
 
-auto ScreenRenderer::Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool> {
-    if (!m_current) {
+auto ScreenRenderer::Render(const std::shared_ptr<Image>& target, CommandBatch& batch, float alpha) -> Result<bool>
+{
+    if (!m_current)
+    {
         return false;
     }
     const auto frame = std::move(m_current);
-    if (!m_pipeline) {
+    if (!m_pipeline)
+    {
         FatalError("Screen pipeline missing while a frame is pending");
     }
     RETURN_IF_ERROR(m_pipeline->Render(*frame, target, batch, alpha, m_footprint));
@@ -171,20 +201,24 @@ auto ScreenRenderer::Render(const std::shared_ptr<Image>& target, CommandBatch& 
     return true;
 }
 
-auto ScreenRenderer::Pause() -> Result<> {
+auto ScreenRenderer::Pause() -> Result<>
+{
     m_capture->Pause();
     return {};
 }
 
-auto ScreenRenderer::Resume() -> Result<> {
+auto ScreenRenderer::Resume() -> Result<>
+{
     m_capture->Resume();
     return {};
 }
 
-auto ScreenRenderer::Meta() -> std::optional<FrameMeta> {
+auto ScreenRenderer::Meta() -> std::optional<FrameMeta>
+{
     return m_meta;
 }
 
-auto ScreenRenderer::SetTexelFootprint(const TexelFootprint& footprint) -> void {
+auto ScreenRenderer::SetTexelFootprint(const TexelFootprint& footprint) -> void
+{
     m_footprint = footprint;
 }

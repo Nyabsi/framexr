@@ -30,19 +30,22 @@
 #include "FormComponent.hpp"
 #include "LabelComponent.hpp"
 
-enum class KeyCapType : uint8_t {
+enum class KeyCapType : uint8_t
+{
     Regular,
     RegularAltGr,
     Reversed,
     ReversedAltGr,
 };
 
-struct KeyCapLegend {
+struct KeyCapLegend
+{
     bool centered = false;
     CanvasRect rect;
 };
 
-struct KeyEmphasis {
+struct KeyEmphasis
+{
     bool shifted = false;
     bool altgr = false;
     bool native = false;
@@ -50,7 +53,8 @@ struct KeyEmphasis {
     auto operator==(const KeyEmphasis&) const -> bool = default;
 };
 
-class KeyComponent final : public FormComponent {
+class KeyComponent final : public FormComponent
+{
   public:
     explicit KeyComponent(std::string name = {});
 

@@ -21,10 +21,13 @@
 
 #include "OpenVrMath.hpp"
 
-auto OpenVrMath::ToAffine(const vr::HmdMatrix34_t& matrix) -> Eigen::Affine3f {
+auto OpenVrMath::ToAffine(const vr::HmdMatrix34_t& matrix) -> Eigen::Affine3f
+{
     Eigen::Affine3f affine = Eigen::Affine3f::Identity();
-    for (Eigen::Index row = 0; row < 3; ++row) {
-        for (Eigen::Index column = 0; column < 3; ++column) {
+    for (Eigen::Index row = 0; row < 3; ++row)
+    {
+        for (Eigen::Index column = 0; column < 3; ++column)
+        {
             affine.linear()(row, column) = matrix.m[row][column];
         }
         affine.translation()(row) = matrix.m[row][3];
@@ -32,10 +35,13 @@ auto OpenVrMath::ToAffine(const vr::HmdMatrix34_t& matrix) -> Eigen::Affine3f {
     return affine;
 }
 
-auto OpenVrMath::ToHmdMatrix(const Eigen::Affine3f& affine) -> vr::HmdMatrix34_t {
+auto OpenVrMath::ToHmdMatrix(const Eigen::Affine3f& affine) -> vr::HmdMatrix34_t
+{
     vr::HmdMatrix34_t matrix{};
-    for (Eigen::Index row = 0; row < 3; ++row) {
-        for (Eigen::Index column = 0; column < 3; ++column) {
+    for (Eigen::Index row = 0; row < 3; ++row)
+    {
+        for (Eigen::Index column = 0; column < 3; ++column)
+        {
             matrix.m[row][column] = affine.linear()(row, column);
         }
         matrix.m[row][3] = affine.translation()(row);

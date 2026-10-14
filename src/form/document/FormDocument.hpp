@@ -35,26 +35,30 @@
 #include "document/Common.hpp"
 #include "document/FormElements.hpp"
 
-enum class ToolbarPosition : uint8_t {
+enum class ToolbarPosition : uint8_t
+{
     Above,
     Below,
 };
 
-struct ToolbarLayout {
+struct ToolbarLayout
+{
     float height = 40.0f;
     float gap = 0.0f;
     float padding = 2.0f;
     ToolbarPosition position = ToolbarPosition::Below;
 };
 
-struct FormLayout {
+struct FormLayout
+{
     float width = 400.0f;
     float height = 160.0f;
     std::optional<ToolbarLayout> toolbar;
     std::optional<std::string> bg_color;
 };
 
-struct ExtraForm {
+struct ExtraForm
+{
     float x = 0.0f;
     float y = 0.0f;
     float width = 200.0f;
@@ -62,7 +66,8 @@ struct ExtraForm {
     std::optional<std::string> bg_color;
 };
 
-class FormDocument {
+class FormDocument
+{
   public:
     [[nodiscard]] auto Width() const -> float { return m_width; }
     [[nodiscard]] auto Theme() const -> const std::optional<std::string>& { return m_theme; }

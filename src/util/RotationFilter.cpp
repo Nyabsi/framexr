@@ -23,16 +23,20 @@
 
 #include "OneEuroFilter.hpp"
 
-RotationFilter::RotationFilter(OneEuroSettings settings) : m_settings(settings) {
+RotationFilter::RotationFilter(OneEuroSettings settings) : m_settings(settings)
+{
 }
 
-auto RotationFilter::Reset() -> void {
+auto RotationFilter::Reset() -> void
+{
     m_value.reset();
     m_speed = 0.0f;
 }
 
-auto RotationFilter::Filter(const Eigen::Quaternionf& value, float delta_seconds) -> Eigen::Quaternionf {
-    if (!m_value) {
+auto RotationFilter::Filter(const Eigen::Quaternionf& value, float delta_seconds) -> Eigen::Quaternionf
+{
+    if (!m_value)
+    {
         m_value = value.normalized();
         return *m_value;
     }

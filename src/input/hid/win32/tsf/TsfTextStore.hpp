@@ -30,7 +30,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
-class TsfTextStore final : public ITextStoreACP, public ITfContextOwnerCompositionSink {
+class TsfTextStore final : public ITextStoreACP, public ITfContextOwnerCompositionSink
+{
   public:
     explicit TsfTextStore(HWND window);
     TsfTextStore(const TsfTextStore&) = delete;

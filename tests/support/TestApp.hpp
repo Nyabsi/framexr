@@ -34,7 +34,8 @@ class Logger;
 class TaskQueue;
 struct Config;
 
-class TestApp final : public testing::Environment {
+class TestApp final : public testing::Environment
+{
   public:
     static auto OutputDir() -> const std::filesystem::path&;
 

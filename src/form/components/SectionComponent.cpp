@@ -27,7 +27,8 @@
 SectionComponent::SectionComponent(std::string name, std::string_view title)
     : FormComponent(std::move(name)),
       m_divider(AddComponent<PanelComponent>("divider")),
-      m_title(AddComponent<TextLineComponent>("title", title, kFontSize, FormTheme::Rgba("@accent"))) {
+      m_title(AddComponent<TextLineComponent>("title", title, kFontSize, FormTheme::Rgba("@accent")))
+{
     auto divider = FormTheme::Rgba("@subtle");
     divider.w() = 0.25f;
     m_divider.SetBgColor(divider);
@@ -36,7 +37,8 @@ SectionComponent::SectionComponent(std::string name, std::string_view title)
     SetSize({0.0f, 2.0f * kSpacing + kTitleHeight});
 }
 
-auto SectionComponent::Layout() -> void {
+auto SectionComponent::Layout() -> void
+{
     m_divider.SetRect({0.0f, kSpacing, Size().x(), 1.0f});
     m_title.SetRect({0.0f, 2.0f * kSpacing, Size().x(), kTitleHeight});
 }

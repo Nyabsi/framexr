@@ -32,24 +32,28 @@
 
 #include "Error.hpp"
 
-enum class Rounding : uint8_t {
+enum class Rounding : uint8_t
+{
     Square,
     Subtle,
     Round,
 };
 
-enum class Shape : uint8_t {
+enum class Shape : uint8_t
+{
     Panel,
     Control,
     Key,
 };
 
-struct ThemeColor {
+struct ThemeColor
+{
     std::string name;
     std::string hex;
 };
 
-struct ThemeDefinition {
+struct ThemeDefinition
+{
     std::string name;
     Rounding rounding = Rounding::Round;
     std::optional<std::string> font;
@@ -57,7 +61,8 @@ struct ThemeDefinition {
     std::filesystem::path source;
 };
 
-class FormTheme final {
+class FormTheme final
+{
   public:
     static constexpr char kToken = '@';
 

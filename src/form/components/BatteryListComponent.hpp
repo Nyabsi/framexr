@@ -29,7 +29,8 @@
 #include "FormComponent.hpp"
 #include "document/Common.hpp"
 
-struct BatteryListElement {
+struct BatteryListElement
+{
     std::array<float, 4> rect{};
     std::optional<float> corner_radius;
     int font_size = 0;
@@ -43,7 +44,8 @@ struct BatteryListElement {
     size_t form = 0;
 };
 
-class BatteryListComponent final : public FormComponent {
+class BatteryListComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "BatteryList";
 

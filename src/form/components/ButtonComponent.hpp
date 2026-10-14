@@ -30,7 +30,8 @@
 #include "FormComponent.hpp"
 #include "document/Common.hpp"
 
-struct ButtonElement {
+struct ButtonElement
+{
     std::array<float, 4> rect{};
     std::optional<float> corner_radius;
     int font_size = 0;
@@ -42,7 +43,8 @@ struct ButtonElement {
     size_t form = 0;
 };
 
-class ButtonComponent final : public FormComponent {
+class ButtonComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Button";
 

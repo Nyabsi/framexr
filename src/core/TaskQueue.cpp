@@ -23,24 +23,30 @@
 
 TaskQueue* g_tasks = nullptr;
 
-auto TaskQueue::Later(const ScheduledTask& a, const ScheduledTask& b) -> bool {
-    if (a.not_before != b.not_before) {
+auto TaskQueue::Later(const ScheduledTask& a, const ScheduledTask& b) -> bool
+{
+    if (a.not_before != b.not_before)
+    {
         return a.not_before > b.not_before;
     }
     return a.sequence > b.sequence;
 }
 
-auto TaskQueue::Enqueue(Task task) -> void {
+auto TaskQueue::Enqueue(Task task) -> void
+{
     EnqueueAt(std::move(task), std::chrono::steady_clock::now());
 }
 
-auto TaskQueue::EnqueueAt(Task task, std::chrono::steady_clock::time_point not_before) -> void {
+auto TaskQueue::EnqueueAt(Task task, std::chrono::steady_clock::time_point not_before) -> void
+{
     m_tasks.push({.not_before = not_before, .sequence = m_next_sequence++, .task = std::make_shared<Task>(std::move(task))});
 }
 
-auto TaskQueue::TakeDue(std::deque<Task>& destination) -> void {
+auto TaskQueue::TakeDue(std::deque<Task>& destination) -> void
+{
     const auto now = std::chrono::steady_clock::now();
-    while (!m_tasks.empty() && m_tasks.top().not_before <= now) {
+    while (!m_tasks.empty() && m_tasks.top().not_before <= now)
+    {
         destination.push_back(std::move(*m_tasks.top().task));
         m_tasks.pop();
     }

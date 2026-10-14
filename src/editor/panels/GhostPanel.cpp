@@ -25,19 +25,25 @@
 #include "LabelComponent.hpp"
 #include "PanelComponent.hpp"
 
-GhostPanel::GhostPanel(const Editor& editor, const Eigen::Vector2f& size) : FormComponent("ghost") {
+GhostPanel::GhostPanel(const Editor& editor, const Eigen::Vector2f& size) : FormComponent("ghost")
+{
     SetSize(size);
     auto& panel = AddComponent<PanelComponent>("background");
     panel.SetSize(size);
     panel.SetCornerRadius(FormTheme::Radius(g_themes->Active().rounding, Shape::Control) * 2.0f);
     panel.SetBgColor(FormTheme::Rgba("@accent"));
     std::string name;
-    if (editor.Carrying()) {
+    if (editor.Carrying())
+    {
         name = std::visit(
-            [](const auto& item) -> std::string {
-                if constexpr (std::is_same_v<std::decay_t<decltype(item)>, FormPart>) {
+            [](const auto& item) -> std::string
+            {
+                if constexpr (std::is_same_v<std::decay_t<decltype(item)>, FormPart>)
+                {
                     return std::string(FormDesigner::PartName(item));
-                } else {
+                }
+                else
+                {
                     return std::string(KeyboardDesigner::TemplateName(item));
                 }
             },

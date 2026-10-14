@@ -35,7 +35,8 @@
 #include "TextLineComponent.hpp"
 #include "views/Keyboard.hpp"
 
-namespace {
+namespace
+{
 
 constexpr float kWidth = 380.0f;
 constexpr float kPadding = 12.0f;
@@ -50,7 +51,8 @@ constexpr float kInFront = 0.05f;
 
 } // namespace
 
-auto KeyboardPicker::Open(std::shared_ptr<const Keymap> keymap) -> void {
+auto KeyboardPicker::Open(std::shared_ptr<const Keymap> keymap) -> void
+{
     g_tasks->Enqueue(DropOverlayTask{.selector = std::string(kKeyboardPickerName)});
     g_tasks->Enqueue(
         CreateOverlayTask{
@@ -60,9 +62,11 @@ auto KeyboardPicker::Open(std::shared_ptr<const Keymap> keymap) -> void {
     );
 }
 
-auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std::unique_ptr<KeyboardPicker> {
+auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std::unique_ptr<KeyboardPicker>
+{
     auto* keyboard = g_container->ByName(kKeyboardName);
-    if (keyboard == nullptr) {
+    if (keyboard == nullptr)
+    {
         return nullptr;
     }
 
@@ -74,17 +78,22 @@ auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std:
 
     std::vector<std::string> names;
     std::optional<size_t> current;
-    for (const auto& profile : KeyboardLayout::All()) {
-        if (profile.Name() == KeyboardLayout::Find(g_config->keyboard_profile).Name()) {
+    for (const auto& profile : KeyboardLayout::All())
+    {
+        if (profile.Name() == KeyboardLayout::Find(g_config->keyboard_profile).Name())
+        {
             current = names.size();
         }
         names.push_back(profile.Name());
     }
     auto& choices = stack.AddComponent<ChoiceGridComponent>("keyboards", names, current, 2, kRowHeight);
-    choices.SetOnChoose([keymap, names](size_t index) -> void {
-        Keyboard::SwitchProfile(keymap, names.at(index));
-        g_tasks->Enqueue(DropOverlayTask{.selector = std::string(kKeyboardPickerName)});
-    });
+    choices.SetOnChoose(
+        [keymap, names](size_t index) -> void
+        {
+            Keyboard::SwitchProfile(keymap, names.at(index));
+            g_tasks->Enqueue(DropOverlayTask{.selector = std::string(kKeyboardPickerName)});
+        }
+    );
 
     auto& cancel = stack.AddComponent<ButtonComponent>("cancel", "Cancel");
     cancel.SetSize({0.0f, kButtonHeight});
@@ -99,7 +108,8 @@ auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std:
     stack.SetSize(size);
 
     auto created = Compose::Create(std::move(form));
-    if (!created) {
+    if (!created)
+    {
         return nullptr;
     }
 
@@ -121,8 +131,10 @@ auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std:
     return picker;
 }
 
-auto KeyboardPicker::Update() -> void {
-    if (const auto* keyboard = g_container->ByName(kKeyboardName); keyboard == nullptr || !keyboard->WantVisible()) {
+auto KeyboardPicker::Update() -> void
+{
+    if (const auto* keyboard = g_container->ByName(kKeyboardName); keyboard == nullptr || !keyboard->WantVisible())
+    {
         g_tasks->Enqueue(DropOverlayTask{.selector = std::string(kKeyboardPickerName)});
     }
 }

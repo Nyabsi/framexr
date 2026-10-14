@@ -25,11 +25,13 @@
 
 #include "Error.hpp"
 
-namespace YAML {
+namespace YAML
+{
 class Node;
 }
 
-class Yaml {
+class Yaml
+{
   public:
     static auto Parse(std::string_view text) -> Result<nlohmann::json>;
     static auto Emit(const nlohmann::json& value) -> std::string;

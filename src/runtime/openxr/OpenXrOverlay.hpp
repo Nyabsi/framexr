@@ -30,7 +30,8 @@
 
 class View;
 
-class OpenXrOverlay {
+class OpenXrOverlay
+{
   public:
     [[nodiscard]] auto Swapchain() const -> const std::unique_ptr<OpenXrSwapchain>& { return m_swapchain; }
     [[nodiscard]] auto Swapchain() -> std::unique_ptr<OpenXrSwapchain>& { return m_swapchain; }

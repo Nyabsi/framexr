@@ -30,7 +30,8 @@ class OutlineComponent;
 
 class SpriteComponent;
 
-class ColorPickerComponent final : public FormComponent {
+class ColorPickerComponent final : public FormComponent
+{
   public:
     static constexpr float kWheelSize = 180.0f;
     static constexpr float kBarHeight = 16.0f;

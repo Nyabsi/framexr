@@ -26,7 +26,8 @@
 #include <string>
 #include <string_view>
 
-class CommandLine final {
+class CommandLine final
+{
   public:
     auto Parse(std::span<char*> arguments) -> std::optional<int>;
 

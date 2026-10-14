@@ -29,15 +29,19 @@
 #include "RecordingHid.hpp"
 #include "ScopedRecordingHid.hpp"
 
-namespace {
+namespace
+{
 
-auto Tap(VirtualKey key, uint8_t modifiers = 0) -> std::vector<HidEvent> {
+auto Tap(VirtualKey key, uint8_t modifiers = 0) -> std::vector<HidEvent>
+{
     return {{.key = key, .down = true, .modifiers = modifiers}, {.key = key, .down = false, .modifiers = modifiers}};
 }
 
-auto Join(std::initializer_list<std::vector<HidEvent>> parts) -> std::vector<HidEvent> {
+auto Join(std::initializer_list<std::vector<HidEvent>> parts) -> std::vector<HidEvent>
+{
     std::vector<HidEvent> joined;
-    for (const auto& part : parts) {
+    for (const auto& part : parts)
+    {
         joined.insert(joined.end(), part.begin(), part.end());
     }
     return joined;
@@ -45,7 +49,8 @@ auto Join(std::initializer_list<std::vector<HidEvent>> parts) -> std::vector<Hid
 
 } // namespace
 
-TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse) {
+TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse)
+{
     ScopedRecordingHid hid;
     ActionRunner runner;
     runner.Run(ShortcutButtonAction{.keys = {VirtualKey::LSuper, VirtualKey::LCtrl, VirtualKey::Escape}});
@@ -60,7 +65,8 @@ TEST(Actions, ShortcutHoldsKeysInOrderAndReleasesInReverse) {
     EXPECT_EQ(hid.Events(), expected);
 }
 
-TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds) {
+TEST(Actions, TypeTextPressesWhateverKeysTheDesktopLayoutNeeds)
+{
     auto previous = g_interaction->TypingKeymap();
     auto us = Keymap::FromNames("us", "");
     ASSERT_TRUE(us.has_value());

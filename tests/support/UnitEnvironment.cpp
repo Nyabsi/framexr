@@ -26,14 +26,16 @@ UnitEnvironment::UnitEnvironment() = default;
 
 UnitEnvironment::~UnitEnvironment() = default;
 
-auto UnitEnvironment::SetUp() -> void {
+auto UnitEnvironment::SetUp() -> void
+{
     m_logger = std::make_unique<Logger>();
     g_logger = m_logger.get();
     m_themes = std::make_unique<FormTheme>();
     g_themes = m_themes.get();
 }
 
-auto UnitEnvironment::TearDown() -> void {
+auto UnitEnvironment::TearDown() -> void
+{
     m_themes.reset();
     g_themes = nullptr;
     m_logger.reset();

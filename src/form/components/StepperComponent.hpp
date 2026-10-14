@@ -29,7 +29,8 @@ class PanelComponent;
 
 class TextLineComponent;
 
-class StepperComponent final : public FormComponent {
+class StepperComponent final : public FormComponent
+{
   public:
     static constexpr float kHeight = 34.0f;
     static constexpr float kGap = 6.0f;

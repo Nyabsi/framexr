@@ -26,7 +26,8 @@ class Editor;
 
 class StackComponent;
 
-class FontPanel final : public FormComponent {
+class FontPanel final : public FormComponent
+{
   public:
     FontPanel(Editor& editor, const Eigen::Vector2f& size);
 

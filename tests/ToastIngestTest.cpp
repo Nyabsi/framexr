@@ -22,9 +22,11 @@
 
 #include "Notifications.hpp"
 
-namespace {
+namespace
+{
 
-auto SampleToast() -> ToastMessage {
+auto SampleToast() -> ToastMessage
+{
     return {
         .topic = ToastTopic::XsNotification,
         .title = "Title ✓",
@@ -37,7 +39,8 @@ auto SampleToast() -> ToastMessage {
 
 } // namespace
 
-TEST(ToastIngest, BinaryFormatRoundTrips) {
+TEST(ToastIngest, BinaryFormatRoundTrips)
+{
     const auto toast = SampleToast();
     const auto encoded = ToastIngest::Encode(toast);
     ASSERT_GE(encoded.size(), 4U);
@@ -53,13 +56,15 @@ TEST(ToastIngest, BinaryFormatRoundTrips) {
     EXPECT_TRUE(decoded->sound);
 }
 
-TEST(ToastIngest, RejectsTruncatedMessages) {
+TEST(ToastIngest, RejectsTruncatedMessages)
+{
     auto encoded = ToastIngest::Encode(SampleToast());
     encoded.pop_back();
     EXPECT_FALSE(ToastIngest::Decode(encoded).has_value());
 }
 
-TEST(ToastIngest, XsOverlayNotificationMapsLikeOriginal) {
+TEST(ToastIngest, XsOverlayNotificationMapsLikeOriginal)
+{
     const auto toast = ToastIngest::FromXsOverlay(R"({"messageType":1,"title":"Hi","content":"there","volume":0,"timeout":2})");
     ASSERT_TRUE(toast.has_value());
     ASSERT_TRUE(toast->has_value());
@@ -71,7 +76,8 @@ TEST(ToastIngest, XsOverlayNotificationMapsLikeOriginal) {
     EXPECT_TRUE(message.sound);
 }
 
-TEST(ToastIngest, XsOverlayDefaults) {
+TEST(ToastIngest, XsOverlayDefaults)
+{
     const auto toast = ToastIngest::FromXsOverlay(R"({"messageType":1,"title":"Hi"})");
     ASSERT_TRUE(toast.has_value() && toast->has_value());
     EXPECT_FALSE((*toast)->sound);
@@ -79,26 +85,31 @@ TEST(ToastIngest, XsOverlayDefaults) {
     EXPECT_TRUE((*toast)->body.empty());
 }
 
-TEST(ToastIngest, XsOverlayIgnoresOtherMessageTypes) {
+TEST(ToastIngest, XsOverlayIgnoresOtherMessageTypes)
+{
     const auto toast = ToastIngest::FromXsOverlay(R"({"messageType":2,"title":"Hi"})");
     ASSERT_TRUE(toast.has_value());
     EXPECT_FALSE(toast->has_value());
 }
 
-TEST(ToastIngest, XsOverlayRequiresTitle) {
+TEST(ToastIngest, XsOverlayRequiresTitle)
+{
     EXPECT_FALSE(ToastIngest::FromXsOverlay(R"({"messageType":1})").has_value());
 }
 
-TEST(ToastIngest, QueueKeepsAtMostTenPendingToasts) {
+TEST(ToastIngest, QueueKeepsAtMostTenPendingToasts)
+{
     ToastIngest ingest;
-    for (int i = 0; i < 12; ++i) {
+    for (int i = 0; i < 12; ++i)
+    {
         ingest.Push(SampleToast());
     }
     EXPECT_EQ(ingest.Drain().size(), 10U);
     EXPECT_TRUE(ingest.Drain().empty());
 }
 
-TEST(ToastIngest, Utf8ErrorsMatchRustStdStr) {
+TEST(ToastIngest, Utf8ErrorsMatchRustStdStr)
+{
     EXPECT_EQ(ToastIngest::Utf8Error("plain ascii ✓"), std::nullopt);
     EXPECT_EQ(ToastIngest::Utf8Error("abc\xff"), "Utf8Error { valid_up_to: 3, error_len: Some(1) }");
     EXPECT_EQ(ToastIngest::Utf8Error("ab\xe2\x82"), "Utf8Error { valid_up_to: 2, error_len: None }");

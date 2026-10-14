@@ -18,38 +18,48 @@
 
 #include "RecordingHid.hpp"
 
-auto RecordingHid::MouseMove(const Eigen::Vector2f&) -> void {
+auto RecordingHid::MouseMove(const Eigen::Vector2f&) -> void
+{
 }
 
-auto RecordingHid::SendButton(uint16_t button, bool down) -> void {
+auto RecordingHid::SendButton(uint16_t button, bool down) -> void
+{
     m_buttons.push_back({.button = button, .down = down});
 }
 
-auto RecordingHid::Wheel(int32_t, int32_t) -> void {
+auto RecordingHid::Wheel(int32_t, int32_t) -> void
+{
     ++m_wheels;
 }
 
-auto RecordingHid::SetModifiers(uint8_t value) -> void {
+auto RecordingHid::SetModifiers(uint8_t value) -> void
+{
     m_modifiers = value;
 }
 
-auto RecordingHid::SendKey(VirtualKey key, bool down) -> void {
+auto RecordingHid::SendKey(VirtualKey key, bool down) -> void
+{
     m_events.push_back({.key = key, .down = down, .modifiers = m_modifiers});
 }
 
-auto RecordingHid::SetDesktopExtent(const Eigen::Vector2f&) -> void {
+auto RecordingHid::SetDesktopExtent(const Eigen::Vector2f&) -> void
+{
 }
 
-auto RecordingHid::SetDesktopOrigin(const Eigen::Vector2f&) -> void {
+auto RecordingHid::SetDesktopOrigin(const Eigen::Vector2f&) -> void
+{
 }
 
-auto RecordingHid::Commit() -> void {
+auto RecordingHid::Commit() -> void
+{
 }
 
-auto RecordingHid::SelectInputMethod(ImeScript script) -> void {
+auto RecordingHid::SelectInputMethod(ImeScript script) -> void
+{
     m_input_methods.push_back(script);
 }
 
-auto RecordingHid::Clear() -> void {
+auto RecordingHid::Clear() -> void
+{
     m_events.clear();
 }

@@ -43,19 +43,22 @@ struct zxdg_output_v1;
 struct zwlr_export_dmabuf_manager_v1;
 struct zwlr_screencopy_manager_v1;
 
-enum class OutputChange : uint8_t {
+enum class OutputChange : uint8_t
+{
     Create,
     Logical,
     Physical,
     Destroy,
 };
 
-struct OutputChangeEvent {
+struct OutputChangeEvent
+{
     OutputChange change;
     uint32_t id;
 };
 
-struct WaylandOutput {
+struct WaylandOutput
+{
     wl_output* output = nullptr;
     uint32_t id = 0;
     std::string name;
@@ -68,13 +71,15 @@ struct WaylandOutput {
     bool done = false;
 };
 
-struct WaylandGlobal {
+struct WaylandGlobal
+{
     uint32_t name = 0;
     std::string interface;
     uint32_t version = 0;
 };
 
-class WaylandClient final {
+class WaylandClient final
+{
   public:
     static auto Connect() -> std::unique_ptr<WaylandClient>;
     static auto ToFrameTransform(int32_t transform) -> FrameTransform;

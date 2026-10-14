@@ -41,7 +41,8 @@ class Monado;
 
 class OpenXrInstance;
 
-class OpenXrInput final {
+class OpenXrInput final
+{
   public:
     static auto Create(const OpenXrState& xr) -> Result<std::unique_ptr<OpenXrInput>>;
     static auto UpdateDevices(Monado& monado) -> void;

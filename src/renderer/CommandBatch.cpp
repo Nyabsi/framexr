@@ -25,23 +25,28 @@
 
 #include "Device.hpp"
 
-auto CommandBatch::Push(CommandBuffer command_buffer) -> void {
+auto CommandBatch::Push(CommandBuffer command_buffer) -> void
+{
     m_command_buffers.push_back(std::move(command_buffer));
 }
 
-auto CommandBatch::Submit() -> Result<> {
-    if (m_command_buffers.empty()) {
+auto CommandBatch::Submit() -> Result<>
+{
+    if (m_command_buffers.empty())
+    {
         return {};
     }
     auto& queue = m_command_buffers.front().SubmitQueue();
 
     std::vector<VkCommandBuffer> handles;
     Submission submission;
-    for (auto& command_buffer : m_command_buffers) {
+    for (auto& command_buffer : m_command_buffers)
+    {
         RETURN_IF_ERROR(command_buffer.Finish());
         handles.push_back(command_buffer.m_command_buffer);
         submission.pools.emplace_back(command_buffer.m_queue->Family(), std::exchange(command_buffer.m_pool, VK_NULL_HANDLE));
-        for (auto& resource : command_buffer.m_retained) {
+        for (auto& resource : command_buffer.m_retained)
+        {
             submission.retained.push_back(std::move(resource));
         }
     }

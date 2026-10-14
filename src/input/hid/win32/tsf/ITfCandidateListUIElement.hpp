@@ -25,7 +25,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
-class ITfCandidateListUIElement : public ITfUIElement {
+class ITfCandidateListUIElement : public ITfUIElement
+{
   public:
     static constexpr GUID kIid{0xea1ea138, 0x19df, 0x11d7, {0xa6, 0xd2, 0x00, 0x06, 0x5b, 0x84, 0x43, 0x5c}};
 

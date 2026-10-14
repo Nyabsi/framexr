@@ -28,7 +28,8 @@
 
 using ChoiceSignal = std::function<void(size_t)>;
 
-class ChoiceGridComponent final : public FormComponent {
+class ChoiceGridComponent final : public FormComponent
+{
   public:
     static constexpr float kGap = 6.0f;
     static constexpr int kFontSize = 14;

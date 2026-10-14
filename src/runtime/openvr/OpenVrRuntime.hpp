@@ -34,7 +34,8 @@
 #include "OpenVrPlayspace.hpp"
 #include "Runtime.hpp"
 
-class OpenVrRuntime final : public Runtime {
+class OpenVrRuntime final : public Runtime
+{
   public:
     static auto Connect() -> std::unique_ptr<OpenVrRuntime>;
     static auto Uninstall() -> void;

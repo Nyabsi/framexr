@@ -25,19 +25,22 @@
 #include "FormTheme.hpp"
 #include "document/Actions.hpp"
 
-enum class Region : uint8_t {
+enum class Region : uint8_t
+{
     Form,
     Toolbar,
 };
 
-enum class ListLayout : uint8_t {
+enum class ListLayout : uint8_t
+{
     Horizontal,
     Vertical,
 };
 
 using ButtonBinder = std::function<void(FormComponent&, const ButtonData&)>;
 
-struct FormContext {
+struct FormContext
+{
     const ThemeDefinition& theme;
     ButtonBinder bind;
 };

@@ -33,28 +33,32 @@
 #include "Image.hpp"
 #include "methods/LaserPointer.hpp"
 
-struct CanvasRect {
+struct CanvasRect
+{
     float x = 0.0f;
     float y = 0.0f;
     float w = 0.0f;
     float h = 0.0f;
 };
 
-struct HighlightOutline {
+struct HighlightOutline
+{
     Eigen::Vector4f color = Eigen::Vector4f::Zero();
     float width = 0.0f;
 };
 
 class FormComponent;
 
-struct FillItem {
+struct FillItem
+{
     CanvasRect rect;
     float radius = 0.0f;
     Eigen::Vector4f color = Eigen::Vector4f::Zero();
     FormComponent* owner = nullptr;
 };
 
-struct SpriteItem {
+struct SpriteItem
+{
     CanvasRect rect;
     std::shared_ptr<Image> image;
     Eigen::Vector4f st{1.0f, 1.0f, 0.0f, 0.0f};
@@ -62,7 +66,8 @@ struct SpriteItem {
     FormComponent* owner = nullptr;
 };
 
-struct TextItem {
+struct TextItem
+{
     CanvasRect rect;
     std::string text;
     int font_size = 0;
@@ -71,7 +76,8 @@ struct TextItem {
     FormComponent* owner = nullptr;
 };
 
-struct InteractItem {
+struct InteractItem
+{
     CanvasRect rect;
     float radius = 0.0f;
     FormComponent* owner = nullptr;
@@ -82,7 +88,8 @@ using FormItem = std::variant<FillItem, SpriteItem, TextItem, InteractItem>;
 
 using FormState = std::vector<FormItem>;
 
-struct FormFrame {
+struct FormFrame
+{
     CanvasRect rect;
     float scale = 1.0f;
     Rounding rounding = Rounding::Round;
@@ -98,7 +105,8 @@ using HighlightSignal = std::function<std::optional<Eigen::Vector4f>()>;
 
 using OutlineSignal = std::function<std::optional<HighlightOutline>()>;
 
-class FormComponent {
+class FormComponent
+{
   public:
     explicit FormComponent(std::string name = {});
     virtual ~FormComponent() = default;
@@ -130,12 +138,14 @@ class FormComponent {
     auto SetOutline(OutlineSignal outline) -> void { m_outline = std::move(outline); }
 
     template <typename Component, typename... Args>
-    auto AddComponent(Args&&... args) -> Component& {
+    auto AddComponent(Args&&... args) -> Component&
+    {
         return AddComponent(std::make_unique<Component>(std::forward<Args>(args)...));
     }
 
     template <typename Component>
-    auto AddComponent(std::unique_ptr<Component> child) -> Component& {
+    auto AddComponent(std::unique_ptr<Component> child) -> Component&
+    {
         Component& added = *child;
         Attach(std::move(child));
         return added;

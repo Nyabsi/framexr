@@ -21,9 +21,12 @@
 #include <cstring>
 #include <format>
 
-auto ExitStatus::Describe() const -> std::string {
-    if (m_signal) {
-        if (const char* name = sigabbrev_np(*m_signal)) {
+auto ExitStatus::Describe() const -> std::string
+{
+    if (m_signal)
+    {
+        if (const char* name = sigabbrev_np(*m_signal))
+        {
             return std::format("signal: {} (SIG{})", *m_signal, name);
         }
         return std::format("signal: {}", *m_signal);

@@ -27,7 +27,8 @@ class Keymap;
 
 constexpr std::string_view kKeyboardPickerName = "kbd-picker";
 
-class KeyboardPicker final : public View {
+class KeyboardPicker final : public View
+{
   public:
     static auto Open(std::shared_ptr<const Keymap> keymap) -> void;
 

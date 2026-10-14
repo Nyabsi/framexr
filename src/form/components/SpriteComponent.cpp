@@ -29,16 +29,19 @@
 #include "Logger.hpp"
 #include "document/FormParser.hpp"
 
-auto SpriteComponent::Parse(const nlohmann::json& json) -> SpriteElement {
+auto SpriteComponent::Parse(const nlohmann::json& json) -> SpriteElement
+{
     return {
         .sprite = json.at("sprite").get<std::string>(),
         .sprite_st = FormParser::Optional<std::array<float, 4>>(json, "sprite_st"),
     };
 }
 
-auto SpriteComponent::Serialize(nlohmann::ordered_json& json, const SpriteElement& element) -> void {
+auto SpriteComponent::Serialize(nlohmann::ordered_json& json, const SpriteElement& element) -> void
+{
     json["sprite"] = element.sprite;
-    if (element.sprite_st) {
+    if (element.sprite_st)
+    {
         const auto& st = *element.sprite_st;
         json["sprite_st"] = {
             Json::ShortestFloat(st[0]),
@@ -49,9 +52,11 @@ auto SpriteComponent::Serialize(nlohmann::ordered_json& json, const SpriteElemen
     }
 }
 
-auto SpriteComponent::Create(FormComponent& parent, const SpriteElement& element, const FormContext&) -> SpriteComponent* {
+auto SpriteComponent::Create(FormComponent& parent, const SpriteElement& element, const FormContext&) -> SpriteComponent*
+{
     auto image = Load(element.sprite);
-    if (!image) {
+    if (!image)
+    {
         LOG_WARN("Could not load custom UI sprite: {}", image.error().Message());
         return nullptr;
     }
@@ -62,14 +67,17 @@ auto SpriteComponent::Create(FormComponent& parent, const SpriteElement& element
     return &sprite;
 }
 
-auto SpriteComponent::Load(const std::string& path) -> Result<std::shared_ptr<Image>> {
+auto SpriteComponent::Load(const std::string& path) -> Result<std::shared_ptr<Image>>
+{
     const auto contents = ConfigStore::ReadFile(ConfigStore::Root() / path);
-    if (!contents) {
+    if (!contents)
+    {
         return Unexpected(std::format("Could not open custom sprite at: {}", path));
     }
     ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->TransferQueue()));
     auto image = command_buffer.UploadDds(std::as_bytes(std::span(*contents)));
-    if (!image) {
+    if (!image)
+    {
         return Unexpected(std::format("Could not use custom sprite at: {}\n{}", path, image.error().Message()));
     }
     RETURN_IF_ERROR(command_buffer.SubmitUpload());
@@ -78,28 +86,35 @@ auto SpriteComponent::Load(const std::string& path) -> Result<std::shared_ptr<Im
 
 SpriteComponent::SpriteComponent(std::string name, std::shared_ptr<Image> image)
     : FormComponent(std::move(name)),
-      m_image(std::move(image)) {
+      m_image(std::move(image))
+{
 }
 
-auto SpriteComponent::SetSprite(std::shared_ptr<Image> image) -> void {
+auto SpriteComponent::SetSprite(std::shared_ptr<Image> image) -> void
+{
     m_image = std::move(image);
     MarkDirty();
 }
 
-auto SpriteComponent::SetSpriteSt(const Eigen::Vector4f& st) -> void {
-    if (m_st != st) {
+auto SpriteComponent::SetSpriteSt(const Eigen::Vector4f& st) -> void
+{
+    if (m_st != st)
+    {
         m_st = st;
         MarkDirty();
     }
 }
 
-auto SpriteComponent::SetTint(const Eigen::Vector4f& tint) -> void {
+auto SpriteComponent::SetTint(const Eigen::Vector4f& tint) -> void
+{
     m_tint = tint;
     MarkDirty();
 }
 
-auto SpriteComponent::Emit(FormState& state, const FormFrame& frame) -> void {
-    if (m_image) {
+auto SpriteComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
+    if (m_image)
+    {
         state.push_back(SpriteItem{.rect = frame.rect, .image = m_image, .st = m_st, .tint = m_tint, .owner = this});
     }
 }

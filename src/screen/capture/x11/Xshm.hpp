@@ -31,7 +31,8 @@
 
 #include "Error.hpp"
 
-struct XshmScreen {
+struct XshmScreen
+{
     std::string name;
     int32_t x = 0;
     int32_t y = 0;
@@ -39,7 +40,8 @@ struct XshmScreen {
     uint32_t height = 0;
 };
 
-class Xshm final {
+class Xshm final
+{
   public:
     static auto Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>>;
     static auto EnsureThreads() -> void;

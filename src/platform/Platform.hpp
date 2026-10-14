@@ -27,7 +27,8 @@
 
 #include "Error.hpp"
 
-class Platform final {
+class Platform final
+{
   public:
     static auto Init() -> void;
     static auto ConfigHome() -> std::optional<std::filesystem::path>;

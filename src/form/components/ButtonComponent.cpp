@@ -24,7 +24,8 @@
 #include "FontCache.hpp"
 #include "document/FormParser.hpp"
 
-auto ButtonComponent::Parse(const nlohmann::json& json) -> ButtonElement {
+auto ButtonComponent::Parse(const nlohmann::json& json) -> ButtonElement
+{
     return {
         .corner_radius = FormParser::Optional<float>(json, "corner_radius"),
         .font_size = json.at("font_size").get<int>(),
@@ -35,7 +36,8 @@ auto ButtonComponent::Parse(const nlohmann::json& json) -> ButtonElement {
     };
 }
 
-auto ButtonComponent::Serialize(nlohmann::ordered_json& json, const ButtonElement& element) -> void {
+auto ButtonComponent::Serialize(nlohmann::ordered_json& json, const ButtonElement& element) -> void
+{
     FormParser::PutRadius(json, element.corner_radius);
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
@@ -44,55 +46,66 @@ auto ButtonComponent::Serialize(nlohmann::ordered_json& json, const ButtonElemen
     FormParser::Merge(json, nlohmann::ordered_json(element.data));
 }
 
-auto ButtonComponent::Create(FormComponent& parent, const ButtonElement& element, const FormContext& context) -> ButtonComponent& {
+auto ButtonComponent::Create(FormComponent& parent, const ButtonElement& element, const FormContext& context) -> ButtonComponent&
+{
     auto& button = parent.AddComponent<ButtonComponent>("", element.text);
     button.SetRect(FormParser::ToRect(element.rect));
     button.SetCornerRadius(element.corner_radius);
     button.SetFontSize(element.font_size);
     button.SetFgColor(FormParser::Color(element.fg_color, context.theme));
     button.SetBgColor(FormParser::Color(element.bg_color, context.theme));
-    if (context.bind) {
+    if (context.bind)
+    {
         context.bind(button, element.data);
     }
     return button;
 }
 
-ButtonComponent::ButtonComponent(std::string name, std::string_view text) : FormComponent(std::move(name)), m_text(text) {
+ButtonComponent::ButtonComponent(std::string name, std::string_view text) : FormComponent(std::move(name)), m_text(text)
+{
 }
 
-auto ButtonComponent::SetText(std::string_view text) -> void {
-    if (m_text != text) {
+auto ButtonComponent::SetText(std::string_view text) -> void
+{
+    if (m_text != text)
+    {
         m_text = text;
         MarkDirty();
     }
 }
 
-auto ButtonComponent::SetFontSize(int font_size) -> void {
+auto ButtonComponent::SetFontSize(int font_size) -> void
+{
     m_font_size = font_size;
     MarkDirty();
 }
 
-auto ButtonComponent::SetFgColor(const Eigen::Vector4f& fg_color) -> void {
+auto ButtonComponent::SetFgColor(const Eigen::Vector4f& fg_color) -> void
+{
     m_fg_color = fg_color;
     MarkDirty();
 }
 
-auto ButtonComponent::SetBgColor(const Eigen::Vector4f& bg_color) -> void {
+auto ButtonComponent::SetBgColor(const Eigen::Vector4f& bg_color) -> void
+{
     m_bg_color = bg_color;
     MarkDirty();
 }
 
-auto ButtonComponent::SetCornerRadius(std::optional<float> corner_radius) -> void {
+auto ButtonComponent::SetCornerRadius(std::optional<float> corner_radius) -> void
+{
     m_corner_radius = corner_radius;
     MarkDirty();
 }
 
-auto ButtonComponent::SetEllipsize(bool ellipsize) -> void {
+auto ButtonComponent::SetEllipsize(bool ellipsize) -> void
+{
     m_ellipsize = ellipsize;
     MarkDirty();
 }
 
-auto ButtonComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto ButtonComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     const float radius = FormTheme::Resolve(m_corner_radius, frame.rounding, Shape::Control) * frame.scale;
     state.push_back(FillItem{.rect = frame.rect, .radius = radius, .color = m_bg_color, .owner = this});
     state.push_back(

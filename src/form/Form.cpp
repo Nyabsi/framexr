@@ -20,22 +20,27 @@
 
 #include <utility>
 
-Form::Form(std::string name) : FormComponent(std::move(name)) {
+Form::Form(std::string name) : FormComponent(std::move(name))
+{
 }
 
-auto Form::Theme() const -> const ThemeDefinition& {
+auto Form::Theme() const -> const ThemeDefinition&
+{
     return m_theme.empty() ? g_themes->Active() : g_themes->Find(m_theme);
 }
 
-auto Form::Build(float scale) -> FormState {
+auto Form::Build(float scale) -> FormState
+{
     FormState state;
     FormComponent::Build(state, Eigen::Vector2f::Zero(), scale, Theme().rounding);
     return state;
 }
 
-auto Form::FromDocument(const FormDocument& document, std::string name, ButtonBinder bind) -> std::unique_ptr<Form> {
+auto Form::FromDocument(const FormDocument& document, std::string name, ButtonBinder bind) -> std::unique_ptr<Form>
+{
     auto form = std::make_unique<Form>(std::move(name));
-    if (document.Theme()) {
+    if (document.Theme())
+    {
         form->SetTheme(*document.Theme());
     }
     const auto size = document.Size();
@@ -46,8 +51,10 @@ auto Form::FromDocument(const FormDocument& document, std::string name, ButtonBi
     return form;
 }
 
-auto Form::Instantiate(FormComponent& parent, std::span<const FormElement> arranged, const FormContext& context) -> void {
-    for (const auto& element : arranged) {
+auto Form::Instantiate(FormComponent& parent, std::span<const FormElement> arranged, const FormContext& context) -> void
+{
+    for (const auto& element : arranged)
+    {
         FormElements::Create(parent, element, context);
     }
 }

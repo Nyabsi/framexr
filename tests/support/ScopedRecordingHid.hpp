@@ -25,7 +25,8 @@
 #include "HidProvider.hpp"
 #include "RecordingHid.hpp"
 
-class ScopedRecordingHid final {
+class ScopedRecordingHid final
+{
   public:
     ScopedRecordingHid();
     ~ScopedRecordingHid();

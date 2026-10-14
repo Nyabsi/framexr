@@ -24,7 +24,8 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
-struct ImageResources {
+struct ImageResources
+{
     VkImage image = VK_NULL_HANDLE;
     VkImageView view = VK_NULL_HANDLE;
     VmaAllocation allocation = VK_NULL_HANDLE;
@@ -32,7 +33,8 @@ struct ImageResources {
     bool owns_image = true;
 };
 
-struct ImageInfo {
+struct ImageInfo
+{
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkExtent2D extent{};
     VkImageUsageFlags usage = 0;
@@ -40,7 +42,8 @@ struct ImageInfo {
     VkImageLayout final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 };
 
-class Image final {
+class Image final
+{
   public:
     Image(const ImageResources& resources, const ImageInfo& info);
     ~Image();

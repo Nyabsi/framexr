@@ -30,13 +30,15 @@
 #include "Error.hpp"
 #include "ImeContext.hpp"
 
-struct TsfKey {
+struct TsfKey
+{
     VirtualKey key = VirtualKey::Escape;
     uint32_t keysym = 0;
     uint8_t modifiers = 0;
 };
 
-struct TsfOutput {
+struct TsfOutput
+{
     std::vector<std::string> commits;
     std::vector<uint32_t> forwards;
     std::string preedit;
@@ -44,7 +46,8 @@ struct TsfOutput {
     bool changed = false;
 };
 
-class TsfContext final : public ImeContext {
+class TsfContext final : public ImeContext
+{
   public:
     static auto Create(ImeScript script) -> Result<std::unique_ptr<TsfContext>>;
 

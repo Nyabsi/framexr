@@ -27,19 +27,22 @@
 #include <Eigen/Geometry>
 #include <openvr.h>
 
-struct OpenVrPlayspaceDrag {
+struct OpenVrPlayspaceDrag
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     size_t hand = 0;
     Eigen::Vector3f hand_position = Eigen::Vector3f::Zero();
 };
 
-struct OpenVrPlayspaceRotate {
+struct OpenVrPlayspaceRotate
+{
     Eigen::Affine3f pose = Eigen::Affine3f::Identity();
     size_t hand = 0;
     Eigen::Quaternionf hand_rotation = Eigen::Quaternionf::Identity();
 };
 
-class OpenVrPlayspace final {
+class OpenVrPlayspace final
+{
   public:
     auto Update() -> void;
     auto ResetOffset() -> void;

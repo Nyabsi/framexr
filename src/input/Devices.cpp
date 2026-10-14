@@ -26,18 +26,23 @@
 
 Devices* g_devices = nullptr;
 
-namespace {
+namespace
+{
 
-auto Contains(const std::vector<TrackedDevice>& devices, const TrackedDevice& device) -> bool {
-    return std::ranges::any_of(devices, [&](const TrackedDevice& other) -> bool {
-        return other.id == device.id && other.role == device.role;
-    });
+auto Contains(const std::vector<TrackedDevice>& devices, const TrackedDevice& device) -> bool
+{
+    return std::ranges::any_of(
+        devices,
+        [&](const TrackedDevice& other) -> bool { return other.id == device.id && other.role == device.role; }
+    );
 }
 
 } // namespace
 
-auto Devices::RoleName(TrackedDeviceRole role) -> std::string_view {
-    switch (role) {
+auto Devices::RoleName(TrackedDeviceRole role) -> std::string_view
+{
+    switch (role)
+    {
     case TrackedDeviceRole::None: return "Device";
     case TrackedDeviceRole::Hmd: return "Headset";
     case TrackedDeviceRole::LeftHand: return "Left controller";
@@ -47,21 +52,30 @@ auto Devices::RoleName(TrackedDeviceRole role) -> std::string_view {
     return "Device";
 }
 
-auto Devices::Update(std::vector<TrackedDevice> devices) -> void {
-    std::ranges::sort(devices, [](const TrackedDevice& a, const TrackedDevice& b) -> bool {
-        const auto key = [](const TrackedDevice& device) -> std::tuple<int, uint8_t, float> {
-            return std::tuple(device.soc.has_value() ? 0 : 1, static_cast<uint8_t>(device.role), device.soc.value_or(999.0f));
-        };
-        return key(a) < key(b);
-    });
-    if (m_known) {
-        for (const auto& device : devices) {
-            if (m_on_connect && !Contains(m_devices, device)) {
+auto Devices::Update(std::vector<TrackedDevice> devices) -> void
+{
+    std::ranges::sort(
+        devices,
+        [](const TrackedDevice& a, const TrackedDevice& b) -> bool
+        {
+            const auto key = [](const TrackedDevice& device) -> std::tuple<int, uint8_t, float>
+            { return std::tuple(device.soc.has_value() ? 0 : 1, static_cast<uint8_t>(device.role), device.soc.value_or(999.0f)); };
+            return key(a) < key(b);
+        }
+    );
+    if (m_known)
+    {
+        for (const auto& device : devices)
+        {
+            if (m_on_connect && !Contains(m_devices, device))
+            {
                 m_on_connect(device);
             }
         }
-        for (const auto& device : m_devices) {
-            if (m_on_disconnect && !Contains(devices, device)) {
+        for (const auto& device : m_devices)
+        {
+            if (m_on_disconnect && !Contains(devices, device))
+            {
                 m_on_disconnect(device);
             }
         }

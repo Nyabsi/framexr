@@ -25,15 +25,18 @@
 
 #include <fontconfig/fontconfig.h>
 
-FontLookup::FontLookup(std::string primary_font) : m_primary_font(std::move(primary_font)) {
+FontLookup::FontLookup(std::string primary_font) : m_primary_font(std::move(primary_font))
+{
     FcInit();
 }
 
-auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> std::optional<FontFile> {
+auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> std::optional<FontFile>
+{
     const auto primary = m_family ? std::format("{}:weight=bold", *m_family) : m_primary_font;
     const auto pattern_text = std::format("{}:size={}:charset={:04x}", primary, size, codepoint);
     FcPattern* pattern = FcNameParse(reinterpret_cast<const FcChar8*>(pattern_text.c_str()));
-    if (pattern == nullptr) {
+    if (pattern == nullptr)
+    {
         return std::nullopt;
     }
     FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
@@ -43,8 +46,10 @@ auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> 
     FcPatternDestroy(pattern);
 
     FcChar8* file = nullptr;
-    if (match == nullptr || FcPatternGetString(match, FC_FILE, 0, &file) != FcResultMatch) {
-        if (match != nullptr) {
+    if (match == nullptr || FcPatternGetString(match, FC_FILE, 0, &file) != FcResultMatch)
+    {
+        if (match != nullptr)
+        {
             FcPatternDestroy(match);
         }
         return std::nullopt;
@@ -60,16 +65,20 @@ auto FontLookup::Locate(FT_LibraryRec_*, uint32_t codepoint, int size) const -> 
     return located;
 }
 
-auto FontLookup::Families(FT_LibraryRec_*) -> std::vector<std::string> {
+auto FontLookup::Families(FT_LibraryRec_*) -> std::vector<std::string>
+{
     FcInit();
     FcPattern* pattern = FcPatternCreate();
     FcObjectSet* objects = FcObjectSetBuild(FC_FAMILY, nullptr);
     FcFontSet* fonts = FcFontList(nullptr, pattern, objects);
     std::vector<std::string> families;
-    if (fonts != nullptr) {
-        for (int i = 0; i < fonts->nfont; ++i) {
+    if (fonts != nullptr)
+    {
+        for (int i = 0; i < fonts->nfont; ++i)
+        {
             FcChar8* family = nullptr;
-            if (FcPatternGetString(fonts->fonts[i], FC_FAMILY, 0, &family) == FcResultMatch) {
+            if (FcPatternGetString(fonts->fonts[i], FC_FAMILY, 0, &family) == FcResultMatch)
+            {
                 families.emplace_back(reinterpret_cast<const char*>(family));
             }
         }

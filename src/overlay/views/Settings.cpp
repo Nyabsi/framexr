@@ -29,16 +29,19 @@
 #include "Form.hpp"
 #include "Logger.hpp"
 
-auto Settings::Create(std::string name) -> std::unique_ptr<Settings> {
+auto Settings::Create(std::string name) -> std::unique_ptr<Settings>
+{
     auto loaded = Forms::Load(name);
-    if (!loaded) {
+    if (!loaded)
+    {
         LOG_ERROR("Failed to load custom UI config for {}: {}", name, loaded.error().Message());
         return nullptr;
     }
     const auto& config = *loaded;
 
     auto canvas = Compose::Create(Form::FromDocument(config, name, ActionBinding::Bind));
-    if (!canvas) {
+    if (!canvas)
+    {
         LOG_ERROR("Failed to create canvas for {}: {}", name, canvas.error().Message());
         return nullptr;
     }
@@ -46,7 +49,8 @@ auto Settings::Create(std::string name) -> std::unique_ptr<Settings> {
     return std::unique_ptr<Settings>(new Settings(std::move(name), config, std::move(*canvas)));
 }
 
-Settings::Settings(std::string name, const FormDocument& config, std::unique_ptr<Compose> compose) : View(std::move(compose)) {
+Settings::Settings(std::string name, const FormDocument& config, std::unique_ptr<Compose> compose) : View(std::move(compose))
+{
     const auto spawn = config.SpawnPos().value_or(std::array{0.0f, 0.0f, -0.5f});
     const auto size = config.Size();
     SetName(std::move(name));

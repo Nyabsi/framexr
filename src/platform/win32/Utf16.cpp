@@ -20,8 +20,10 @@
 
 #include <windows.h>
 
-auto Utf16::Narrow(std::wstring_view text) -> std::string {
-    if (text.empty()) {
+auto Utf16::Narrow(std::wstring_view text) -> std::string
+{
+    if (text.empty())
+    {
         return {};
     }
     const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);

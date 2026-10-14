@@ -34,7 +34,8 @@
 #include "TextLineComponent.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr int kHues = 12;
 
@@ -42,12 +43,14 @@ constexpr int kHues = 12;
 
 ColorPanel::ColorPanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("colour"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
     const auto& target = editor.Colors().Target();
-    if (!target) {
+    if (!target)
+    {
         return;
     }
     const auto subtle = FormTheme::Rgba("@subtle");
@@ -68,9 +71,11 @@ ColorPanel::ColorPanel(Editor& editor, const Eigen::Vector2f& size)
         "Hex, like #8aadf4 or @accent",
         editor.Text(),
         current,
-        [&editor](const std::string& typed) -> void {
+        [&editor](const std::string& typed) -> void
+        {
             const auto color = typed.starts_with('#') || typed.starts_with('@') ? typed : std::format("#{}", typed);
-            if (!FormTheme::ParseColor(color)) {
+            if (!FormTheme::ParseColor(color))
+            {
                 Editor::Notify(std::format("{} is not a colour", typed));
                 return;
             }
@@ -89,12 +94,14 @@ ColorPanel::ColorPanel(Editor& editor, const Eigen::Vector2f& size)
         PanelStyle::kCaptionHeight
     );
     std::vector<std::string> palette;
-    for (const auto& color : g_themes->Active().colors) {
+    for (const auto& color : g_themes->Active().colors)
+    {
         palette.push_back(target->tokens ? FormTheme::Token(color.name) : color.hex);
     }
     AddSwatches(editor, palette, 8);
 
-    if (const auto& recent = editor.Colors().Recent(); !recent.empty()) {
+    if (const auto& recent = editor.Colors().Recent(); !recent.empty())
+    {
         m_stack.AddComponent<TextLineComponent>("recent", "Recent", PanelStyle::kCaptionFont, subtle, PanelStyle::kCaptionHeight);
         const std::vector<std::string> colors(recent.begin(), recent.end());
         AddSwatches(editor, colors, 8);
@@ -104,8 +111,10 @@ ColorPanel::ColorPanel(Editor& editor, const Eigen::Vector2f& size)
 
     m_stack.AddComponent<TextLineComponent>("shade", "Shade", PanelStyle::kCaptionFont, subtle, PanelStyle::kCaptionHeight);
     std::vector<std::string> shades;
-    for (const float value : {1.0f, 0.8f, 0.6f, 0.4f}) {
-        for (const float saturation : {0.15f, 0.35f, 0.55f, 0.75f, 0.95f}) {
+    for (const float value : {1.0f, 0.8f, 0.6f, 0.4f})
+    {
+        for (const float saturation : {0.15f, 0.35f, 0.55f, 0.75f, 0.95f})
+        {
             shades.push_back(ColorPickerComponent::Hex(editor.Colors().Hsv()[0], saturation, value));
         }
     }
@@ -114,7 +123,8 @@ ColorPanel::ColorPanel(Editor& editor, const Eigen::Vector2f& size)
     AddFooter(editor);
 }
 
-auto ColorPanel::AddPicker(Editor& editor) -> void {
+auto ColorPanel::AddPicker(Editor& editor) -> void
+{
     auto& colors = editor.Colors();
     const float width = Size().x() - 2.0f * PanelStyle::kPadding;
     const float top = m_stack.Bottom();
@@ -128,26 +138,34 @@ auto ColorPanel::AddPicker(Editor& editor) -> void {
     m_stack.AddComponent<ColorPickerComponent>("picker", colors.Hsv(), colors.WheelImage(), colors.BarImage());
 }
 
-auto ColorPanel::AddSwatches(Editor& editor, std::span<const std::string> colors, size_t columns) -> void {
+auto ColorPanel::AddSwatches(Editor& editor, std::span<const std::string> colors, size_t columns) -> void
+{
     const auto current = editor.Colors().Target()->get();
-    for (size_t start = 0; start < colors.size(); start += columns) {
+    for (size_t start = 0; start < colors.size(); start += columns)
+    {
         auto& row = m_stack.AddComponent<RowComponent>("swatches", PanelStyle::kCompactRow, PanelStyle::kGap);
-        for (size_t i = start; i < start + columns; ++i) {
-            if (i >= colors.size()) {
+        for (size_t i = start; i < start + columns; ++i)
+        {
+            if (i >= colors.size())
+            {
                 row.AddComponent<FormComponent>("empty");
                 continue;
             }
             const auto& color = colors[i];
             auto& swatch = row.AddComponent<SwatchComponent>(color, color == current ? "*" : "", FormTheme::Rgba(color));
-            swatch.SetOnRelease([&editor, color]() -> void {
-                editor.Colors().Pick(color);
-                editor.Touch();
-            });
+            swatch.SetOnRelease(
+                [&editor, color]() -> void
+                {
+                    editor.Colors().Pick(color);
+                    editor.Touch();
+                }
+            );
         }
     }
 }
 
-auto ColorPanel::AddHues(Editor& editor) -> void {
+auto ColorPanel::AddHues(Editor& editor) -> void
+{
     const float hue = editor.Colors().Hsv()[0];
     m_stack.AddComponent<TextLineComponent>(
         "hue",
@@ -157,41 +175,52 @@ auto ColorPanel::AddHues(Editor& editor) -> void {
         PanelStyle::kCaptionHeight
     );
     auto& row = m_stack.AddComponent<RowComponent>("hues", 26.0f, PanelStyle::kGap);
-    for (int i = 0; i < kHues; ++i) {
+    for (int i = 0; i < kHues; ++i)
+    {
         const float shade = static_cast<float>(i) / kHues;
         auto& button = row.AddComponent<ButtonComponent>("hue", std::abs(shade - hue) < 0.5f / kHues ? "*" : "");
         button.SetFontSize(PanelStyle::kTextFont);
         button.SetFgColor(FormTheme::Rgba("@on-accent"));
         button.SetBgColor(FormTheme::Rgba(ColorPickerComponent::Hex(shade, 0.7f, 0.95f)));
         button.SetEllipsize(true);
-        button.SetOnRelease([&editor, shade]() -> void {
-            auto& colors = editor.Colors();
-            if (!colors.Target()) {
-                return;
+        button.SetOnRelease(
+            [&editor, shade]() -> void
+            {
+                auto& colors = editor.Colors();
+                if (!colors.Target())
+                {
+                    return;
+                }
+                const auto& hsv = colors.Hsv();
+                colors.SetHsv({shade, std::max(hsv[1], 0.5f), std::max(hsv[2], 0.5f)});
+                editor.Touch();
             }
-            const auto& hsv = colors.Hsv();
-            colors.SetHsv({shade, std::max(hsv[1], 0.5f), std::max(hsv[2], 0.5f)});
-            editor.Touch();
-        });
+        );
     }
 }
 
-auto ColorPanel::AddFooter(Editor& editor) -> void {
+auto ColorPanel::AddFooter(Editor& editor) -> void
+{
     const auto text = FormTheme::Rgba("@text");
     const auto surface = FormTheme::Rgba("@surface");
     auto& row = m_stack.AddComponent<RowComponent>("footer", PanelStyle::kRowHeight, PanelStyle::kGap);
-    if (editor.Colors().Target()->reset) {
+    if (editor.Colors().Target()->reset)
+    {
         auto& reset = row.AddComponent<ButtonComponent>("reset", "Theme default");
         reset.SetFontSize(PanelStyle::kTextFont);
         reset.SetFgColor(text);
         reset.SetBgColor(surface);
         reset.SetEllipsize(true);
-        reset.SetOnRelease([&editor]() -> void {
-            if (const auto& target = editor.Colors().Target()) {
-                target->reset();
+        reset.SetOnRelease(
+            [&editor]() -> void
+            {
+                if (const auto& target = editor.Colors().Target())
+                {
+                    target->reset();
+                }
+                editor.Touch();
             }
-            editor.Touch();
-        });
+        );
     }
     auto& done = row.AddComponent<ButtonComponent>("done", "Done");
     done.SetFontSize(PanelStyle::kTextFont);

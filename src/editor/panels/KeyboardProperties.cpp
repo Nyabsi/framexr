@@ -40,7 +40,8 @@
 #include "panels/KeyPickerPanel.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kAltModifiers = std::to_array<std::pair<AltModifier, std::string_view>>({
     {AltModifier::None, "None"},
@@ -51,27 +52,35 @@ constexpr auto kAltModifiers = std::to_array<std::pair<AltModifier, std::string_
     {AltModifier::Meta, "AltGr"},
 });
 
-auto CommandOf(const std::vector<ButtonAction>& actions) -> std::vector<std::string> {
-    for (const auto& action : actions) {
-        if (const auto* exec = std::get_if<ExecButtonAction>(&action)) {
+auto CommandOf(const std::vector<ButtonAction>& actions) -> std::vector<std::string>
+{
+    for (const auto& action : actions)
+    {
+        if (const auto* exec = std::get_if<ExecButtonAction>(&action))
+        {
             return exec->command;
         }
     }
     return {};
 }
 
-auto ShortcutOf(const std::vector<ButtonAction>& actions) -> const ShortcutButtonAction* {
-    for (const auto& action : actions) {
-        if (const auto* shortcut = std::get_if<ShortcutButtonAction>(&action)) {
+auto ShortcutOf(const std::vector<ButtonAction>& actions) -> const ShortcutButtonAction*
+{
+    for (const auto& action : actions)
+    {
+        if (const auto* shortcut = std::get_if<ShortcutButtonAction>(&action))
+        {
             return shortcut;
         }
     }
     return nullptr;
 }
 
-auto CommandActions(const std::string& text) -> std::vector<ButtonAction> {
+auto CommandActions(const std::string& text) -> std::vector<ButtonAction>
+{
     auto command = ActionsPanel::SplitCommand(text);
-    if (command.empty()) {
+    if (command.empty())
+    {
         return {};
     }
     return {ExecButtonAction{.command = std::move(command)}};
@@ -81,14 +90,16 @@ auto CommandActions(const std::string& text) -> std::vector<ButtonAction> {
 
 KeyboardProperties::KeyboardProperties(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("keyboard"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
     const auto text = FormTheme::Rgba("@text");
     const auto& design = editor.KeyboardDesign();
     const auto selected = design.Selected();
-    if (!selected || *selected >= design.Document().Keys().size()) {
+    if (!selected || *selected >= design.Document().Keys().size())
+    {
         m_stack.AddComponent<TextLineComponent>("title", "Keyboard", PanelStyle::kTitleFont, text, PanelStyle::kTitleHeight);
         AddKeyboards(editor);
         AddSettings(editor);
@@ -103,15 +114,18 @@ KeyboardProperties::KeyboardProperties(Editor& editor, const Eigen::Vector2f& si
     AddKeyArrange(editor, *selected);
 }
 
-auto KeyboardProperties::AddKeyboards(Editor& editor) -> void {
+auto KeyboardProperties::AddKeyboards(Editor& editor) -> void
+{
     const auto& layout = editor.KeyboardDesign().Document();
 
     m_stack.AddComponent<SectionComponent>("keyboards", "Keyboards");
 
     std::vector<std::string> names;
     std::optional<size_t> selected;
-    for (const auto& profile : KeyboardLayout::All()) {
-        if (profile.Name() == editor.KeyboardFile()) {
+    for (const auto& profile : KeyboardLayout::All())
+    {
+        if (profile.Name() == editor.KeyboardFile())
+        {
             selected = names.size();
         }
         names.push_back(profile.Name());
@@ -128,7 +142,8 @@ auto KeyboardProperties::AddKeyboards(Editor& editor) -> void {
     copy.SetEllipsize(true);
     copy.SetOnRelease([&editor]() -> void { editor.SaveAsNew(); });
 
-    if (!KeyboardLayout::IsBuiltIn(layout.Name()) && !layout.Source().empty()) {
+    if (!KeyboardLayout::IsBuiltIn(layout.Name()) && !layout.Source().empty())
+    {
         auto& remove = actions.AddComponent<ButtonComponent>("delete", editor.DeleteArmed() ? "Sure?" : "Delete");
         remove.SetFontSize(PanelStyle::kTextFont);
         remove.SetFgColor(FormTheme::Rgba("@on-accent"));
@@ -138,7 +153,8 @@ auto KeyboardProperties::AddKeyboards(Editor& editor) -> void {
     }
 }
 
-auto KeyboardProperties::AddSettings(Editor& editor) -> void {
+auto KeyboardProperties::AddSettings(Editor& editor) -> void
+{
     const auto& layout = editor.KeyboardDesign().Document();
     const auto subtle = FormTheme::Rgba("@subtle");
     const auto text = FormTheme::Rgba("@text");
@@ -153,8 +169,10 @@ auto KeyboardProperties::AddSettings(Editor& editor) -> void {
         "Name",
         editor.Text(),
         layout.Name(),
-        [&editor](const std::string& typed) -> void {
-            if (!typed.empty()) {
+        [&editor](const std::string& typed) -> void
+        {
+            if (!typed.empty())
+            {
                 editor.EditKeyboard([&typed](KeyboardLayout& edited) -> void { edited.SetName(typed); });
             }
         }
@@ -168,10 +186,11 @@ auto KeyboardProperties::AddSettings(Editor& editor) -> void {
         "Region (like fi or de)",
         editor.Text(),
         layout.Region().value_or(""),
-        [&editor](const std::string& typed) -> void {
-            editor.EditKeyboard([&typed](KeyboardLayout& edited) -> void {
-                edited.SetRegion(typed.empty() ? std::nullopt : std::optional(typed));
-            });
+        [&editor](const std::string& typed) -> void
+        {
+            editor.EditKeyboard(
+                [&typed](KeyboardLayout& edited) -> void { edited.SetRegion(typed.empty() ? std::nullopt : std::optional(typed)); }
+            );
         }
     );
 
@@ -184,16 +203,19 @@ auto KeyboardProperties::AddSettings(Editor& editor) -> void {
     );
     std::vector<std::string> modifiers;
     std::optional<size_t> held;
-    for (const auto& [modifier, name] : kAltModifiers) {
-        if (layout.AltKey() == modifier) {
+    for (const auto& [modifier, name] : kAltModifiers)
+    {
+        if (layout.AltKey() == modifier)
+        {
             held = modifiers.size();
         }
         modifiers.emplace_back(name);
     }
     auto& alt = m_stack.AddComponent<ChoiceGridComponent>("alt", modifiers, held, 3, PanelStyle::kRowHeight);
-    alt.SetOnChoose([&editor](size_t index) -> void {
-        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.SetAltKey(kAltModifiers.at(index).first); });
-    });
+    alt.SetOnChoose(
+        [&editor](size_t index) -> void
+        { editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.SetAltKey(kAltModifiers.at(index).first); }); }
+    );
 
     const bool automatic = layout.AutoLabels().value_or(true);
     auto& follow = m_stack.AddComponent<ButtonComponent>("auto-labels", "Labels follow the region");
@@ -202,12 +224,18 @@ auto KeyboardProperties::AddSettings(Editor& editor) -> void {
     follow.SetFgColor(automatic ? on_accent : text);
     follow.SetBgColor(automatic ? accent : surface);
     follow.SetEllipsize(true);
-    follow.SetOnRelease([&editor]() -> void {
-        editor.EditKeyboard([](KeyboardLayout& edited) -> void {
-            const bool following = edited.AutoLabels().value_or(true);
-            edited.SetAutoLabels(following ? std::optional(false) : std::nullopt);
-        });
-    });
+    follow.SetOnRelease(
+        [&editor]() -> void
+        {
+            editor.EditKeyboard(
+                [](KeyboardLayout& edited) -> void
+                {
+                    const bool following = edited.AutoLabels().value_or(true);
+                    edited.SetAutoLabels(following ? std::optional(false) : std::nullopt);
+                }
+            );
+        }
+    );
 
     m_stack.AddComponent<FormComponent>("spacer");
     m_stack.AddComponent<TextLineComponent>(
@@ -219,7 +247,8 @@ auto KeyboardProperties::AddSettings(Editor& editor) -> void {
     );
 }
 
-auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
+auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void
+{
     const auto& key = editor.KeyboardDesign().Document().Keys().at(index);
     const auto text = FormTheme::Rgba("@text");
     const auto subtle = FormTheme::Rgba("@subtle");
@@ -246,53 +275,82 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     as_key.SetFgColor(typed != nullptr ? on_accent : text);
     as_key.SetBgColor(typed != nullptr ? accent : surface);
     as_key.SetEllipsize(true);
-    as_key.SetOnRelease([&editor, index, convert = typed == nullptr]() -> void {
-        if (convert) {
-            editor.EditKeyboard([index](KeyboardLayout& edited) -> void {
-                edited.Keys().at(index).action = TypeKey{.key = VirtualKey::Space};
-            });
+    as_key.SetOnRelease(
+        [&editor, index, convert = typed == nullptr]() -> void
+        {
+            if (convert)
+            {
+                editor.EditKeyboard(
+                    [index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = TypeKey{.key = VirtualKey::Space}; }
+                );
+            }
+            editor.OpenKeyPicker();
         }
-        editor.OpenKeyPicker();
-    });
+    );
 
     auto& as_macro = kinds.AddComponent<ButtonComponent>("macro", "Macro");
     as_macro.SetFontSize(PanelStyle::kTextFont);
     as_macro.SetFgColor(is_macro ? on_accent : text);
     as_macro.SetBgColor(is_macro ? accent : surface);
     as_macro.SetEllipsize(true);
-    as_macro.SetOnRelease([&editor, index, convert = !is_macro]() -> void {
-        if (convert) {
-            editor.EditKeyboard([index](KeyboardLayout& edited) -> void {
-                auto& changed = edited.Keys().at(index);
-                changed.action = ActionKey{};
-                if (!changed.label) {
-                    changed.label = std::vector<std::string>{"Macro"};
+    as_macro.SetOnRelease(
+        [&editor, index, convert = !is_macro]() -> void
+        {
+            if (convert)
+            {
+                editor.EditKeyboard(
+                    [index](KeyboardLayout& edited) -> void
+                    {
+                        auto& changed = edited.Keys().at(index);
+                        changed.action = ActionKey{};
+                        if (!changed.label)
+                        {
+                            changed.label = std::vector<std::string>{"Macro"};
+                        }
+                    }
+                );
+            }
+            editor.Text().Begin(
+                "key.command",
+                "",
+                [&editor, index](const std::string& command) -> void
+                {
+                    editor.EditKeyboard(
+                        [index, &command](KeyboardLayout& edited) -> void
+                        { std::get<ActionKey>(edited.Keys().at(index).action).press = CommandActions(command); }
+                    );
                 }
-            });
+            );
         }
-        editor.Text().Begin("key.command", "", [&editor, index](const std::string& command) -> void {
-            editor.EditKeyboard([index, &command](KeyboardLayout& edited) -> void {
-                std::get<ActionKey>(edited.Keys().at(index).action).press = CommandActions(command);
-            });
-        });
-    });
+    );
 
     auto& as_shortcut = kinds.AddComponent<ButtonComponent>("shortcut", "Shortcut");
     as_shortcut.SetFontSize(PanelStyle::kTextFont);
     as_shortcut.SetFgColor(is_shortcut ? on_accent : text);
     as_shortcut.SetBgColor(is_shortcut ? accent : surface);
     as_shortcut.SetEllipsize(true);
-    as_shortcut.SetOnRelease([&editor, index]() -> void {
-        editor.Text().Capture(true, [&editor, index](const std::vector<VirtualKey>& keys) -> void {
-            editor.EditKeyboard([index, &keys](KeyboardLayout& edited) -> void {
-                auto& changed = edited.Keys().at(index);
-                changed.action = ActionKey{.press = {ShortcutButtonAction{.keys = keys}}};
-                if (!changed.label) {
-                    changed.label = std::vector<std::string>{VirtualKeys::Chord(keys)};
+    as_shortcut.SetOnRelease(
+        [&editor, index]() -> void
+        {
+            editor.Text().Capture(
+                true,
+                [&editor, index](const std::vector<VirtualKey>& keys) -> void
+                {
+                    editor.EditKeyboard(
+                        [index, &keys](KeyboardLayout& edited) -> void
+                        {
+                            auto& changed = edited.Keys().at(index);
+                            changed.action = ActionKey{.press = {ShortcutButtonAction{.keys = keys}}};
+                            if (!changed.label)
+                            {
+                                changed.label = std::vector<std::string>{VirtualKeys::Chord(keys)};
+                            }
+                        }
+                    );
                 }
-            });
-        });
-    });
+            );
+        }
+    );
 
     auto& others = m_stack.AddComponent<RowComponent>("others", PanelStyle::kRowHeight, PanelStyle::kGap);
 
@@ -301,38 +359,43 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     as_layout.SetFgColor(is_layout ? on_accent : text);
     as_layout.SetBgColor(is_layout ? accent : surface);
     as_layout.SetEllipsize(true);
-    as_layout.SetOnRelease([&editor, index]() -> void {
-        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ProfileKey{}; });
-    });
+    as_layout.SetOnRelease(
+        [&editor, index]() -> void
+        { editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ProfileKey{}; }); }
+    );
 
     auto& as_chatbox = others.AddComponent<ButtonComponent>("chatbox", "Chat");
     as_chatbox.SetFontSize(PanelStyle::kTextFont);
     as_chatbox.SetFgColor(is_chatbox ? on_accent : text);
     as_chatbox.SetBgColor(is_chatbox ? accent : surface);
     as_chatbox.SetEllipsize(true);
-    as_chatbox.SetOnRelease([&editor, index]() -> void {
-        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ChatboxKey{}; });
-    });
+    as_chatbox.SetOnRelease(
+        [&editor, index]() -> void
+        { editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ChatboxKey{}; }); }
+    );
 
     auto& as_ime = others.AddComponent<ButtonComponent>("ime", "IME");
     as_ime.SetFontSize(PanelStyle::kTextFont);
     as_ime.SetFgColor(is_ime ? on_accent : text);
     as_ime.SetBgColor(is_ime ? accent : surface);
     as_ime.SetEllipsize(true);
-    as_ime.SetOnRelease([&editor, index]() -> void {
-        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ImeKey{}; });
-    });
+    as_ime.SetOnRelease(
+        [&editor, index]() -> void
+        { editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ImeKey{}; }); }
+    );
 
     auto& as_blank = others.AddComponent<ButtonComponent>("nothing", "Nothing");
     as_blank.SetFontSize(PanelStyle::kTextFont);
     as_blank.SetFgColor(is_blank ? on_accent : text);
     as_blank.SetBgColor(is_blank ? accent : surface);
     as_blank.SetEllipsize(true);
-    as_blank.SetOnRelease([&editor, index]() -> void {
-        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = BlankKey{}; });
-    });
+    as_blank.SetOnRelease(
+        [&editor, index]() -> void
+        { editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = BlankKey{}; }); }
+    );
 
-    if (typed != nullptr) {
+    if (typed != nullptr)
+    {
         const bool picking = editor.Dialog() == DialogKind::KeyPicker;
         auto& row = m_stack.AddComponent<RowComponent>("typed", PanelStyle::kRowHeight, PanelStyle::kGap);
 
@@ -348,31 +411,50 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
         press.SetFgColor(text);
         press.SetBgColor(surface);
         press.SetEllipsize(true);
-        press.SetOnRelease([&editor, index]() -> void {
-            editor.Text().Capture(false, [&editor, index](const std::vector<VirtualKey>& keys) -> void {
-                editor.EditKeyboard([index, &keys](KeyboardLayout& edited) -> void {
-                    auto& changed = edited.Keys().at(index);
-                    changed.action = TypeKey{.key = keys.back()};
-                    changed.label.reset();
-                    changed.shifted_label.reset();
-                });
-            });
-        });
-    } else if (shortcut != nullptr) {
+        press.SetOnRelease(
+            [&editor, index]() -> void
+            {
+                editor.Text().Capture(
+                    false,
+                    [&editor, index](const std::vector<VirtualKey>& keys) -> void
+                    {
+                        editor.EditKeyboard(
+                            [index, &keys](KeyboardLayout& edited) -> void
+                            {
+                                auto& changed = edited.Keys().at(index);
+                                changed.action = TypeKey{.key = keys.back()};
+                                changed.label.reset();
+                                changed.shifted_label.reset();
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    }
+    else if (shortcut != nullptr)
+    {
         const auto sends = std::format("Sends {}", VirtualKeys::Chord(shortcut->keys));
         m_stack.AddComponent<TextLineComponent>("sends", sends, PanelStyle::kCaptionFont, subtle, PanelStyle::kCaptionHeight);
-    } else if (action != nullptr) {
+    }
+    else if (action != nullptr)
+    {
         m_stack.AddComponent<LaserInputComponent>(
             "key.command",
             "Command",
             editor.Text(),
             ActionsPanel::JoinCommand(CommandOf(action->press)),
-            [&editor, index](const std::string& command) -> void {
-                editor.EditKeyboard([index, &command](KeyboardLayout& edited) -> void {
-                    if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action)) {
-                        changed->press = CommandActions(command);
+            [&editor, index](const std::string& command) -> void
+            {
+                editor.EditKeyboard(
+                    [index, &command](KeyboardLayout& edited) -> void
+                    {
+                        if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action))
+                        {
+                            changed->press = CommandActions(command);
+                        }
                     }
-                });
+                );
             }
         );
         m_stack.AddComponent<LaserInputComponent>(
@@ -380,18 +462,24 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
             "On release (optional)",
             editor.Text(),
             ActionsPanel::JoinCommand(CommandOf(action->release)),
-            [&editor, index](const std::string& command) -> void {
-                editor.EditKeyboard([index, &command](KeyboardLayout& edited) -> void {
-                    if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action)) {
-                        changed->release = CommandActions(command);
+            [&editor, index](const std::string& command) -> void
+            {
+                editor.EditKeyboard(
+                    [index, &command](KeyboardLayout& edited) -> void
+                    {
+                        if (auto* changed = std::get_if<ActionKey>(&edited.Keys().at(index).action))
+                        {
+                            changed->release = CommandActions(command);
+                        }
                     }
-                });
+                );
             }
         );
     }
 }
 
-auto KeyboardProperties::AddKeyLabel(Editor& editor, size_t index) -> void {
+auto KeyboardProperties::AddKeyLabel(Editor& editor, size_t index) -> void
+{
     const auto& layout = editor.KeyboardDesign().Document();
     const auto& key = layout.Keys().at(index);
     const auto labels = layout.Labels(key);
@@ -403,10 +491,11 @@ auto KeyboardProperties::AddKeyLabel(Editor& editor, size_t index) -> void {
         key.label ? "Label" : "Label (automatic)",
         editor.Text(),
         labels.empty() ? std::string() : labels.front(),
-        [&editor, index](const std::string& typed) -> void {
-            editor.EditKeyboard([index, &typed](KeyboardLayout& edited) -> void {
-                edited.Keys().at(index).label = std::vector<std::string>{typed};
-            });
+        [&editor, index](const std::string& typed) -> void
+        {
+            editor.EditKeyboard(
+                [index, &typed](KeyboardLayout& edited) -> void { edited.Keys().at(index).label = std::vector<std::string>{typed}; }
+            );
         }
     );
 
@@ -415,100 +504,134 @@ auto KeyboardProperties::AddKeyLabel(Editor& editor, size_t index) -> void {
         "Shifted label",
         editor.Text(),
         key.shifted_label.value_or(""),
-        [&editor, index](const std::string& typed) -> void {
-            editor.EditKeyboard([index, &typed](KeyboardLayout& edited) -> void {
-                edited.Keys().at(index).shifted_label = typed.empty() ? std::nullopt : std::optional(typed);
-            });
+        [&editor, index](const std::string& typed) -> void
+        {
+            editor.EditKeyboard(
+                [index, &typed](KeyboardLayout& edited) -> void
+                { edited.Keys().at(index).shifted_label = typed.empty() ? std::nullopt : std::optional(typed); }
+            );
         }
     );
 
-    if (key.label || key.shifted_label) {
+    if (key.label || key.shifted_label)
+    {
         auto& automatic = m_stack.AddComponent<ButtonComponent>("automatic", "Automatic labels");
         automatic.SetSize({0.0f, PanelStyle::kRowHeight});
         automatic.SetFontSize(PanelStyle::kTextFont);
         automatic.SetFgColor(FormTheme::Rgba("@text"));
         automatic.SetBgColor(FormTheme::Rgba("@surface"));
         automatic.SetEllipsize(true);
-        automatic.SetOnRelease([&editor, index]() -> void {
-            editor.EditKeyboard([index](KeyboardLayout& edited) -> void {
-                edited.Keys().at(index).label.reset();
-                edited.Keys().at(index).shifted_label.reset();
-            });
-        });
+        automatic.SetOnRelease(
+            [&editor, index]() -> void
+            {
+                editor.EditKeyboard(
+                    [index](KeyboardLayout& edited) -> void
+                    {
+                        edited.Keys().at(index).label.reset();
+                        edited.Keys().at(index).shifted_label.reset();
+                    }
+                );
+            }
+        );
     }
 }
 
-auto KeyboardProperties::AddKeyLook(Editor& editor, size_t index) -> void {
+auto KeyboardProperties::AddKeyLook(Editor& editor, size_t index) -> void
+{
     const auto& key = editor.KeyboardDesign().Document().Keys().at(index);
 
     m_stack.AddComponent<SectionComponent>("look", "Look");
 
     auto& width = m_stack.AddComponent<StepperComponent>("width", "Width", std::format("{:g}", key.width));
-    width.Minus().SetOnRelease([&editor, index]() -> void {
-        if (!editor.KeyboardDesign().Resize(index, -kKeyStep)) {
-            Editor::Notify("Keys need at least a quarter unit");
+    width.Minus().SetOnRelease(
+        [&editor, index]() -> void
+        {
+            if (!editor.KeyboardDesign().Resize(index, -kKeyStep))
+            {
+                Editor::Notify("Keys need at least a quarter unit");
+            }
+            editor.Touch();
         }
-        editor.Touch();
-    });
-    width.Plus().SetOnRelease([&editor, index]() -> void {
-        if (!editor.KeyboardDesign().Resize(index, kKeyStep)) {
-            Editor::Notify("No room to grow, move the next key first");
+    );
+    width.Plus().SetOnRelease(
+        [&editor, index]() -> void
+        {
+            if (!editor.KeyboardDesign().Resize(index, kKeyStep))
+            {
+                Editor::Notify("No room to grow, move the next key first");
+            }
+            editor.Touch();
         }
-        editor.Touch();
-    });
+    );
 
     auto& background = m_stack.AddComponent<ColorFieldComponent>("key-colour", "Key colour", key.style.bg_color.value_or("@panel"));
-    background.Swatch().SetOnRelease([&editor, index]() -> void {
-        editor.OpenColor({
-            .title = "Key colour",
-            .get = [&editor, index]() -> std::string {
-                return editor.KeyboardDesign().Document().Keys().at(index).style.bg_color.value_or("@panel");
-            },
-            .set = [&editor, index](const std::string& color) -> void {
-                editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void {
-                    edited.Keys().at(index).style.bg_color = color;
-                });
-            },
-            .reset = [&editor, index]() -> void {
-                editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.bg_color.reset(); });
-            },
-        });
-    });
+    background.Swatch().SetOnRelease(
+        [&editor, index]() -> void
+        {
+            editor.OpenColor({
+                .title = "Key colour",
+                .get = [&editor, index]() -> std::string
+                { return editor.KeyboardDesign().Document().Keys().at(index).style.bg_color.value_or("@panel"); },
+                .set = [&editor, index](const std::string& color) -> void
+                {
+                    editor.EditKeyboard(
+                        [index, &color](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.bg_color = color; }
+                    );
+                },
+                .reset = [&editor, index]() -> void
+                {
+                    editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.bg_color.reset(); });
+                },
+            });
+        }
+    );
 
     auto& foreground = m_stack.AddComponent<ColorFieldComponent>("text-colour", "Text colour", key.style.fg_color.value_or("@text"));
-    foreground.Swatch().SetOnRelease([&editor, index]() -> void {
-        editor.OpenColor({
-            .title = "Text colour",
-            .get = [&editor, index]() -> std::string {
-                return editor.KeyboardDesign().Document().Keys().at(index).style.fg_color.value_or("@text");
-            },
-            .set = [&editor, index](const std::string& color) -> void {
-                editor.EditKeyboard([index, &color](KeyboardLayout& edited) -> void {
-                    edited.Keys().at(index).style.fg_color = color;
-                });
-            },
-            .reset = [&editor, index]() -> void {
-                editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.fg_color.reset(); });
-            },
-        });
-    });
+    foreground.Swatch().SetOnRelease(
+        [&editor, index]() -> void
+        {
+            editor.OpenColor({
+                .title = "Text colour",
+                .get = [&editor, index]() -> std::string
+                { return editor.KeyboardDesign().Document().Keys().at(index).style.fg_color.value_or("@text"); },
+                .set = [&editor, index](const std::string& color) -> void
+                {
+                    editor.EditKeyboard(
+                        [index, &color](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.fg_color = color; }
+                    );
+                },
+                .reset = [&editor, index]() -> void
+                {
+                    editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.fg_color.reset(); });
+                },
+            });
+        }
+    );
 
     const float corners = FormTheme::Resolve(key.style.corner_radius, g_themes->Active().rounding, Shape::Key);
     const auto shown = key.style.corner_radius ? std::format("{:.0f}", corners) : std::format("{:.0f} theme", corners);
     auto& corner = m_stack.AddComponent<StepperComponent>("corners", "Corners", shown);
-    corner.Minus().SetOnRelease([&editor, index, corners]() -> void {
-        editor.EditKeyboard([index, corners](KeyboardLayout& edited) -> void {
-            edited.Keys().at(index).style.corner_radius = std::max(corners - 1.0f, 0.0f);
-        });
-    });
-    corner.Plus().SetOnRelease([&editor, index, corners]() -> void {
-        editor.EditKeyboard([index, corners](KeyboardLayout& edited) -> void {
-            edited.Keys().at(index).style.corner_radius = corners + 1.0f;
-        });
-    });
+    corner.Minus().SetOnRelease(
+        [&editor, index, corners]() -> void
+        {
+            editor.EditKeyboard(
+                [index, corners](KeyboardLayout& edited) -> void
+                { edited.Keys().at(index).style.corner_radius = std::max(corners - 1.0f, 0.0f); }
+            );
+        }
+    );
+    corner.Plus().SetOnRelease(
+        [&editor, index, corners]() -> void
+        {
+            editor.EditKeyboard(
+                [index, corners](KeyboardLayout& edited) -> void { edited.Keys().at(index).style.corner_radius = corners + 1.0f; }
+            );
+        }
+    );
 }
 
-auto KeyboardProperties::AddKeyArrange(Editor& editor, size_t index) -> void {
+auto KeyboardProperties::AddKeyArrange(Editor& editor, size_t index) -> void
+{
     m_stack.AddComponent<SectionComponent>("arrange", "Arrange");
 
     auto& row = m_stack.AddComponent<RowComponent>("arrange-row", PanelStyle::kRowHeight, PanelStyle::kGap);
@@ -518,20 +641,27 @@ auto KeyboardProperties::AddKeyArrange(Editor& editor, size_t index) -> void {
     duplicate.SetFgColor(FormTheme::Rgba("@text"));
     duplicate.SetBgColor(FormTheme::Rgba("@surface"));
     duplicate.SetEllipsize(true);
-    duplicate.SetOnRelease([&editor, index]() -> void {
-        if (!editor.KeyboardDesign().Duplicate(index)) {
-            Editor::Notify("No free spot, add a column or row first");
+    duplicate.SetOnRelease(
+        [&editor, index]() -> void
+        {
+            if (!editor.KeyboardDesign().Duplicate(index))
+            {
+                Editor::Notify("No free spot, add a column or row first");
+            }
+            editor.Touch();
         }
-        editor.Touch();
-    });
+    );
 
     auto& remove = row.AddComponent<ButtonComponent>("delete", "Delete");
     remove.SetFontSize(PanelStyle::kTextFont);
     remove.SetFgColor(FormTheme::Rgba("@on-accent"));
     remove.SetBgColor(FormTheme::Rgba("@red"));
     remove.SetEllipsize(true);
-    remove.SetOnRelease([&editor, index]() -> void {
-        editor.KeyboardDesign().Remove(index);
-        editor.CloseDialog();
-    });
+    remove.SetOnRelease(
+        [&editor, index]() -> void
+        {
+            editor.KeyboardDesign().Remove(index);
+            editor.CloseDialog();
+        }
+    );
 }

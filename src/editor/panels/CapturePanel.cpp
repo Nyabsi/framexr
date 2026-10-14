@@ -26,7 +26,8 @@
 
 CapturePanel::CapturePanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("capture"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
@@ -49,7 +50,8 @@ CapturePanel::CapturePanel(Editor& editor, const Eigen::Vector2f& size)
         subtle,
         PanelStyle::kCaptionHeight
     );
-    if (shortcut) {
+    if (shortcut)
+    {
         m_stack.AddComponent<TextLineComponent>(
             "held",
             VirtualKeys::Chord(editor.Text().Held()),

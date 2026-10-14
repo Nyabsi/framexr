@@ -20,7 +20,8 @@
 
 #include "tsf/TsfContext.hpp"
 
-auto ImeContext::Connect(ImeScript script) -> Result<std::unique_ptr<ImeContext>> {
+auto ImeContext::Connect(ImeScript script) -> Result<std::unique_ptr<ImeContext>>
+{
     ASSIGN_OR_RETURN(auto context, TsfContext::Create(script));
     return std::unique_ptr<ImeContext>(std::move(context));
 }

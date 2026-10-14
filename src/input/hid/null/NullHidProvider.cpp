@@ -20,29 +20,38 @@
 
 #include "VirtualKeys.hpp"
 
-auto NullHidProvider::MouseMove(const Eigen::Vector2f&) -> void {
+auto NullHidProvider::MouseMove(const Eigen::Vector2f&) -> void
+{
 }
 
-auto NullHidProvider::SendButton(uint16_t, bool) -> void {
+auto NullHidProvider::SendButton(uint16_t, bool) -> void
+{
 }
 
-auto NullHidProvider::Wheel(int32_t, int32_t) -> void {
+auto NullHidProvider::Wheel(int32_t, int32_t) -> void
+{
 }
 
-auto NullHidProvider::SetModifiers(uint8_t) -> void {
+auto NullHidProvider::SetModifiers(uint8_t) -> void
+{
 }
 
-auto NullHidProvider::SendKey(VirtualKey, bool) -> void {
+auto NullHidProvider::SendKey(VirtualKey, bool) -> void
+{
 }
 
-auto NullHidProvider::SetDesktopExtent(const Eigen::Vector2f&) -> void {
+auto NullHidProvider::SetDesktopExtent(const Eigen::Vector2f&) -> void
+{
 }
 
-auto NullHidProvider::SetDesktopOrigin(const Eigen::Vector2f&) -> void {
+auto NullHidProvider::SetDesktopOrigin(const Eigen::Vector2f&) -> void
+{
 }
 
-auto NullHidProvider::Commit() -> void {
+auto NullHidProvider::Commit() -> void
+{
 }
 
-auto NullHidProvider::SelectInputMethod(ImeScript) -> void {
+auto NullHidProvider::SelectInputMethod(ImeScript) -> void
+{
 }

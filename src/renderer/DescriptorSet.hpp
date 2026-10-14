@@ -32,7 +32,8 @@
 #include "Buffer.hpp"
 #include "Image.hpp"
 
-class DescriptorSet final {
+class DescriptorSet final
+{
   public:
     DescriptorSet(VkDescriptorPool pool, VkDescriptorSet set);
     ~DescriptorSet();

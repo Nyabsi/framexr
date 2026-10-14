@@ -29,12 +29,14 @@
 #include "Keymap.hpp"
 #include "VirtualKeys.hpp"
 
-struct KeyboardRegion {
+struct KeyboardRegion
+{
     std::string layout;
     std::string variant;
 };
 
-class KeyTranslator final {
+class KeyTranslator final
+{
   public:
     static auto Create(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop) -> KeyTranslator;
     static auto ParseRegion(std::string_view text) -> KeyboardRegion;

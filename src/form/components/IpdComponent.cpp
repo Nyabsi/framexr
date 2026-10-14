@@ -24,7 +24,8 @@
 #include "Interaction.hpp"
 #include "document/FormParser.hpp"
 
-auto IpdComponent::Parse(const nlohmann::json& json) -> IpdElement {
+auto IpdComponent::Parse(const nlohmann::json& json) -> IpdElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -32,15 +33,18 @@ auto IpdComponent::Parse(const nlohmann::json& json) -> IpdElement {
     };
 }
 
-auto IpdComponent::Serialize(nlohmann::ordered_json& json, const IpdElement& element) -> void {
+auto IpdComponent::Serialize(nlohmann::ordered_json& json, const IpdElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
 }
 
-auto IpdComponent::Create(FormComponent& parent, const IpdElement& element, const FormContext& context) -> IpdComponent& {
+auto IpdComponent::Create(FormComponent& parent, const IpdElement& element, const FormContext& context) -> IpdComponent&
+{
     auto& component = parent.AddComponent<IpdComponent>("");
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
@@ -49,15 +53,19 @@ auto IpdComponent::Create(FormComponent& parent, const IpdElement& element, cons
     return component;
 }
 
-IpdComponent::IpdComponent(std::string name) : FormComponent(std::move(name)), m_label(AddComponent<LabelComponent>("label")) {
+IpdComponent::IpdComponent(std::string name) : FormComponent(std::move(name)), m_label(AddComponent<LabelComponent>("label"))
+{
 }
 
-auto IpdComponent::Layout() -> void {
+auto IpdComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }
 
-auto IpdComponent::Update() -> void {
-    if (std::abs(g_interaction->Ipd() - m_last_ipd) > 0.05f) {
+auto IpdComponent::Update() -> void
+{
+    if (std::abs(g_interaction->Ipd() - m_last_ipd) > 0.05f)
+    {
         m_last_ipd = g_interaction->Ipd();
         m_label.SetText(std::format("{:.1f}", g_interaction->Ipd()));
     }

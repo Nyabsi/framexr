@@ -23,33 +23,42 @@
 FakeCapture::FakeCapture(uint32_t width, uint32_t height, std::vector<std::byte> bgra)
     : m_width(width),
       m_height(height),
-      m_bgra(std::move(bgra)) {
+      m_bgra(std::move(bgra))
+{
 }
 
-auto FakeCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
+auto FakeCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void
+{
     m_processor = std::move(processor);
 }
 
-auto FakeCapture::IsStarted() const -> bool {
+auto FakeCapture::IsStarted() const -> bool
+{
     return static_cast<bool>(m_processor);
 }
 
-auto FakeCapture::SupportsDmabuf() const -> bool {
+auto FakeCapture::SupportsDmabuf() const -> bool
+{
     return false;
 }
 
-auto FakeCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
+auto FakeCapture::Receive() -> std::unique_ptr<ProcessedFrame>
+{
     return std::move(m_pending);
 }
 
-auto FakeCapture::Pause() -> void {
+auto FakeCapture::Pause() -> void
+{
 }
 
-auto FakeCapture::Resume() -> void {
+auto FakeCapture::Resume() -> void
+{
 }
 
-auto FakeCapture::RequestNewFrame() -> void {
-    if (!m_processor || m_pending) {
+auto FakeCapture::RequestNewFrame() -> void
+{
+    if (!m_processor || m_pending)
+    {
         return;
     }
     m_pending = m_processor(

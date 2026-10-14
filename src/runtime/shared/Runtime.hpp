@@ -38,20 +38,23 @@
 #include "methods/LaserPointer.hpp"
 #include "TaskQueue.hpp"
 
-enum class FrameStatus : uint8_t {
+enum class FrameStatus : uint8_t
+{
     Quit,
     Skip,
     Ready,
 };
 
-enum class Line : uint8_t {
+enum class Line : uint8_t
+{
     LeftPointer,
     RightPointer,
     LeftGuide,
     RightGuide,
 };
 
-class Runtime {
+class Runtime
+{
   public:
     static auto Run(std::atomic<bool>& running) -> void;
     static auto Uninstall() -> void;

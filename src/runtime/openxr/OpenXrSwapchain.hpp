@@ -32,7 +32,8 @@
 
 class OpenXrInstance;
 
-class OpenXrSwapchain final {
+class OpenXrSwapchain final
+{
   public:
     static auto Create(const OpenXrInstance& instance, XrSession session, VkExtent2D extent, bool immutable)
         -> Result<std::unique_ptr<OpenXrSwapchain>>;

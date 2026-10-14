@@ -33,13 +33,15 @@
 #include "Error.hpp"
 #include "ExitStatus.hpp"
 
-struct ProcessOptions {
+struct ProcessOptions
+{
     std::vector<std::pair<std::string, std::string>> set_env;
     std::vector<std::string> unset_env;
     bool capture_stdout = false;
 };
 
-class Process final {
+class Process final
+{
   public:
     static auto Spawn(const std::vector<std::string>& command, const ProcessOptions& options = {}) -> Result<Process>;
     static auto Output(const std::vector<std::string>& command) -> std::optional<std::string>;

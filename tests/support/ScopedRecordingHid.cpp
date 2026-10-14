@@ -21,10 +21,12 @@
 #include "HidProvider.hpp"
 #include "RecordingHid.hpp"
 
-ScopedRecordingHid::ScopedRecordingHid() : m_recording(std::make_unique<RecordingHid>()), m_previous(g_hid) {
+ScopedRecordingHid::ScopedRecordingHid() : m_recording(std::make_unique<RecordingHid>()), m_previous(g_hid)
+{
     g_hid = m_recording.get();
 }
 
-ScopedRecordingHid::~ScopedRecordingHid() {
+ScopedRecordingHid::~ScopedRecordingHid()
+{
     g_hid = m_previous;
 }

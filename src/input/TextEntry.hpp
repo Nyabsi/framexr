@@ -33,7 +33,8 @@ using TextCommit = std::function<void(const std::string&)>;
 
 using KeysCaptured = std::function<void(const std::vector<VirtualKey>&)>;
 
-class TextEntry final : public TextInput, public std::enable_shared_from_this<TextEntry> {
+class TextEntry final : public TextInput, public std::enable_shared_from_this<TextEntry>
+{
   public:
     [[nodiscard]] auto Editing(std::string_view id) const -> bool { return m_id == id; }
     [[nodiscard]] auto Editing() const -> bool { return m_id.has_value(); }

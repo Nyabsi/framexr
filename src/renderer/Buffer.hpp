@@ -27,7 +27,8 @@
 
 #include "Error.hpp"
 
-class Buffer final {
+class Buffer final
+{
   public:
     static auto Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::shared_ptr<Buffer>>;
 

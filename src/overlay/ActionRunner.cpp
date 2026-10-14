@@ -51,7 +51,8 @@
 #include "Mirror.hpp"
 #endif
 
-namespace {
+namespace
+{
 
 constexpr unsigned char kThumpSound[] = {
 #embed "380885.wav"
@@ -59,44 +60,59 @@ constexpr unsigned char kThumpSound[] = {
 
 constexpr std::array<std::string_view, 2> kEnabledDisabled{"enabled", "disabled"};
 
-auto SubmitSystemToast(std::string title) -> void {
+auto SubmitSystemToast(std::string title) -> void
+{
     Toast::Show(ToastMessage{.topic = ToastTopic::System, .title = std::move(title)});
 }
 
-auto WatchSelector() -> OverlaySelector {
+auto WatchSelector() -> OverlaySelector
+{
     return std::string(kWatchName);
 }
 
 } // namespace
 
-auto ActionRunner::PlayThump() -> void {
+auto ActionRunner::PlayThump() -> void
+{
     g_audio->Play(std::as_bytes(std::span(kThumpSound)));
 }
 
-auto ActionRunner::PressShortcut(const std::vector<VirtualKey>& keys) -> void {
-    for (const auto key : keys) {
+auto ActionRunner::PressShortcut(const std::vector<VirtualKey>& keys) -> void
+{
+    for (const auto key : keys)
+    {
         g_hid->SendKey(key, true);
     }
-    for (const auto key : std::views::reverse(keys)) {
+    for (const auto key : std::views::reverse(keys))
+    {
         g_hid->SendKey(key, false);
     }
 }
 
-auto ActionRunner::TypeText(std::string_view text) -> void {
-    if (!g_interaction->TypingKeymap()) {
+auto ActionRunner::TypeText(std::string_view text) -> void
+{
+    if (!g_interaction->TypingKeymap())
+    {
         LOG_WARN("Cannot type text without a keyboard layout");
         return;
     }
-    for (const auto character : FontCache::DecodeUtf8(text)) {
+    for (const auto character : FontCache::DecodeUtf8(text))
+    {
         std::optional<TranslatedKey> typed;
-        if (character == U'\n') {
+        if (character == U'\n')
+        {
             typed = TranslatedKey{.key = VirtualKey::Return};
-        } else if (character == U'\t') {
+        }
+        else if (character == U'\t')
+        {
             typed = TranslatedKey{.key = VirtualKey::Tab};
-        } else {
+        }
+        else
+        {
             typed = g_interaction->TypingKeymap()->Find(static_cast<char32_t>(character));
         }
-        if (!typed) {
+        if (!typed)
+        {
             LOG_WARN("Cannot type U+{:04X} with the desktop layout", static_cast<uint32_t>(character));
             continue;
         }
@@ -107,27 +123,42 @@ auto ActionRunner::TypeText(std::string_view text) -> void {
     g_hid->SetModifiers(0);
 }
 
-auto ActionRunner::Run(const std::vector<ButtonAction>& actions) -> void {
-    for (const auto& action : actions) {
+auto ActionRunner::Run(const std::vector<ButtonAction>& actions) -> void
+{
+    for (const auto& action : actions)
+    {
         Run(action);
     }
 }
 
-auto ActionRunner::Run(const ButtonAction& action) -> void {
+auto ActionRunner::Run(const ButtonAction& action) -> void
+{
     std::visit(
-        [&](const auto& item) -> void {
+        [&](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, ExecButtonAction>) {
+            if constexpr (std::is_same_v<Item, ExecButtonAction>)
+            {
                 RunExec(item);
-            } else if constexpr (std::is_same_v<Item, WatchButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchButtonAction>)
+            {
                 RunWatch(item.action);
-            } else if constexpr (std::is_same_v<Item, OverlayButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayButtonAction>)
+            {
                 RunOverlay(item.target, item.action);
-            } else if constexpr (std::is_same_v<Item, WindowButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, WindowButtonAction>)
+            {
                 RunWindow(item.target, item.action);
-            } else if constexpr (std::is_same_v<Item, VirtualKeyButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, VirtualKeyButtonAction>)
+            {
                 g_hid->SendKey(item.keycode, item.action == PressRelease::Press);
-            } else if constexpr (std::is_same_v<Item, ToastButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ToastButtonAction>)
+            {
                 Toast::Show(
                     ToastMessage{
                         .topic = ToastTopic::System,
@@ -136,25 +167,42 @@ auto ActionRunner::Run(const ButtonAction& action) -> void {
                         .timeout = item.seconds.value_or(5.0f),
                     }
                 );
-            } else if constexpr (std::is_same_v<Item, ColorAdjustButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ColorAdjustButtonAction>)
+            {
                 g_tasks->Enqueue(SystemTask{ColorGainTask{.channel = item.channel, .delta = item.delta}});
-            } else if constexpr (std::is_same_v<Item, SystemButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, SystemButtonAction>)
+            {
                 RunSystem(item.action);
-            } else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>)
+            {
                 g_config->space_drag_multiplier += item.delta;
-            } else if constexpr (std::is_same_v<Item, ShortcutButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ShortcutButtonAction>)
+            {
                 PressShortcut(item.keys);
-            } else if constexpr (std::is_same_v<Item, TypeTextButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, TypeTextButtonAction>)
+            {
                 TypeText(item.text);
-            } else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>)
+            {
                 RunProfile(item.profile);
-            } else if constexpr (std::is_same_v<Item, SendOscButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, SendOscButtonAction>)
+            {
 #if FRAMEXR_FEATURE_OSC
-                if (g_osc) {
-                    if (!item.values) {
+                if (g_osc)
+                {
+                    if (!item.values)
+                    {
                         FatalError("SendOscValue requires values");
                     }
-                    if (const auto sent = g_osc->SendMessage(item.parameter, *item.values); !sent) {
+                    if (const auto sent = g_osc->SendMessage(item.parameter, *item.values); !sent)
+                    {
                         LOG_TRACE("Failed to send OSC value: {}", sent.error().Message());
                     }
                     PlayThump();
@@ -168,45 +216,61 @@ auto ActionRunner::Run(const ButtonAction& action) -> void {
     );
 }
 
-auto ActionRunner::RunProfile(const std::optional<std::string>& profile) -> void {
-    if (!profile) {
+auto ActionRunner::RunProfile(const std::optional<std::string>& profile) -> void
+{
+    if (!profile)
+    {
         KeyboardPicker::Open(g_interaction->TypingKeymap());
         return;
     }
     Keyboard::SwitchProfile(g_interaction->TypingKeymap(), KeyboardLayout::Find(*profile).Name());
 }
 
-auto ActionRunner::RunExec(const ExecButtonAction& action) -> void {
-    if (m_child) {
+auto ActionRunner::RunExec(const ExecButtonAction& action) -> void
+{
+    if (m_child)
+    {
         const auto status = m_child->TryWait();
-        if (!status) {
+        if (!status)
+        {
             m_child.reset();
             Toast::ShowError(std::format("Error checking child process: {}", status.error().Message()));
-        } else if (!status->has_value()) {
+        }
+        else if (!status->has_value())
+        {
             LOG_WARN("Unable to launch child process: previous child not exited yet");
             return;
-        } else {
-            if (!(*status)->Success()) {
+        }
+        else
+        {
+            if (!(*status)->Success())
+            {
                 Toast::ShowError(std::format("Child process exited with code: {}", (*status)->Describe()));
             }
             m_child.reset();
         }
     }
 
-    if (auto process = Process::Spawn(action.command)) {
+    if (auto process = Process::Spawn(action.command))
+    {
         m_child.emplace(std::move(*process));
-        if (action.toast) {
+        if (action.toast)
+        {
             SubmitSystemToast(*action.toast);
         }
-    } else {
+    }
+    else
+    {
         Toast::ShowError(std::format("Failed to spawn process {}: {}", action.command, process.error().Message()));
     }
 }
 
-auto ActionRunner::RunSystem(SystemAction action) -> void {
+auto ActionRunner::RunSystem(SystemAction action) -> void
+{
     auto& config = *g_config;
     const auto state_name = [](bool value) -> std::string_view { return kEnabledDisabled[value ? 1 : 0]; };
-    switch (action) {
+    switch (action)
+    {
     case SystemAction::ToggleAllowSliding:
         config.allow_sliding = !config.allow_sliding;
         SubmitSystemToast(std::format("Sliding is {}.", state_name(config.allow_sliding)));
@@ -218,9 +282,11 @@ auto ActionRunner::RunSystem(SystemAction action) -> void {
         SubmitSystemToast(std::format("Space rotate axis lock now {}.", state_name(!config.space_rotate_unlocked)));
         break;
     case SystemAction::PlayspaceResetOffset: g_tasks->Enqueue(SystemTask{ResetPlayspaceTask{}}); break;
-    case SystemAction::PlayspaceFixFloor: {
+    case SystemAction::PlayspaceFixFloor:
+    {
         const auto now = std::chrono::steady_clock::now();
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 5; ++i)
+        {
             Toast::ShowAt(
                 ToastMessage{
                     .topic = ToastTopic::System,
@@ -244,12 +310,14 @@ auto ActionRunner::RunSystem(SystemAction action) -> void {
         SubmitSystemToast(std::format("Notification sounds are {}.", state_name(config.notifications_sound_enabled)));
         break;
     case SystemAction::PersistConfig:
-        if (const auto result = ConfigStore::SaveSettings(); !result) {
+        if (const auto result = ConfigStore::SaveSettings(); !result)
+        {
             Toast::ShowError(std::format("Failed to save config: {}", result.error().Message()));
         }
         break;
     case SystemAction::PersistLayout:
-        if (const auto result = ConfigStore::SaveLayout(); !result) {
+        if (const auto result = ConfigStore::SaveLayout(); !result)
+        {
             Toast::ShowError(std::format("Failed to save layout: {}", result.error().Message()));
         }
         break;
@@ -257,16 +325,21 @@ auto ActionRunner::RunSystem(SystemAction action) -> void {
     }
 }
 
-auto ActionRunner::RunWatch(const WatchAction& action) -> void {
+auto ActionRunner::RunWatch(const WatchAction& action) -> void
+{
     std::visit(
-        [&](const auto& item) -> void {
+        [&](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, WatchHide>) {
+            if constexpr (std::is_same_v<Item, WatchHide>)
+            {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = WatchSelector(),
-                        .modify = [](View& watch) -> void {
-                            if (!watch.SavedTransform()) {
+                        .modify = [](View& watch) -> void
+                        {
+                            if (!watch.SavedTransform())
+                            {
                                 watch.SetWantVisible(false);
                                 watch.SetSavedTransform(watch.Transform());
                                 Toast::Show(
@@ -277,7 +350,9 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                                         .timeout = 3.0f,
                                     }
                                 );
-                            } else {
+                            }
+                            else
+                            {
                                 watch.SetWantVisible(true);
                                 watch.SavedTransform().reset();
                                 SubmitSystemToast("Watch restored");
@@ -286,12 +361,16 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                     }
                 );
                 PlayThump();
-            } else if constexpr (std::is_same_v<Item, WatchSwitchHands>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchSwitchHands>)
+            {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = WatchSelector(),
-                        .modify = [](View& watch) -> void {
-                            if (watch.AttachedTo() == RelativeTo::LeftHand) {
+                        .modify = [](View& watch) -> void
+                        {
+                            if (watch.AttachedTo() == RelativeTo::LeftHand)
+                            {
                                 watch.SetAttachedTo(RelativeTo::RightHand);
                                 watch.SetSpawnRotation(
                                     g_config->watch_rot * Eigen::AngleAxisf(std::numbers::pi_v<float>, Eigen::Vector3f::UnitX())
@@ -299,7 +378,9 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                                 );
                                 watch.SetSpawnPoint(g_config->watch_pos);
                                 watch.SpawnPoint().x() *= -1.0f;
-                            } else {
+                            }
+                            else
+                            {
                                 watch.SetAttachedTo(RelativeTo::LeftHand);
                                 watch.SetSpawnRotation(g_config->watch_rot);
                                 watch.SetSpawnPoint(g_config->watch_pos);
@@ -317,16 +398,21 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                     }
                 );
                 PlayThump();
-            } else if constexpr (std::is_same_v<Item, WatchViewAngle>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchViewAngle>)
+            {
                 auto& config = *g_config;
-                if (item.kind == ViewAngleKind::MinOpacity) {
+                if (item.kind == ViewAngleKind::MinOpacity)
+                {
                     const float diff = (config.watch_view_angle_max - config.watch_view_angle_min) + item.delta;
                     config.watch_view_angle_min = std::clamp(
                         config.watch_view_angle_max - diff,
                         0.0f,
                         config.watch_view_angle_max - 0.05f
                     );
-                } else {
+                }
+                else
+                {
                     const float diff = config.watch_view_angle_max - config.watch_view_angle_min;
                     config.watch_view_angle_max = std::clamp(config.watch_view_angle_max + item.delta, 0.05f, 1.0f);
                     config.watch_view_angle_min = std::clamp(
@@ -335,7 +421,9 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                         config.watch_view_angle_max - 0.05f
                     );
                 }
-            } else if constexpr (std::is_same_v<Item, WatchRotation>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchRotation>)
+            {
                 const auto axis = item.axis == Axis::X ? Eigen::Vector3f::UnitX()
                                 : item.axis == Axis::Y ? Eigen::Vector3f::UnitY()
                                                        : Eigen::Vector3f::UnitZ();
@@ -343,20 +431,24 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = WatchSelector(),
-                        .modify = [rotation](View& watch) -> void {
+                        .modify = [rotation](View& watch) -> void
+                        {
                             watch.SpawnRotation() *= rotation;
                             g_config->watch_rot = watch.SpawnRotation();
                             watch.SetDirty(true);
                         },
                     }
                 );
-            } else {
+            }
+            else
+            {
                 const auto axis = static_cast<Eigen::Index>(item.axis);
                 const float delta = item.delta;
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = WatchSelector(),
-                        .modify = [axis, delta](View& watch) -> void {
+                        .modify = [axis, delta](View& watch) -> void
+                        {
                             watch.SpawnPoint()[axis] += delta;
                             g_config->watch_pos = watch.SpawnPoint();
                             watch.SetDirty(true);
@@ -369,43 +461,58 @@ auto ActionRunner::RunWatch(const WatchAction& action) -> void {
     );
 }
 
-auto ActionRunner::RunOverlay(const OverlaySelector& target, const OverlayAction& action) -> void {
+auto ActionRunner::RunOverlay(const OverlaySelector& target, const OverlayAction& action) -> void
+{
     std::visit(
-        [&](const auto& item) -> void {
+        [&](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, OverlayToggleVisible>) {
+            if constexpr (std::is_same_v<Item, OverlayToggleVisible>)
+            {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = target,
-                        .modify = [](View& overlay) -> void {
+                        .modify = [](View& overlay) -> void
+                        {
                             overlay.SetWantVisible(!overlay.WantVisible());
-                            if (overlay.Recenter()) {
+                            if (overlay.Recenter())
+                            {
                                 overlay.SetShowHide(overlay.WantVisible());
                                 overlay.Reset(false);
                             }
                             auto& screens = g_config->show_screens;
                             bool changed = false;
-                            if (!overlay.WantVisible()) {
+                            if (!overlay.WantVisible())
+                            {
                                 changed = std::erase(screens, overlay.Name()) > 0;
-                            } else if (std::ranges::find(screens, overlay.Name()) == screens.end()) {
+                            }
+                            else if (std::ranges::find(screens, overlay.Name()) == screens.end())
+                            {
                                 screens.push_back(overlay.Name());
                                 changed = true;
                             }
-                            if (changed) {
-                                if (const auto result = ConfigStore::SaveLayout()) {
+                            if (changed)
+                            {
+                                if (const auto result = ConfigStore::SaveLayout())
+                                {
                                     LOG_DEBUG("Saved state");
-                                } else {
+                                }
+                                else
+                                {
                                     Toast::ShowError(std::format("Failed to save state: {}", result.error().Message()));
                                 }
                             }
                         },
                     }
                 );
-            } else if constexpr (std::is_same_v<Item, OverlayToggleImmovable>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayToggleImmovable>)
+            {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = target,
-                        .modify = [](View& overlay) -> void {
+                        .modify = [](View& overlay) -> void
+                        {
                             overlay.SetRecenter(!overlay.Recenter());
                             overlay.SetGrabbable(overlay.Recenter());
                             overlay.SetShowHide(overlay.Recenter());
@@ -417,11 +524,14 @@ auto ActionRunner::RunOverlay(const OverlaySelector& target, const OverlayAction
                     }
                 );
                 PlayThump();
-            } else if constexpr (std::is_same_v<Item, OverlayToggleInteraction>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayToggleInteraction>)
+            {
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = target,
-                        .modify = [](View& overlay) -> void {
+                        .modify = [](View& overlay) -> void
+                        {
                             overlay.SetInteractable(!overlay.Interactable());
                             SubmitSystemToast(
                                 overlay.Interactable() ? std::format("{} is now interactable!", overlay.Name())
@@ -431,12 +541,15 @@ auto ActionRunner::RunOverlay(const OverlaySelector& target, const OverlayAction
                     }
                 );
                 PlayThump();
-            } else {
+            }
+            else
+            {
                 const float delta = item.delta;
                 g_tasks->Enqueue(
                     ModifyOverlayTask{
                         .selector = target,
-                        .modify = [delta](View& overlay) -> void {
+                        .modify = [delta](View& overlay) -> void
+                        {
                             overlay.SetAlpha(std::clamp(overlay.Alpha() + delta, 0.1f, 1.0f));
                             overlay.SetDirty(true);
                             LOG_DEBUG("{}: alpha {}", overlay.Name(), overlay.Alpha());
@@ -449,14 +562,17 @@ auto ActionRunner::RunOverlay(const OverlaySelector& target, const OverlayAction
     );
 }
 
-auto ActionRunner::RunWindow(const std::string& target, WindowAction action) -> void {
-    switch (action) {
+auto ActionRunner::RunWindow(const std::string& target, WindowAction action) -> void
+{
+    switch (action)
+    {
     case WindowAction::ShowMirror:
 #if FRAMEXR_FEATURE_WAYLAND
         g_tasks->Enqueue(
             CreateOverlayTask{
                 .selector = target,
-                .create = [target]() -> std::unique_ptr<View> {
+                .create = [target]() -> std::unique_ptr<View>
+                {
                     Toast::Show(ToastMessage{.topic = ToastTopic::System, .title = "Check your desktop for popup.", .sound = true});
                     return std::make_unique<Mirror>(target, false);
                 },

@@ -39,7 +39,8 @@ class Keymap;
 
 class TextInput;
 
-class Interaction {
+class Interaction
+{
   public:
     Interaction();
 
@@ -57,7 +58,8 @@ class Interaction {
     auto SetHmd(Eigen::Affine3f hmd) -> void { m_hmd = std::move(hmd); }
     auto SetIpd(float ipd) -> void { m_ipd = ipd; }
     auto SetDeltaSeconds(float delta_seconds) -> void { m_delta_seconds = delta_seconds; }
-    auto SetDisplayPixelsPerRadian(Eigen::Vector2f display_pixels_per_radian) -> void {
+    auto SetDisplayPixelsPerRadian(Eigen::Vector2f display_pixels_per_radian) -> void
+    {
         m_display_pixels_per_radian = std::move(display_pixels_per_radian);
     }
     auto SetTypingKeymap(std::shared_ptr<const Keymap> keymap) -> void { m_typing_keymap = std::move(keymap); }

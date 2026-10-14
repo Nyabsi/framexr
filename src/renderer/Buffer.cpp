@@ -23,7 +23,8 @@
 
 #include "Device.hpp"
 
-auto Buffer::Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::shared_ptr<Buffer>> {
+auto Buffer::Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::shared_ptr<Buffer>>
+{
     const VkBufferCreateInfo buffer_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = size,
@@ -46,7 +47,8 @@ auto Buffer::Create(VkDeviceSize size, VkBufferUsageFlags usage) -> Result<std::
             &allocation,
             &allocation_result
         );
-        result != VK_SUCCESS) {
+        result != VK_SUCCESS)
+    {
         return Unexpected(std::format("Failed to create buffer of {} bytes: {}", size, static_cast<int>(result)));
     }
     return std::shared_ptr<Buffer>(new Buffer(buffer, allocation, allocation_result.pMappedData, size));
@@ -56,14 +58,17 @@ Buffer::Buffer(VkBuffer buffer, VmaAllocation allocation, void* mapped, VkDevice
     : m_buffer(buffer),
       m_allocation(allocation),
       m_mapped(mapped),
-      m_size(size) {
+      m_size(size)
+{
 }
 
-Buffer::~Buffer() {
+Buffer::~Buffer()
+{
     vmaDestroyBuffer(g_device->Allocator(), m_buffer, m_allocation);
 }
 
-auto Buffer::Write(std::span<const std::byte> data) -> void {
+auto Buffer::Write(std::span<const std::byte> data) -> void
+{
     std::memcpy(m_mapped, data.data(), std::min<size_t>(data.size(), m_size));
     vmaFlushAllocation(g_device->Allocator(), m_allocation, 0, VK_WHOLE_SIZE);
 }

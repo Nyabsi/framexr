@@ -33,7 +33,8 @@
 
 constexpr std::string_view kWatchName = "watch";
 
-class Watch final : public View {
+class Watch final : public View
+{
   public:
     static auto Create() -> Result<std::unique_ptr<Watch>>;
 

@@ -29,14 +29,17 @@
 
 #include "Raycast.hpp"
 
-namespace {
+namespace
+{
 
-auto Linear(const Eigen::Affine3f& transform) -> Eigen::Matrix3f {
+auto Linear(const Eigen::Affine3f& transform) -> Eigen::Matrix3f
+{
     return transform.linear();
 }
 
 auto ReferencePlane(const Eigen::Affine3f& source, const Eigen::Vector3f& source_fwd, const Eigen::Affine3f& plane)
-    -> std::pair<float, Eigen::Vector2f> {
+    -> std::pair<float, Eigen::Vector2f>
+{
     const Eigen::Vector3f plane_normal = Linear(plane) * -Eigen::Vector3f::UnitZ();
     const Eigen::Vector3f ray_dir = Linear(source) * source_fwd;
     const float d = plane.translation().dot(-plane_normal);
@@ -52,7 +55,8 @@ auto ReferenceCylinder(
     const Eigen::Vector3f& source_fwd,
     const Eigen::Affine3f& plane,
     float curvature
-) -> std::optional<std::pair<float, Eigen::Vector2f>> {
+) -> std::optional<std::pair<float, Eigen::Vector2f>>
+{
     const float size = Linear(plane).col(0).norm();
     const Eigen::Matrix3f scaled_linear = Linear(plane) / size;
     const Eigen::Matrix3f to_local = scaled_linear.inverse();
@@ -67,16 +71,19 @@ auto ReferenceCylinder(
     const float l_pos = v_dir.dot(v_pos);
     const float c = std::fma(radius, -radius, v_pos.dot(v_pos));
     const float d = std::fma(l_pos, l_pos, -(l_dir * c));
-    if (d < std::numeric_limits<float>::epsilon()) {
+    if (d < std::numeric_limits<float>::epsilon())
+    {
         return std::nullopt;
     }
     const float sqrt_d = std::sqrt(d);
     const float t = std::max((-l_pos - sqrt_d) / l_dir, (-l_pos + sqrt_d) / l_dir);
-    if (t < std::numeric_limits<float>::epsilon()) {
+    if (t < std::numeric_limits<float>::epsilon())
+    {
         return std::nullopt;
     }
     Eigen::Vector3f hit_local = ray_origin + ray_dir * t;
-    if (hit_local.z() > 0.0f) {
+    if (hit_local.z() > 0.0f)
+    {
         return std::nullopt;
     }
     const float max_angle = 2.0f * (size / (2.0f * radius));
@@ -86,7 +93,8 @@ auto ReferenceCylinder(
     return std::pair{t, Eigen::Vector2f(hit_local.x(), hit_local.y())};
 }
 
-auto RandomPose(std::mt19937& rng, float spread, float min_scale, float max_scale) -> Eigen::Affine3f {
+auto RandomPose(std::mt19937& rng, float spread, float min_scale, float max_scale) -> Eigen::Affine3f
+{
     std::uniform_real_distribution<float> unit(-1.0f, 1.0f);
     std::uniform_real_distribution<float> scale(min_scale, max_scale);
     const Eigen::Quaternionf rotation = Eigen::Quaternionf(unit(rng), unit(rng), unit(rng), unit(rng)).normalized();
@@ -97,20 +105,24 @@ auto RandomPose(std::mt19937& rng, float spread, float min_scale, float max_scal
     return pose;
 }
 
-auto Near(float actual, float expected) -> bool {
+auto Near(float actual, float expected) -> bool
+{
     return std::abs(actual - expected) <= 1e-3f * std::max(1.0f, std::abs(expected));
 }
 
 } // namespace
 
-TEST(Raycast, PlaneMatchesOriginalImplementation) {
+TEST(Raycast, PlaneMatchesOriginalImplementation)
+{
     std::mt19937 rng(1234);
     int compared = 0;
-    for (int i = 0; i < 5000; ++i) {
+    for (int i = 0; i < 5000; ++i)
+    {
         const auto source = RandomPose(rng, 1.0f, 1.0f, 1.0f);
         const auto plane = RandomPose(rng, 3.0f, 0.2f, 3.0f);
         const auto [expected_dist, expected_local] = ReferencePlane(source, -Eigen::Vector3f::UnitZ(), plane);
-        if (!std::isfinite(expected_dist) || std::abs(expected_dist) > 1e3f) {
+        if (!std::isfinite(expected_dist) || std::abs(expected_dist) > 1e3f)
+        {
             continue;
         }
         const auto [dist, local] = Raycast::Plane(source, -Eigen::Vector3f::UnitZ(), plane);
@@ -122,12 +134,14 @@ TEST(Raycast, PlaneMatchesOriginalImplementation) {
     EXPECT_GT(compared, 4000);
 }
 
-TEST(Raycast, CylinderMatchesOriginalImplementation) {
+TEST(Raycast, CylinderMatchesOriginalImplementation)
+{
     std::mt19937 rng(5678);
     std::uniform_real_distribution<float> curvature(0.05f, 0.5f);
     std::uniform_real_distribution<float> unit(-1.0f, 1.0f);
     int hits = 0;
-    for (int i = 0; i < 5000; ++i) {
+    for (int i = 0; i < 5000; ++i)
+    {
         const auto source = RandomPose(rng, 0.5f, 1.0f, 1.0f);
         Eigen::Affine3f plane = Eigen::Affine3f::Identity();
         plane.translate(Eigen::Vector3f(0.3f * unit(rng), 0.3f * unit(rng), -1.5f + 0.3f * unit(rng)));
@@ -138,7 +152,8 @@ TEST(Raycast, CylinderMatchesOriginalImplementation) {
         const auto expected = ReferenceCylinder(source, -Eigen::Vector3f::UnitZ(), plane, bend);
         const auto actual = Raycast::Cylinder(source, -Eigen::Vector3f::UnitZ(), plane, bend);
         ASSERT_EQ(actual.has_value(), expected.has_value()) << "case " << i;
-        if (!expected) {
+        if (!expected)
+        {
             continue;
         }
         ASSERT_TRUE(Near(actual->first, expected->first)) << "case " << i << ": " << actual->first << " vs " << expected->first;

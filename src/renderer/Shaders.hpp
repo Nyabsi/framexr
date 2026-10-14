@@ -23,7 +23,8 @@
 
 #include "Pipeline.hpp"
 
-class Shaders {
+class Shaders
+{
   public:
     static auto Color() -> ShaderProgram;
     static auto Line() -> ShaderProgram;

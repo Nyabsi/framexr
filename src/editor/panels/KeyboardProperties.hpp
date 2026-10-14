@@ -28,7 +28,8 @@ class Editor;
 
 class StackComponent;
 
-class KeyboardProperties final : public FormComponent {
+class KeyboardProperties final : public FormComponent
+{
   public:
     KeyboardProperties(Editor& editor, const Eigen::Vector2f& size);
 

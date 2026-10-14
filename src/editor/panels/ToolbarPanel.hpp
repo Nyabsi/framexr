@@ -26,7 +26,8 @@ class Editor;
 
 class StackComponent;
 
-class ToolbarPanel final : public FormComponent {
+class ToolbarPanel final : public FormComponent
+{
   public:
     ToolbarPanel(Editor& editor, const Eigen::Vector2f& size);
 

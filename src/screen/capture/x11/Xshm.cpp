@@ -29,10 +29,13 @@
 
 #include "Error.hpp"
 
-namespace {
+namespace
+{
 
-auto ReplaceAll(std::string text, std::string_view from, std::string_view to) -> std::string {
-    for (size_t pos = text.find(from); pos != std::string::npos; pos = text.find(from, pos + to.size())) {
+auto ReplaceAll(std::string text, std::string_view from, std::string_view to) -> std::string
+{
+    for (size_t pos = text.find(from); pos != std::string::npos; pos = text.find(from, pos + to.size()))
+    {
         text.replace(pos, from.size(), to);
     }
     return text;
@@ -40,21 +43,25 @@ auto ReplaceAll(std::string text, std::string_view from, std::string_view to) ->
 
 } // namespace
 
-auto Xshm::Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>> {
+auto Xshm::Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>>
+{
     Xshm::EnsureThreads();
     const char* display_name = std::getenv("DISPLAY");
-    if (display_name == nullptr) {
+    if (display_name == nullptr)
+    {
         return Unexpected("environment variable not found");
     }
     auto* display = XOpenDisplay(display_name);
-    if (display == nullptr) {
+    if (display == nullptr)
+    {
         return Unexpected("X11: Failed to open display");
     }
 
     int count = 0;
     auto* monitors = XRRGetMonitors(display, XDefaultRootWindow(display), False, &count);
     std::vector<std::shared_ptr<XshmScreen>> screens;
-    for (int index = 0; index < count; ++index) {
+    for (int index = 0; index < count; ++index)
+    {
         const auto& monitor = monitors[index];
         char* atom_name = XGetAtomName(display, monitor.name);
         screens.push_back(
@@ -66,18 +73,21 @@ auto Xshm::Monitors() -> Result<std::vector<std::shared_ptr<XshmScreen>>> {
                 .height = static_cast<uint32_t>(monitor.height),
             })
         );
-        if (atom_name != nullptr) {
+        if (atom_name != nullptr)
+        {
             XFree(atom_name);
         }
     }
-    if (monitors != nullptr) {
+    if (monitors != nullptr)
+    {
         XRRFreeMonitors(monitors);
     }
     XCloseDisplay(display);
     return screens;
 }
 
-auto Xshm::EnsureThreads() -> void {
+auto Xshm::EnsureThreads() -> void
+{
     static std::once_flag once;
     std::call_once(once, []() -> void { XInitThreads(); });
 }

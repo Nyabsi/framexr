@@ -20,7 +20,8 @@
 
 #include <utility>
 
-namespace {
+namespace
+{
 
 constexpr uint8_t kLevelModifiers = kModShift | kModMeta;
 constexpr auto kModifierCombinations = std::to_array<uint8_t>({0, kModShift, kModMeta, kModShift | kModMeta});
@@ -29,9 +30,11 @@ constexpr uint32_t kLastKeycode = 255;
 
 } // namespace
 
-auto KeyTranslator::ParseRegion(std::string_view text) -> KeyboardRegion {
+auto KeyTranslator::ParseRegion(std::string_view text) -> KeyboardRegion
+{
     const auto open = text.find('(');
-    if (open == std::string_view::npos || !text.ends_with(')')) {
+    if (open == std::string_view::npos || !text.ends_with(')'))
+    {
         return {.layout = std::string(text), .variant = {}};
     }
     return {
@@ -42,21 +45,28 @@ auto KeyTranslator::ParseRegion(std::string_view text) -> KeyboardRegion {
 
 KeyTranslator::KeyTranslator(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop)
     : m_region(std::move(region)),
-      m_desktop(std::move(desktop)) {
+      m_desktop(std::move(desktop))
+{
 }
 
-auto KeyTranslator::Create(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop) -> KeyTranslator {
+auto KeyTranslator::Create(std::shared_ptr<const Keymap> region, std::shared_ptr<const Keymap> desktop) -> KeyTranslator
+{
     KeyTranslator translator(std::move(region), std::move(desktop));
-    for (size_t caps = 0; caps < translator.m_desktop_keys.size(); ++caps) {
+    for (size_t caps = 0; caps < translator.m_desktop_keys.size(); ++caps)
+    {
         const uint8_t lock = caps == 1 ? kModCapsLock : 0;
-        for (const uint8_t modifiers : kModifierCombinations) {
-            for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code) {
+        for (const uint8_t modifiers : kModifierCombinations)
+        {
+            for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code)
+            {
                 const auto key = static_cast<VirtualKey>(code);
-                if (VirtualKeys::ModifierOf(key)) {
+                if (VirtualKeys::ModifierOf(key))
+                {
                     continue;
                 }
                 const uint32_t symbol = translator.m_desktop->KeySym(key, modifiers | lock);
-                if (symbol != 0) {
+                if (symbol != 0)
+                {
                     translator.m_desktop_keys[caps].try_emplace(symbol, TranslatedKey{.key = key, .modifiers = modifiers});
                 }
             }
@@ -65,14 +75,17 @@ auto KeyTranslator::Create(std::shared_ptr<const Keymap> region, std::shared_ptr
     return translator;
 }
 
-auto KeyTranslator::Translate(VirtualKey key, uint8_t modifiers, bool caps_lock) const -> std::optional<TranslatedKey> {
+auto KeyTranslator::Translate(VirtualKey key, uint8_t modifiers, bool caps_lock) const -> std::optional<TranslatedKey>
+{
     const uint8_t query = (modifiers & kLevelModifiers) | (caps_lock ? kModCapsLock : 0);
     const uint32_t wanted = m_region->KeySym(key, query);
-    if (wanted == 0 || m_desktop->KeySym(key, query) == wanted) {
+    if (wanted == 0 || m_desktop->KeySym(key, query) == wanted)
+    {
         return std::nullopt;
     }
     const auto& keys = m_desktop_keys[caps_lock ? 1 : 0];
-    if (const auto found = keys.find(wanted); found != keys.end()) {
+    if (const auto found = keys.find(wanted); found != keys.end())
+    {
         return found->second;
     }
     return std::nullopt;

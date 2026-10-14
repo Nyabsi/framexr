@@ -34,13 +34,15 @@ struct wl_buffer;
 struct wl_shm_pool;
 struct zwlr_screencopy_frame_v1;
 
-struct ScreencopyBuffer {
+struct ScreencopyBuffer
+{
     wl_shm_pool* pool = nullptr;
     wl_buffer* buffer = nullptr;
     int fd = -1;
 };
 
-struct ScreencopyRequest {
+struct ScreencopyRequest
+{
     WaylandClient* client = nullptr;
     std::string name;
     zwlr_screencopy_frame_v1* frame = nullptr;
@@ -55,7 +57,8 @@ struct ScreencopyRequest {
 
 using ProcessedFrameChannel = FrameChannel<std::unique_ptr<ProcessedFrame>>;
 
-class WlrScreencopyCapture final : public Capture {
+class WlrScreencopyCapture final : public Capture
+{
   public:
     WlrScreencopyCapture(std::unique_ptr<WaylandClient> client, uint32_t output_id);
     ~WlrScreencopyCapture() override;

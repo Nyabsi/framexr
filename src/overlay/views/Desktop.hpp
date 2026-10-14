@@ -47,7 +47,8 @@
 class WaylandClient;
 struct WaylandOutput;
 
-class Desktop final : public View {
+class Desktop final : public View
+{
   public:
     Desktop(
         std::string name,

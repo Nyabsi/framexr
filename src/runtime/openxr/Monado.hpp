@@ -33,7 +33,8 @@
 
 #include "Error.hpp"
 
-enum class MonadoResult : int8_t {
+enum class MonadoResult : int8_t
+{
     Success = 0,
     ErrorInvalidVersion = -1,
     ErrorInvalidValue = -2,
@@ -44,7 +45,8 @@ enum class MonadoResult : int8_t {
     ErrorInvalidOperation = -7,
 };
 
-enum class MonadoReferenceSpace : uint8_t {
+enum class MonadoReferenceSpace : uint8_t
+{
     View = 0,
     Local = 1,
     LocalFloor = 2,
@@ -52,7 +54,8 @@ enum class MonadoReferenceSpace : uint8_t {
     Unbounded = 4,
 };
 
-enum class MonadoDeviceRole : uint8_t {
+enum class MonadoDeviceRole : uint8_t
+{
     Head,
     Eyes,
     Left,
@@ -65,29 +68,34 @@ enum class MonadoDeviceRole : uint8_t {
 constexpr uint32_t kMonadoClientSessionVisible = 4;
 constexpr uint32_t kMonadoClientIoActive = 32;
 
-struct MonadoPose {
+struct MonadoPose
+{
     Eigen::Quaternionf orientation = Eigen::Quaternionf::Identity();
     Eigen::Vector3f position = Eigen::Vector3f::Zero();
 };
 
-struct MonadoRawPose {
+struct MonadoRawPose
+{
     float orientation[4];
     float position[3];
 };
 
-struct MonadoDevice {
+struct MonadoDevice
+{
     uint32_t index = 0;
     uint32_t name_id = 0;
     std::string name;
 };
 
-struct MonadoBatteryStatus {
+struct MonadoBatteryStatus
+{
     bool present = false;
     bool charging = false;
     float charge = 0.0f;
 };
 
-struct MonadoApi {
+struct MonadoApi
+{
     void (*get_version)(uint32_t*, uint32_t*, uint32_t*) = nullptr;
     int32_t (*root_create)(void**) = nullptr;
     void (*root_destroy)(void**) = nullptr;
@@ -105,7 +113,8 @@ struct MonadoApi {
     int32_t (*set_reference_space_offset)(void*, int32_t, const MonadoRawPose*) = nullptr;
 };
 
-class Monado final {
+class Monado final
+{
   public:
     static auto AutoConnect() -> Result<std::unique_ptr<Monado>>;
     static auto Create(const std::filesystem::path& library) -> std::expected<std::unique_ptr<Monado>, MonadoResult>;

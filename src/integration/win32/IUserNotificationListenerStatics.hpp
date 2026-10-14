@@ -25,7 +25,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
-class IUserNotificationListenerStatics : public IInspectable {
+class IUserNotificationListenerStatics : public IInspectable
+{
   public:
     static constexpr GUID kIid{0xff6123cf, 0x4386, 0x4aa3, {0xb7, 0x3d, 0xb8, 0x04, 0xe5, 0xb6, 0x3b, 0x23}};
 

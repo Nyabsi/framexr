@@ -26,7 +26,8 @@
 #include "Device.hpp"
 #include "Image.hpp"
 
-auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
+auto GpuReadback::Read(Image& image) -> std::vector<unsigned char>
+{
     const auto extent = image.Extent();
     const VkDeviceSize size = VkDeviceSize{extent.width} * extent.height * 4;
     const VkDevice handle = g_device->Handle();
@@ -38,7 +39,8 @@ auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
     VkBuffer buffer = VK_NULL_HANDLE;
-    if (vkCreateBuffer(handle, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(handle, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
+    {
         return {};
     }
     VkMemoryRequirements requirements{};
@@ -47,8 +49,10 @@ auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
     vkGetPhysicalDeviceMemoryProperties(g_device->PhysicalDevice(), &properties);
     uint32_t type_index = 0;
     constexpr VkMemoryPropertyFlags kWanted = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    for (uint32_t i = 0; i < properties.memoryTypeCount; ++i) {
-        if ((requirements.memoryTypeBits & (1U << i)) != 0 && (properties.memoryTypes[i].propertyFlags & kWanted) == kWanted) {
+    for (uint32_t i = 0; i < properties.memoryTypeCount; ++i)
+    {
+        if ((requirements.memoryTypeBits & (1U << i)) != 0 && (properties.memoryTypes[i].propertyFlags & kWanted) == kWanted)
+        {
             type_index = i;
             break;
         }
@@ -90,7 +94,8 @@ auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
     queue.WaitIdle();
 
     std::vector<unsigned char> pixels;
-    if (submitted) {
+    if (submitted)
+    {
         pixels.resize(size);
         void* mapped = nullptr;
         vkMapMemory(handle, memory, 0, size, 0, &mapped);
@@ -103,21 +108,27 @@ auto GpuReadback::Read(Image& image) -> std::vector<unsigned char> {
     return pixels;
 }
 
-auto GpuReadback::DistinctColors(std::span<const unsigned char> rgba) -> size_t {
+auto GpuReadback::DistinctColors(std::span<const unsigned char> rgba) -> size_t
+{
     std::vector<uint32_t> colors;
-    for (size_t i = 0; i + 3 < rgba.size() && colors.size() <= 64; i += size_t{4} * 7) {
+    for (size_t i = 0; i + 3 < rgba.size() && colors.size() <= 64; i += size_t{4} * 7)
+    {
         uint32_t color = 0;
         std::memcpy(&color, &rgba[i], 4);
-        if (std::ranges::find(colors, color) == colors.end()) {
+        if (std::ranges::find(colors, color) == colors.end())
+        {
             colors.push_back(color);
         }
     }
     return colors.size();
 }
 
-auto GpuReadback::IsOpaque(std::span<const unsigned char> rgba) -> bool {
-    for (size_t i = 3; i < rgba.size(); i += 4) {
-        if (rgba[i] != 0xff) {
+auto GpuReadback::IsOpaque(std::span<const unsigned char> rgba) -> bool
+{
+    for (size_t i = 3; i < rgba.size(); i += 4)
+    {
+        if (rgba[i] != 0xff)
+        {
             return false;
         }
     }

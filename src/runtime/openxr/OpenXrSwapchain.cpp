@@ -27,7 +27,8 @@
 #include "OpenXrInstance.hpp"
 
 auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, VkExtent2D extent, bool immutable)
-    -> Result<std::unique_ptr<OpenXrSwapchain>> {
+    -> Result<std::unique_ptr<OpenXrSwapchain>>
+{
     const XrSwapchainCreateInfo create_info{
         .type = XR_TYPE_SWAPCHAIN_CREATE_INFO,
         .createFlags = immutable ? XR_SWAPCHAIN_CREATE_STATIC_IMAGE_BIT : XrSwapchainCreateFlags{0},
@@ -51,7 +52,8 @@ auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, 
         xrEnumerateSwapchainImages(handle, count, &count, reinterpret_cast<XrSwapchainImageBaseHeader*>(images.data()))
     ));
 
-    for (const auto& image : images) {
+    for (const auto& image : images)
+    {
         ASSIGN_OR_RETURN(
             auto wrapped,
             g_device->WrapImage(image.image, g_device->NativeFormat(), extent, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
@@ -64,15 +66,18 @@ auto OpenXrSwapchain::Create(const OpenXrInstance& instance, XrSession session, 
 OpenXrSwapchain::OpenXrSwapchain(const OpenXrInstance& instance, XrSwapchain swapchain, VkExtent2D extent)
     : m_instance(&instance),
       m_swapchain(swapchain),
-      m_extent(extent) {
+      m_extent(extent)
+{
 }
 
-OpenXrSwapchain::~OpenXrSwapchain() {
+OpenXrSwapchain::~OpenXrSwapchain()
+{
     m_images.clear();
     xrDestroySwapchain(m_swapchain);
 }
 
-auto OpenXrSwapchain::AcquireWaitImage() -> Result<std::shared_ptr<Image>> {
+auto OpenXrSwapchain::AcquireWaitImage() -> Result<std::shared_ptr<Image>>
+{
     const XrSwapchainImageAcquireInfo acquire_info{.type = XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
     uint32_t index = 0;
     RETURN_IF_ERROR(m_instance->Check(xrAcquireSwapchainImage(m_swapchain, &acquire_info, &index)));
@@ -83,8 +88,10 @@ auto OpenXrSwapchain::AcquireWaitImage() -> Result<std::shared_ptr<Image>> {
     return m_images.at(index);
 }
 
-auto OpenXrSwapchain::EnsureImageReleased() -> Result<> {
-    if (m_acquired) {
+auto OpenXrSwapchain::EnsureImageReleased() -> Result<>
+{
+    if (m_acquired)
+    {
         const XrSwapchainImageReleaseInfo release_info{.type = XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
         RETURN_IF_ERROR(m_instance->Check(xrReleaseSwapchainImage(m_swapchain, &release_info)));
         m_acquired = false;
@@ -92,7 +99,8 @@ auto OpenXrSwapchain::EnsureImageReleased() -> Result<> {
     return {};
 }
 
-auto OpenXrSwapchain::SubImage() const -> XrSwapchainSubImage {
+auto OpenXrSwapchain::SubImage() const -> XrSwapchainSubImage
+{
     return XrSwapchainSubImage{
         .swapchain = m_swapchain,
         .imageRect =

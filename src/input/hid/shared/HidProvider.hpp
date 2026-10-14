@@ -40,7 +40,8 @@ constexpr uint16_t kMouseRight = 0x111;
 
 constexpr uint16_t kMouseMiddle = 0x112;
 
-class HidProvider {
+class HidProvider
+{
   public:
     static auto Create() -> std::unique_ptr<HidProvider>;
     static auto UseNative() -> bool { return m_use_native.load(); }
@@ -62,12 +63,14 @@ class HidProvider {
     static inline std::atomic<bool> m_use_native{true};
 };
 
-struct MouseButtonAction {
+struct MouseButtonAction
+{
     uint16_t button = 0;
     bool down = false;
 };
 
-struct PendingMouseAction {
+struct PendingMouseAction
+{
     std::optional<Eigen::Vector2f> last_requested_position;
     std::optional<Eigen::Vector2f> position;
     std::vector<MouseButtonAction> buttons;

@@ -20,6 +20,7 @@
 
 #include "LayoutInputMethod.hpp"
 
-auto InputMethod::Create() -> std::unique_ptr<InputMethod> {
+auto InputMethod::Create() -> std::unique_ptr<InputMethod>
+{
     return std::make_unique<LayoutInputMethod>();
 }

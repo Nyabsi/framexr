@@ -29,7 +29,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct DragMultiplierElement {
+struct DragMultiplierElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -38,7 +39,8 @@ struct DragMultiplierElement {
     size_t form = 0;
 };
 
-class DragMultiplierComponent final : public FormComponent {
+class DragMultiplierComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "DragMultiplier";
 

@@ -38,20 +38,25 @@
 #include "Watch.hpp"
 #include "views/Keyboard.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kArmWindow = std::chrono::seconds(4);
 constexpr auto kRestyleInterval = std::chrono::milliseconds(300);
 
-auto SampleText(const FormElement& element) -> std::string {
-    if (std::holds_alternative<ExecElement>(element)) {
+auto SampleText(const FormElement& element) -> std::string
+{
+    if (std::holds_alternative<ExecElement>(element))
+    {
         return "Output";
     }
     Form scratch;
     Form::Instantiate(scratch, std::span(&element, 1), {.theme = g_themes->Active()});
     scratch.UpdateAll();
-    for (const auto& item : scratch.Build()) {
-        if (const auto* text = std::get_if<TextItem>(&item); text != nullptr && !text->text.empty()) {
+    for (const auto& item : scratch.Build())
+    {
+        if (const auto* text = std::get_if<TextItem>(&item); text != nullptr && !text->text.empty())
+        {
             return text->text;
         }
     }
@@ -60,13 +65,15 @@ auto SampleText(const FormElement& element) -> std::string {
 
 } // namespace
 
-auto Editor::Create() -> std::shared_ptr<Editor> {
+auto Editor::Create() -> std::shared_ptr<Editor>
+{
     auto editor = std::make_shared<Editor>(
         Forms::Watch(g_config->watch_profile),
         KeyboardLayout::Find(g_config->keyboard_profile),
         g_config->watch_profile
     );
-    if (editor->m_drafts.Restore(*editor)) {
+    if (editor->m_drafts.Restore(*editor))
+    {
         Notify("Picked up your unsaved edits where you left off");
     }
     return editor;
@@ -78,23 +85,28 @@ Editor::Editor(FormDocument watch, KeyboardLayout keyboard, std::string watch_pr
       m_theme_history(g_themes->Active()),
       m_text(std::make_shared<TextEntry>()),
       m_keyboard_file(m_keyboard_design.Document().Name()),
-      m_watch_profile(std::move(watch_profile)) {
+      m_watch_profile(std::move(watch_profile))
+{
     m_text->SetOnChange([this]() -> void { Touch(); });
     m_watch_design.measure = [](std::string_view text, int font_size) -> float { return FontCache::Width(text, font_size); };
     m_watch_design.city_text = [](const ClockElement& clock) -> std::string { return ClockComponent::City(clock.timezone); };
     m_watch_design.label_text = SampleText;
 }
 
-auto Editor::Dirty() const -> bool {
+auto Editor::Dirty() const -> bool
+{
     return m_watch_design.Revisions().Dirty() || m_keyboard_design.Revisions().Dirty() || m_theme_history.Dirty();
 }
 
-auto Editor::Revision(PanelKind kind) const -> uint64_t {
+auto Editor::Revision(PanelKind kind) const -> uint64_t
+{
     return kind == PanelKind::Preview || PanelPlacement::LayerOf(kind) ? m_preview_revision : m_revision;
 }
 
-auto Editor::PanelSize(PanelKind kind) const -> Eigen::Vector2f {
-    switch (kind) {
+auto Editor::PanelSize(PanelKind kind) const -> Eigen::Vector2f
+{
+    switch (kind)
+    {
     case PanelKind::Preview:
         return m_target == EditTarget::Keyboard ? m_keyboard_design.PreviewSize() : m_watch_design.PreviewSize();
     case PanelKind::Toolbar: return {1040.0f, 58.0f};
@@ -109,42 +121,54 @@ auto Editor::PanelSize(PanelKind kind) const -> Eigen::Vector2f {
     return m_watch_design.PreviewSize();
 }
 
-auto Editor::Accepts(PanelKind kind, const Eigen::Vector2f& point) const -> bool {
+auto Editor::Accepts(PanelKind kind, const Eigen::Vector2f& point) const -> bool
+{
     const auto layer = PanelPlacement::LayerOf(kind);
     return !layer || m_watch_design.Accepts(m_watch_design.ToDocument(point), *layer);
 }
 
-auto Editor::Lines() const -> std::vector<EditorLine> {
+auto Editor::Lines() const -> std::vector<EditorLine>
+{
     return m_placement.Lines(*this);
 }
 
-auto Editor::Open() -> void {
+auto Editor::Open() -> void
+{
     m_placement.Open(shared_from_this());
 }
 
-auto Editor::Update() -> void {
-    if (m_watch_apply) {
+auto Editor::Update() -> void
+{
+    if (m_watch_apply)
+    {
         ApplyWatch();
     }
-    if (m_restore_saved_watch) {
+    if (m_restore_saved_watch)
+    {
         m_restore_saved_watch = false;
-        if (auto* live = dynamic_cast<Watch*>(g_container->ByName(kWatchName))) {
-            if (const auto applied = live->Apply(Forms::Watch(m_watch_profile)); !applied) {
+        if (auto* live = dynamic_cast<Watch*>(g_container->ByName(kWatchName)))
+        {
+            if (const auto applied = live->Apply(Forms::Watch(m_watch_profile)); !applied)
+            {
                 LOG_ERROR("Could not restore the saved watch: {}", applied.error().Message());
             }
         }
     }
-    if (!m_closing) {
+    if (!m_closing)
+    {
         m_drafts.Save(*this, false);
     }
     const auto now = std::chrono::steady_clock::now();
-    if (m_restyle_keyboard && !m_colors.Dragging() && now - m_last_restyle > kRestyleInterval) {
+    if (m_restyle_keyboard && !m_colors.Dragging() && now - m_last_restyle > kRestyleInterval)
+    {
         m_restyle_keyboard = false;
         m_last_restyle = now;
         Keyboard::SwitchProfile(g_interaction->TypingKeymap(), g_config->keyboard_profile);
     }
-    if (m_closing) {
-        if (!m_finished) {
+    if (m_closing)
+    {
+        if (!m_finished)
+        {
             m_placement.Close();
             m_text->End();
             m_finished = true;
@@ -152,79 +176,99 @@ auto Editor::Update() -> void {
         return;
     }
     if (m_owner && !m_carrying && *m_owner < g_interaction->Pointers().size()
-        && !g_interaction->Pointers().at(*m_owner).Now().click) {
+        && !g_interaction->Pointers().at(*m_owner).Now().click)
+    {
         m_owner.reset();
     }
-    if (m_revert_armed && now - *m_revert_armed > kArmWindow) {
+    if (m_revert_armed && now - *m_revert_armed > kArmWindow)
+    {
         m_revert_armed.reset();
         Touch();
     }
     m_placement.Place(*this);
 }
 
-auto Editor::SetHidden(bool hidden) -> void {
+auto Editor::SetHidden(bool hidden) -> void
+{
     m_hidden = hidden;
-    if (hidden) {
+    if (hidden)
+    {
         m_carrying.reset();
         m_owner.reset();
     }
 }
 
-auto Editor::Claim(size_t pointer) -> void {
+auto Editor::Claim(size_t pointer) -> void
+{
     m_owner = pointer;
 }
 
-auto Editor::Unclaim(size_t pointer) -> void {
-    if (m_owner == pointer && !m_carrying) {
+auto Editor::Unclaim(size_t pointer) -> void
+{
+    if (m_owner == pointer && !m_carrying)
+    {
         m_owner.reset();
     }
 }
 
-auto Editor::PreviewHover(const Eigen::Vector2f& point) -> std::optional<Haptics> {
+auto Editor::PreviewHover(const Eigen::Vector2f& point) -> std::optional<Haptics>
+{
     m_last_point = point;
-    if (m_target == EditTarget::Theme) {
+    if (m_target == EditTarget::Theme)
+    {
         return std::nullopt;
     }
-    if (m_target == EditTarget::Watch) {
+    if (m_target == EditTarget::Watch)
+    {
         const auto before = m_watch_design.Hovered();
-        if (m_carrying) {
-            if (const auto* part = std::get_if<FormPart>(&*m_carrying)) {
+        if (m_carrying)
+        {
+            if (const auto* part = std::get_if<FormPart>(&*m_carrying))
+            {
                 m_watch_design.SetCarrying(std::pair{*part, m_watch_design.ToDocument(point)});
             }
         }
         const auto guides_before = m_watch_design.Guides().size();
         const bool engaged = m_watch_design.Engaged();
         m_watch_design.Hover(m_watch_design.ToDocument(point));
-        if (!engaged && m_watch_design.Engaged()) {
+        if (!engaged && m_watch_design.Engaged())
+        {
             ++m_preview_revision;
             return Haptics{.intensity = 0.4f, .duration = 0.04f, .frequency = 120.0f};
         }
-        if (m_watch_design.Dragging() || m_watch_design.Carrying() || m_watch_design.Hovered() != before) {
+        if (m_watch_design.Dragging() || m_watch_design.Carrying() || m_watch_design.Hovered() != before)
+        {
             ++m_preview_revision;
         }
-        if (m_watch_design.Dragging() && m_watch_design.Guides().size() > guides_before) {
+        if (m_watch_design.Dragging() && m_watch_design.Guides().size() > guides_before)
+        {
             return Haptics{.intensity = 0.15f, .duration = 0.01f, .frequency = 5.0f};
         }
         return std::nullopt;
     }
     const auto before = m_keyboard_design.Hovered();
-    if (m_carrying) {
-        if (const auto* key_template = std::get_if<KeyTemplate>(&*m_carrying)) {
+    if (m_carrying)
+    {
+        if (const auto* key_template = std::get_if<KeyTemplate>(&*m_carrying))
+        {
             m_keyboard_design.SetCarrying(std::pair{*key_template, point});
         }
     }
     const bool engaged = m_keyboard_design.Engaged();
     m_keyboard_design.Hover(point);
-    if (m_keyboard_design.Carrying() || m_keyboard_design.Hovered() != before || m_keyboard_design.Engaged()) {
+    if (m_keyboard_design.Carrying() || m_keyboard_design.Hovered() != before || m_keyboard_design.Engaged())
+    {
         ++m_preview_revision;
     }
-    if (!engaged && m_keyboard_design.Engaged()) {
+    if (!engaged && m_keyboard_design.Engaged())
+    {
         return Haptics{.intensity = 0.4f, .duration = 0.04f, .frequency = 120.0f};
     }
     return std::nullopt;
 }
 
-auto Editor::PreviewLeft() -> void {
+auto Editor::PreviewLeft() -> void
+{
     m_watch_design.Hovered().reset();
     m_watch_design.Carrying().reset();
     m_keyboard_design.Hovered().reset();
@@ -232,38 +276,54 @@ auto Editor::PreviewLeft() -> void {
     ++m_preview_revision;
 }
 
-auto Editor::PreviewPointer(PanelKind kind, const PointerHit& hit, const Eigen::Vector2f& point, bool pressed) -> void {
+auto Editor::PreviewPointer(PanelKind kind, const PointerHit& hit, const Eigen::Vector2f& point, bool pressed) -> void
+{
     const Eigen::Vector2f at = pressed || m_placement.ShowsPreview(hit.overlay) ? point : m_last_point;
-    if (pressed) {
+    if (pressed)
+    {
         m_text->Commit();
     }
-    if (m_target == EditTarget::Theme) {
+    if (m_target == EditTarget::Theme)
+    {
         return;
     }
-    if (m_target == EditTarget::Watch) {
-        if (pressed) {
+    if (m_target == EditTarget::Watch)
+    {
+        if (pressed)
+        {
             m_watch_design.Press(m_watch_design.ToDocument(at), PanelPlacement::LayerOf(kind));
-        } else if (m_watch_design.Release(m_watch_design.ToDocument(at))) {
+        }
+        else if (m_watch_design.Release(m_watch_design.ToDocument(at)))
+        {
             m_watch_apply = true;
         }
-    } else if (pressed) {
+    }
+    else if (pressed)
+    {
         m_keyboard_design.Press(at);
-    } else {
+    }
+    else
+    {
         m_keyboard_design.Release(at);
     }
     Touch();
 }
 
-auto Editor::PanelReleased(PanelKind from, const PointerHit& hit) -> bool {
-    if (!m_carrying || from != PanelKind::Palette) {
+auto Editor::PanelReleased(PanelKind from, const PointerHit& hit) -> bool
+{
+    if (!m_carrying || from != PanelKind::Palette)
+    {
         return false;
     }
-    if (m_placement.ShowsPreview(hit.overlay)) {
+    if (m_placement.ShowsPreview(hit.overlay))
+    {
         Drop(hit.uv.cwiseProduct(PanelSize(PanelKind::Preview)));
-    } else if (
+    }
+    else if (
         m_placement.ShowsPalette(hit.overlay)
         && m_placement.ShowsPalette(g_interaction->Pointers().at(hit.pointer).Interaction().hovered_id.value_or(OverlayId{}))
-    ) {
+    )
+    {
         Drop(std::nullopt);
     }
     m_carrying.reset();
@@ -274,8 +334,10 @@ auto Editor::PanelReleased(PanelKind from, const PointerHit& hit) -> bool {
     return true;
 }
 
-auto Editor::SwitchTarget(EditTarget next) -> void {
-    if (m_target == next) {
+auto Editor::SwitchTarget(EditTarget next) -> void
+{
+    if (m_target == next)
+    {
         return;
     }
     m_target = next;
@@ -285,19 +347,26 @@ auto Editor::SwitchTarget(EditTarget next) -> void {
     Touch();
 }
 
-auto Editor::SetExploded(bool exploded) -> void {
+auto Editor::SetExploded(bool exploded) -> void
+{
     m_exploded = exploded;
     m_watch_design.Hovered().reset();
     Touch();
 }
 
-auto Editor::StartCarry(PaletteItem item) -> void {
+auto Editor::StartCarry(PaletteItem item) -> void
+{
     m_carrying = item;
-    if (m_owner) {
+    if (m_owner)
+    {
         m_carry_pointer = *m_owner;
-    } else {
-        for (const auto& pointer : g_interaction->Pointers()) {
-            if (pointer.Now().click) {
+    }
+    else
+    {
+        for (const auto& pointer : g_interaction->Pointers())
+        {
+            if (pointer.Now().click)
+            {
                 m_carry_pointer = pointer.Index();
             }
         }
@@ -305,134 +374,184 @@ auto Editor::StartCarry(PaletteItem item) -> void {
     Touch();
 }
 
-auto Editor::Drop(std::optional<Eigen::Vector2f> point) -> void {
-    if (!m_carrying) {
+auto Editor::Drop(std::optional<Eigen::Vector2f> point) -> void
+{
+    if (!m_carrying)
+    {
         return;
     }
-    if (const auto* part = std::get_if<FormPart>(&*m_carrying)) {
-        if (m_target == EditTarget::Keyboard) {
+    if (const auto* part = std::get_if<FormPart>(&*m_carrying))
+    {
+        if (m_target == EditTarget::Keyboard)
+        {
             return;
         }
         std::optional<Eigen::Vector2f> at;
-        if (point) {
+        if (point)
+        {
             at = m_watch_design.ToDocument(*point);
         }
         m_watch_design.Insert(*part, at);
         m_watch_apply = true;
-    } else if (const auto* key_template = std::get_if<KeyTemplate>(&*m_carrying)) {
-        if (m_target == EditTarget::Watch) {
+    }
+    else if (const auto* key_template = std::get_if<KeyTemplate>(&*m_carrying))
+    {
+        if (m_target == EditTarget::Watch)
+        {
             return;
         }
         auto cell = std::pair{0.0f, m_keyboard_design.Document().Rows()};
-        if (point) {
+        if (point)
+        {
             cell = m_keyboard_design.DropCell(*point);
-        } else if (const auto free = m_keyboard_design.Document().FreeCells(); !free.empty() && *key_template == KeyTemplate::Key) {
+        }
+        else if (const auto free = m_keyboard_design.Document().FreeCells(); !free.empty() && *key_template == KeyTemplate::Key)
+        {
             cell = free.front();
         }
-        if (!m_keyboard_design.Place(*key_template, cell.first, cell.second)) {
+        if (!m_keyboard_design.Place(*key_template, cell.first, cell.second))
+        {
             Notify("No room for that there");
         }
     }
     Touch();
 }
 
-auto Editor::Undo() -> void {
-    if (m_target == EditTarget::Theme) {
-        if (m_theme_history.Undo()) {
+auto Editor::Undo() -> void
+{
+    if (m_target == EditTarget::Theme)
+    {
+        if (m_theme_history.Undo())
+        {
             ApplyTheme();
         }
-    } else if (m_target == EditTarget::Watch) {
-        if (m_watch_design.Revisions().Undo()) {
+    }
+    else if (m_target == EditTarget::Watch)
+    {
+        if (m_watch_design.Revisions().Undo())
+        {
             m_watch_design.Selected().reset();
             m_watch_apply = true;
         }
-    } else if (m_keyboard_design.Revisions().Undo()) {
+    }
+    else if (m_keyboard_design.Revisions().Undo())
+    {
         m_keyboard_design.Selected().reset();
     }
     m_dialog = DialogKind::None;
     Touch();
 }
 
-auto Editor::Redo() -> void {
-    if (m_target == EditTarget::Theme) {
-        if (m_theme_history.Redo()) {
+auto Editor::Redo() -> void
+{
+    if (m_target == EditTarget::Theme)
+    {
+        if (m_theme_history.Redo())
+        {
             ApplyTheme();
         }
-    } else if (m_target == EditTarget::Watch) {
-        if (m_watch_design.Revisions().Redo()) {
+    }
+    else if (m_target == EditTarget::Watch)
+    {
+        if (m_watch_design.Revisions().Redo())
+        {
             m_watch_design.Selected().reset();
             m_watch_apply = true;
         }
-    } else if (m_keyboard_design.Revisions().Redo()) {
+    }
+    else if (m_keyboard_design.Revisions().Redo())
+    {
         m_keyboard_design.Selected().reset();
     }
     m_dialog = DialogKind::None;
     Touch();
 }
 
-auto Editor::EditWatch(const std::function<void(FormDocument&)>& change) -> void {
-    if (m_amend) {
+auto Editor::EditWatch(const std::function<void(FormDocument&)>& change) -> void
+{
+    if (m_amend)
+    {
         m_watch_design.Revisions().Amend(change);
-    } else {
+    }
+    else
+    {
         m_watch_design.Revisions().Edit(change);
     }
     WatchChanged();
 }
 
-auto Editor::EditKeyboard(const std::function<void(KeyboardLayout&)>& change) -> void {
-    if (m_amend) {
+auto Editor::EditKeyboard(const std::function<void(KeyboardLayout&)>& change) -> void
+{
+    if (m_amend)
+    {
         m_keyboard_design.Revisions().Amend(change);
-    } else {
+    }
+    else
+    {
         m_keyboard_design.Revisions().Edit(change);
     }
     Touch();
 }
 
-auto Editor::EditTheme(const std::function<void(ThemeDefinition&)>& change) -> void {
-    if (m_amend) {
+auto Editor::EditTheme(const std::function<void(ThemeDefinition&)>& change) -> void
+{
+    if (m_amend)
+    {
         m_theme_history.Amend(change);
-    } else {
+    }
+    else
+    {
         m_theme_history.Edit(change);
     }
     ApplyTheme();
     Touch();
 }
 
-auto Editor::WatchChanged() -> void {
+auto Editor::WatchChanged() -> void
+{
     m_watch_apply = true;
     Touch();
 }
 
-auto Editor::SetKeyCategory(size_t category) -> void {
+auto Editor::SetKeyCategory(size_t category) -> void
+{
     m_key_category = category;
     Touch();
 }
 
-auto Editor::ApplyWatch() -> void {
+auto Editor::ApplyWatch() -> void
+{
     m_watch_apply = false;
-    if (auto* live = dynamic_cast<Watch*>(g_container->ByName(kWatchName))) {
-        if (const auto applied = live->Apply(m_watch_design.Document()); !applied) {
+    if (auto* live = dynamic_cast<Watch*>(g_container->ByName(kWatchName)))
+    {
+        if (const auto applied = live->Apply(m_watch_design.Document()); !applied)
+        {
             LOG_ERROR("Could not apply watch layout: {}", applied.error().Message());
         }
     }
 }
 
-auto Editor::ApplyTheme() -> void {
+auto Editor::ApplyTheme() -> void
+{
     g_themes->SetActive(m_theme_history.Current());
-    if (g_fonts != nullptr) {
+    if (g_fonts != nullptr)
+    {
         g_fonts->SetFamily(m_theme_history.Current().font);
     }
     m_watch_apply = true;
     m_restyle_keyboard = true;
 }
 
-auto Editor::ApplyKeyboard() -> void {
+auto Editor::ApplyKeyboard() -> void
+{
     Keyboard::SwitchProfile(g_interaction->TypingKeymap(), m_keyboard_design.Document().Name());
 }
 
-auto Editor::ArmDelete() -> bool {
+auto Editor::ArmDelete() -> bool
+{
     const auto now = std::chrono::steady_clock::now();
-    if (!m_delete_armed || now - *m_delete_armed > kArmWindow) {
+    if (!m_delete_armed || now - *m_delete_armed > kArmWindow)
+    {
         m_delete_armed = now;
         Touch();
         return false;
@@ -441,11 +560,14 @@ auto Editor::ArmDelete() -> bool {
     return true;
 }
 
-auto Editor::SelectWatch(const std::string& name) -> void {
-    if (name == m_watch_profile) {
+auto Editor::SelectWatch(const std::string& name) -> void
+{
+    if (name == m_watch_profile)
+    {
         return;
     }
-    if (m_watch_design.Revisions().Dirty()) {
+    if (m_watch_design.Revisions().Dirty())
+    {
         Notify("Save or revert this watch first");
         return;
     }
@@ -454,7 +576,8 @@ auto Editor::SelectWatch(const std::string& name) -> void {
     m_watch_design.Selected().reset();
     m_watch_design.SelectedForm().reset();
     g_config->watch_profile = name;
-    if (const auto saved = ConfigStore::SaveSettings(); !saved) {
+    if (const auto saved = ConfigStore::SaveSettings(); !saved)
+    {
         Notify(saved.error().Message());
     }
     m_delete_armed.reset();
@@ -462,17 +585,21 @@ auto Editor::SelectWatch(const std::string& name) -> void {
     WatchChanged();
 }
 
-auto Editor::NewWatch() -> void {
-    if (m_watch_design.Revisions().Dirty()) {
+auto Editor::NewWatch() -> void
+{
+    if (m_watch_design.Revisions().Dirty())
+    {
         Notify("Save or revert this watch first");
         return;
     }
     const auto profiles = Forms::WatchProfiles();
     std::string name = "watch-2";
-    for (int number = 3; std::ranges::contains(profiles, name); ++number) {
+    for (int number = 3; std::ranges::contains(profiles, name); ++number)
+    {
         name = std::format("watch-{}", number);
     }
-    if (const auto written = Forms::SaveWatch(name, m_watch_design.Document()); !written) {
+    if (const auto written = Forms::SaveWatch(name, m_watch_design.Document()); !written)
+    {
         Notify(written.error().Message());
         return;
     }
@@ -480,16 +607,20 @@ auto Editor::NewWatch() -> void {
     Notify(std::format("Created watch layout {}", name));
 }
 
-auto Editor::RenameWatch(const std::string& name) -> void {
+auto Editor::RenameWatch(const std::string& name) -> void
+{
     if (name.empty() || name == m_watch_profile || Forms::IsBuiltInWatch(m_watch_profile)
-        || name.find_first_of("/\\.") != std::string::npos) {
+        || name.find_first_of("/\\.") != std::string::npos)
+    {
         return;
     }
-    if (std::ranges::contains(Forms::WatchProfiles(), name)) {
+    if (std::ranges::contains(Forms::WatchProfiles(), name))
+    {
         Notify(std::format("{} already exists", name));
         return;
     }
-    if (const auto written = Forms::SaveWatch(name, m_watch_design.Document()); !written) {
+    if (const auto written = Forms::SaveWatch(name, m_watch_design.Document()); !written)
+    {
         Notify(written.error().Message());
         return;
     }
@@ -497,14 +628,17 @@ auto Editor::RenameWatch(const std::string& name) -> void {
     m_watch_profile = name;
     m_watch_design.Revisions().MarkSaved();
     g_config->watch_profile = name;
-    if (const auto saved = ConfigStore::SaveSettings(); !saved) {
+    if (const auto saved = ConfigStore::SaveSettings(); !saved)
+    {
         Notify(saved.error().Message());
     }
     Touch();
 }
 
-auto Editor::DeleteWatch() -> void {
-    if (Forms::IsBuiltInWatch(m_watch_profile) || !ArmDelete()) {
+auto Editor::DeleteWatch() -> void
+{
+    if (Forms::IsBuiltInWatch(m_watch_profile) || !ArmDelete())
+    {
         return;
     }
     Forms::DeleteWatch(m_watch_profile);
@@ -513,11 +647,14 @@ auto Editor::DeleteWatch() -> void {
     SelectWatch(std::string(Forms::kDefaultWatch));
 }
 
-auto Editor::SelectKeyboard(const std::string& name) -> void {
-    if (name == m_keyboard_file) {
+auto Editor::SelectKeyboard(const std::string& name) -> void
+{
+    if (name == m_keyboard_file)
+    {
         return;
     }
-    if (m_keyboard_design.Revisions().Dirty()) {
+    if (m_keyboard_design.Revisions().Dirty())
+    {
         Notify("Save or revert this keyboard first");
         return;
     }
@@ -525,7 +662,8 @@ auto Editor::SelectKeyboard(const std::string& name) -> void {
     m_keyboard_file = m_keyboard_design.Document().Name();
     m_keyboard_design.Selected().reset();
     g_config->keyboard_profile = m_keyboard_file;
-    if (const auto saved = ConfigStore::SaveSettings(); !saved) {
+    if (const auto saved = ConfigStore::SaveSettings(); !saved)
+    {
         Notify(saved.error().Message());
     }
     ApplyKeyboard();
@@ -534,9 +672,11 @@ auto Editor::SelectKeyboard(const std::string& name) -> void {
     Touch();
 }
 
-auto Editor::DeleteKeyboard() -> void {
+auto Editor::DeleteKeyboard() -> void
+{
     const auto& layout = m_keyboard_design.Document();
-    if (KeyboardLayout::IsBuiltIn(layout.Name()) || layout.Source().empty() || !ArmDelete()) {
+    if (KeyboardLayout::IsBuiltIn(layout.Name()) || layout.Source().empty() || !ArmDelete())
+    {
         return;
     }
     std::error_code error;
@@ -548,17 +688,21 @@ auto Editor::DeleteKeyboard() -> void {
     SelectKeyboard(KeyboardLayout::All().front().Name());
 }
 
-auto Editor::SelectTheme(const std::string& name) -> void {
-    if (name == m_theme_history.Current().name) {
+auto Editor::SelectTheme(const std::string& name) -> void
+{
+    if (name == m_theme_history.Current().name)
+    {
         return;
     }
-    if (m_theme_history.Dirty()) {
+    if (m_theme_history.Dirty())
+    {
         Notify("Save or revert this theme first");
         return;
     }
     m_theme_history.Reset(g_themes->Find(name));
     g_config->theme = m_theme_history.Current().name;
-    if (const auto saved = ConfigStore::SaveSettings(); !saved) {
+    if (const auto saved = ConfigStore::SaveSettings(); !saved)
+    {
         Notify(saved.error().Message());
     }
     ApplyTheme();
@@ -567,18 +711,22 @@ auto Editor::SelectTheme(const std::string& name) -> void {
     Touch();
 }
 
-auto Editor::NewTheme() -> void {
-    if (m_theme_history.Dirty()) {
+auto Editor::NewTheme() -> void
+{
+    if (m_theme_history.Dirty())
+    {
         Notify("Save or revert this theme first");
         return;
     }
     std::string name = "my-theme";
-    for (int number = 2; std::ranges::contains(g_themes->All(), name, &ThemeDefinition::name); ++number) {
+    for (int number = 2; std::ranges::contains(g_themes->All(), name, &ThemeDefinition::name); ++number)
+    {
         name = std::format("my-theme-{}", number);
     }
     auto copy = m_theme_history.Current();
     copy.name = name;
-    if (const auto written = FormTheme::Save(copy); !written) {
+    if (const auto written = FormTheme::Save(copy); !written)
+    {
         Notify(written.error().Message());
         return;
     }
@@ -587,19 +735,23 @@ auto Editor::NewTheme() -> void {
     Notify(std::format("Created theme {}", name));
 }
 
-auto Editor::RenameTheme(const std::string& name) -> void {
+auto Editor::RenameTheme(const std::string& name) -> void
+{
     const auto& current = m_theme_history.Current();
     if (name.empty() || name == current.name || FormTheme::IsBuiltIn(current.name)
-        || name.find_first_of("/\\.") != std::string::npos) {
+        || name.find_first_of("/\\.") != std::string::npos)
+    {
         return;
     }
-    if (std::ranges::contains(g_themes->All(), name, &ThemeDefinition::name)) {
+    if (std::ranges::contains(g_themes->All(), name, &ThemeDefinition::name))
+    {
         Notify(std::format("{} already exists", name));
         return;
     }
     auto renamed = current;
     renamed.name = name;
-    if (const auto written = FormTheme::Save(renamed); !written) {
+    if (const auto written = FormTheme::Save(renamed); !written)
+    {
         Notify(written.error().Message());
         return;
     }
@@ -608,16 +760,19 @@ auto Editor::RenameTheme(const std::string& name) -> void {
     g_themes->Reload();
     m_theme_history.Reset(g_themes->Find(name));
     g_config->theme = name;
-    if (const auto saved = ConfigStore::SaveSettings(); !saved) {
+    if (const auto saved = ConfigStore::SaveSettings(); !saved)
+    {
         Notify(saved.error().Message());
     }
     ApplyTheme();
     Touch();
 }
 
-auto Editor::DeleteTheme() -> void {
+auto Editor::DeleteTheme() -> void
+{
     const auto& current = m_theme_history.Current();
-    if (FormTheme::IsBuiltIn(current.name) || current.source.empty() || !ArmDelete()) {
+    if (FormTheme::IsBuiltIn(current.name) || current.source.empty() || !ArmDelete())
+    {
         return;
     }
     std::error_code error;
@@ -628,27 +783,35 @@ auto Editor::DeleteTheme() -> void {
     SelectTheme(g_themes->All().front().name);
 }
 
-auto Editor::Save() -> void {
+auto Editor::Save() -> void
+{
     SaveTarget(m_target);
 }
 
-auto Editor::SaveAll() -> void {
-    if (m_watch_design.Revisions().Dirty()) {
+auto Editor::SaveAll() -> void
+{
+    if (m_watch_design.Revisions().Dirty())
+    {
         SaveTarget(EditTarget::Watch);
     }
-    if (m_keyboard_design.Revisions().Dirty()) {
+    if (m_keyboard_design.Revisions().Dirty())
+    {
         SaveTarget(EditTarget::Keyboard);
     }
-    if (m_theme_history.Dirty()) {
+    if (m_theme_history.Dirty())
+    {
         SaveTarget(EditTarget::Theme);
     }
     Close();
 }
 
-auto Editor::SaveTarget(EditTarget target) -> void {
-    if (target == EditTarget::Theme) {
+auto Editor::SaveTarget(EditTarget target) -> void
+{
+    if (target == EditTarget::Theme)
+    {
         const auto& saved = m_theme_history.Current();
-        if (const auto written = FormTheme::Save(saved); !written) {
+        if (const auto written = FormTheme::Save(saved); !written)
+        {
             Notify(written.error().Message());
             return;
         }
@@ -659,8 +822,10 @@ auto Editor::SaveTarget(EditTarget target) -> void {
         Touch();
         return;
     }
-    if (target == EditTarget::Watch) {
-        if (const auto written = Forms::SaveWatch(m_watch_profile, m_watch_design.Document()); !written) {
+    if (target == EditTarget::Watch)
+    {
+        if (const auto written = Forms::SaveWatch(m_watch_profile, m_watch_design.Document()); !written)
+        {
             Notify(written.error().Message());
             return;
         }
@@ -671,7 +836,8 @@ auto Editor::SaveTarget(EditTarget target) -> void {
         return;
     }
     auto& layout = m_keyboard_design.Revisions().Live();
-    if (const auto written = KeyboardLayout::Save(layout); !written) {
+    if (const auto written = KeyboardLayout::Save(layout); !written)
+    {
         Notify(written.error().Message());
         return;
     }
@@ -683,49 +849,64 @@ auto Editor::SaveTarget(EditTarget target) -> void {
     Touch();
 }
 
-auto Editor::SaveAsNew() -> void {
+auto Editor::SaveAsNew() -> void
+{
     const auto base = m_keyboard_design.Document().Name();
     std::string name = std::format("{}-custom", base);
-    for (int number = 2; std::ranges::contains(KeyboardLayout::All(), name, &KeyboardLayout::Name); ++number) {
+    for (int number = 2; std::ranges::contains(KeyboardLayout::All(), name, &KeyboardLayout::Name); ++number)
+    {
         name = std::format("{}-custom-{}", base, number);
     }
-    EditKeyboard([&name](KeyboardLayout& layout) -> void {
-        layout.SetName(name);
-        layout.Source().clear();
-    });
+    EditKeyboard(
+        [&name](KeyboardLayout& layout) -> void
+        {
+            layout.SetName(name);
+            layout.Source().clear();
+        }
+    );
     SaveTarget(EditTarget::Keyboard);
 }
 
-auto Editor::Revert() -> void {
+auto Editor::Revert() -> void
+{
     const auto now = std::chrono::steady_clock::now();
-    if (!m_revert_armed || now - *m_revert_armed > kArmWindow) {
+    if (!m_revert_armed || now - *m_revert_armed > kArmWindow)
+    {
         m_revert_armed = now;
         Touch();
         return;
     }
     m_revert_armed.reset();
     std::error_code error;
-    if (m_target == EditTarget::Theme) {
+    if (m_target == EditTarget::Theme)
+    {
         const auto name = m_theme_history.Current().name;
-        if (FormTheme::IsBuiltIn(name)) {
+        if (FormTheme::IsBuiltIn(name))
+        {
             std::filesystem::remove(FormTheme::UserDirectory() / std::format("{}.yaml", name), error);
         }
         g_themes->Reload();
         m_theme_history.Reset(g_themes->Find(name));
         ApplyTheme();
         Notify(std::format("Theme {} reverted", name));
-    } else if (m_target == EditTarget::Watch) {
-        if (Forms::IsBuiltInWatch(m_watch_profile)) {
+    }
+    else if (m_target == EditTarget::Watch)
+    {
+        if (Forms::IsBuiltInWatch(m_watch_profile))
+        {
             Forms::DeleteWatch(m_watch_profile);
         }
         m_watch_design.Revisions().Reset(Forms::Watch(m_watch_profile));
         m_watch_design.Selected().reset();
         m_watch_apply = true;
         Notify("Watch reverted");
-    } else {
+    }
+    else
+    {
         const auto& layout = m_keyboard_design.Document();
         const std::string name = m_keyboard_file;
-        if (!layout.Source().empty()) {
+        if (!layout.Source().empty())
+        {
             std::filesystem::remove(layout.Source(), error);
         }
         KeyboardLayout::Reload();
@@ -740,9 +921,11 @@ auto Editor::Revert() -> void {
     Touch();
 }
 
-auto Editor::Done() -> void {
+auto Editor::Done() -> void
+{
     m_text->Commit();
-    if (Dirty()) {
+    if (Dirty())
+    {
         m_closing_prompt = true;
         Touch();
         return;
@@ -750,77 +933,91 @@ auto Editor::Done() -> void {
     Close();
 }
 
-auto Editor::KeepEditing() -> void {
+auto Editor::KeepEditing() -> void
+{
     m_closing_prompt = false;
     Touch();
 }
 
-auto Editor::Discard() -> void {
+auto Editor::Discard() -> void
+{
     m_keyboard_design.Revisions().Reset(KeyboardLayout(m_keyboard_design.Document()));
-    if (m_theme_history.Dirty()) {
+    if (m_theme_history.Dirty())
+    {
         m_theme_history.Reset(g_themes->Find(m_theme_history.Current().name));
         ApplyTheme();
     }
-    if (m_watch_design.Revisions().Dirty()) {
+    if (m_watch_design.Revisions().Dirty())
+    {
         m_watch_design.Revisions().Reset(Forms::Watch(m_watch_profile));
         m_watch_apply = true;
     }
     Close();
 }
 
-auto Editor::Suspend() -> void {
+auto Editor::Suspend() -> void
+{
     m_text->Commit();
     m_restore_saved_watch = m_watch_design.Revisions().Dirty();
     Close();
 }
 
-auto Editor::Close() -> void {
+auto Editor::Close() -> void
+{
     m_text->End();
     m_drafts.Save(*this, true);
     m_closing_prompt = false;
     m_closing = true;
 }
 
-auto Editor::OpenColor(ColorTarget target) -> void {
+auto Editor::OpenColor(ColorTarget target) -> void
+{
     m_colors.Open(std::move(target));
     m_dialog = DialogKind::Color;
     Touch();
 }
 
-auto Editor::OpenActions(ButtonTrigger trigger) -> void {
+auto Editor::OpenActions(ButtonTrigger trigger) -> void
+{
     m_trigger = trigger;
     m_dialog = DialogKind::Actions;
     Touch();
 }
 
-auto Editor::OpenKeyPicker() -> void {
+auto Editor::OpenKeyPicker() -> void
+{
     m_dialog = DialogKind::KeyPicker;
     Touch();
 }
 
-auto Editor::OpenTimezones(size_t element) -> void {
+auto Editor::OpenTimezones(size_t element) -> void
+{
     m_timezone_element = element;
     m_timezone_query.clear();
     m_dialog = DialogKind::Timezone;
     Touch();
 }
 
-auto Editor::OpenFonts() -> void {
+auto Editor::OpenFonts() -> void
+{
     m_font_query.clear();
     m_dialog = DialogKind::Font;
     Touch();
 }
 
-auto Editor::CloseDialog() -> void {
+auto Editor::CloseDialog() -> void
+{
     m_dialog = DialogKind::None;
     Touch();
 }
 
-auto Editor::Touch() -> void {
+auto Editor::Touch() -> void
+{
     ++m_revision;
     ++m_preview_revision;
 }
 
-auto Editor::Notify(std::string text) -> void {
+auto Editor::Notify(std::string text) -> void
+{
     Toast::Show(ToastMessage{.topic = ToastTopic::System, .title = std::move(text), .timeout = 3.0f});
 }

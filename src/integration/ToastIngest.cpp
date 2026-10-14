@@ -34,7 +34,8 @@
 #include "Logger.hpp"
 #include "Toast.hpp"
 
-namespace {
+namespace
+{
 
 constexpr size_t kChannelCapacity = 10;
 
@@ -46,39 +47,52 @@ constexpr std::byte kToastSoundFlag{0x01};
 
 } // namespace
 
-auto ToastIngest::Utf8Error(std::string_view text) -> std::optional<std::string> {
+auto ToastIngest::Utf8Error(std::string_view text) -> std::optional<std::string>
+{
     const auto byte = [&](size_t index) -> uint32_t { return static_cast<unsigned char>(text[index]); };
     size_t index = 0;
-    while (index < text.size()) {
+    while (index < text.size())
+    {
         const uint32_t first = byte(index);
         size_t width = 0;
         uint32_t low = 0x80;
         uint32_t high = 0xbf;
-        if (first < 0x80) {
+        if (first < 0x80)
+        {
             ++index;
             continue;
         }
-        if (first >= 0xc2 && first <= 0xdf) {
+        if (first >= 0xc2 && first <= 0xdf)
+        {
             width = 2;
-        } else if (first >= 0xe0 && first <= 0xef) {
+        }
+        else if (first >= 0xe0 && first <= 0xef)
+        {
             width = 3;
             low = first == 0xe0 ? 0xa0 : 0x80;
             high = first == 0xed ? 0x9f : 0xbf;
-        } else if (first >= 0xf0 && first <= 0xf4) {
+        }
+        else if (first >= 0xf0 && first <= 0xf4)
+        {
             width = 4;
             low = first == 0xf0 ? 0x90 : 0x80;
             high = first == 0xf4 ? 0x8f : 0xbf;
-        } else {
+        }
+        else
+        {
             return std::format("Utf8Error {{ valid_up_to: {}, error_len: Some(1) }}", index);
         }
-        for (size_t offset = 1; offset < width; ++offset) {
-            if (index + offset >= text.size()) {
+        for (size_t offset = 1; offset < width; ++offset)
+        {
+            if (index + offset >= text.size())
+            {
                 return std::format("Utf8Error {{ valid_up_to: {}, error_len: None }}", index);
             }
             const uint32_t next = byte(index + offset);
             const uint32_t min = offset == 1 ? low : 0x80;
             const uint32_t max = offset == 1 ? high : 0xbf;
-            if (next < min || next > max) {
+            if (next < min || next > max)
+            {
                 return std::format("Utf8Error {{ valid_up_to: {}, error_len: Some({}) }}", index, offset);
             }
         }
@@ -87,9 +101,11 @@ auto ToastIngest::Utf8Error(std::string_view text) -> std::optional<std::string>
     return std::nullopt;
 }
 
-auto ToastIngest::Encode(const ToastMessage& toast) -> std::vector<std::byte> {
+auto ToastIngest::Encode(const ToastMessage& toast) -> std::vector<std::byte>
+{
     ByteWriter writer;
-    for (const auto byte : kToastMagic) {
+    for (const auto byte : kToastMagic)
+    {
         writer.Byte(byte);
     }
     writer.Byte(kToastVersion);
@@ -102,14 +118,18 @@ auto ToastIngest::Encode(const ToastMessage& toast) -> std::vector<std::byte> {
     return writer.Take();
 }
 
-auto ToastIngest::Decode(std::span<const std::byte> message) -> Result<ToastMessage> {
+auto ToastIngest::Decode(std::span<const std::byte> message) -> Result<ToastMessage>
+{
     ByteReader reader(message);
-    for (const auto expected : kToastMagic) {
-        if (reader.Byte() != expected) {
+    for (const auto expected : kToastMagic)
+    {
+        if (reader.Byte() != expected)
+        {
             return Unexpected("Invalid toast message header");
         }
     }
-    if (reader.Byte() != kToastVersion) {
+    if (reader.Byte() != kToastVersion)
+    {
         return Unexpected("Unsupported toast message version");
     }
     const auto topic = reader.Byte();
@@ -118,10 +138,12 @@ auto ToastIngest::Decode(std::span<const std::byte> message) -> Result<ToastMess
     const auto timeout = reader.Float();
     auto title = reader.String();
     auto body = reader.String();
-    if (!topic || !flags || !opacity || !timeout || !title || !body || !reader.Empty()) {
+    if (!topic || !flags || !opacity || !timeout || !title || !body || !reader.Empty())
+    {
         return Unexpected("Malformed toast message");
     }
-    if (static_cast<uint8_t>(*topic) > static_cast<uint8_t>(ToastTopic::IpdChange)) {
+    if (static_cast<uint8_t>(*topic) > static_cast<uint8_t>(ToastTopic::IpdChange))
+    {
         return Unexpected("Unknown toast topic");
     }
     return ToastMessage{
@@ -134,30 +156,37 @@ auto ToastIngest::Decode(std::span<const std::byte> message) -> Result<ToastMess
     };
 }
 
-auto ToastIngest::FromXsOverlay(std::string_view json) -> Result<std::optional<ToastMessage>> {
+auto ToastIngest::FromXsOverlay(std::string_view json) -> Result<std::optional<ToastMessage>>
+{
     const auto message = nlohmann::json::parse(json, nullptr, false);
-    if (message.is_discarded() || !message.is_object()) {
+    if (message.is_discarded() || !message.is_object())
+    {
         return Unexpected("invalid JSON");
     }
-    const auto optional_float = [&](const char* key, float fallback) -> float {
+    const auto optional_float = [&](const char* key, float fallback) -> float
+    {
         const auto it = message.find(key);
         return it != message.end() && it->is_number() ? it->get<float>() : fallback;
     };
 
     const auto type = message.find("messageType");
     const auto title = message.find("title");
-    if (type == message.end() || !type->is_number_integer()) {
+    if (type == message.end() || !type->is_number_integer())
+    {
         return Unexpected("missing field `messageType`");
     }
-    if (title == message.end() || !title->is_string()) {
+    if (title == message.end() || !title->is_string())
+    {
         return Unexpected("missing field `title`");
     }
-    if (type->get<int32_t>() != 1) {
+    if (type->get<int32_t>() != 1)
+    {
         return std::nullopt;
     }
 
     std::string body;
-    if (const auto content = message.find("content"); content != message.end() && content->is_string()) {
+    if (const auto content = message.find("content"); content != message.end() && content->is_string())
+    {
         body = content->get<std::string>();
     }
     return ToastMessage{
@@ -169,16 +198,19 @@ auto ToastIngest::FromXsOverlay(std::string_view json) -> Result<std::optional<T
     };
 }
 
-auto ToastIngest::Push(const ToastMessage& toast) -> void {
+auto ToastIngest::Push(const ToastMessage& toast) -> void
+{
     std::scoped_lock lock(m_mutex);
-    if (m_messages.size() >= kChannelCapacity) {
+    if (m_messages.size() >= kChannelCapacity)
+    {
         LOG_ERROR("Failed to send notification: queue is full");
         return;
     }
     m_messages.push_back(Encode(toast));
 }
 
-auto ToastIngest::Drain() -> std::vector<ToastMessage> {
+auto ToastIngest::Drain() -> std::vector<ToastMessage>
+{
     std::vector<std::vector<std::byte>> messages;
     {
         std::scoped_lock lock(m_mutex);
@@ -186,8 +218,10 @@ auto ToastIngest::Drain() -> std::vector<ToastMessage> {
     }
     std::vector<ToastMessage> toasts;
     toasts.reserve(messages.size());
-    for (const auto& message : messages) {
-        if (auto toast = Decode(message)) {
+    for (const auto& message : messages)
+    {
+        if (auto toast = Decode(message))
+        {
             toasts.push_back(std::move(*toast));
         }
     }

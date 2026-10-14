@@ -37,13 +37,15 @@
 #include "View.hpp"
 #include "Compose.hpp"
 
-struct OpenVrLine {
+struct OpenVrLine
+{
     size_t id = 0;
     std::unique_ptr<View> overlay;
     OpenVrOverlayData data;
 };
 
-class OpenVrLines final {
+class OpenVrLines final
+{
   public:
     static auto Create() -> Result<OpenVrLines>;
 

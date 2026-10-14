@@ -31,7 +31,8 @@
 #include "KeyboardDesigner.hpp"
 #include "Yaml.hpp"
 
-namespace {
+namespace
+{
 
 constexpr std::string_view kWatchYaml = R"(
 width: 0.1
@@ -56,57 +57,68 @@ keys:
   - { at: [1, 0], key: B }
 )";
 
-auto Overlaps(const CanvasRect& a, const CanvasRect& b) -> bool {
+auto Overlaps(const CanvasRect& a, const CanvasRect& b) -> bool
+{
     return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-auto SmallWatch() -> FormDesigner {
+auto SmallWatch() -> FormDesigner
+{
     FormDesigner designer(Yaml::Parse(kWatchYaml)->get<FormDocument>());
     designer.SetHold({});
     return designer;
 }
 
-auto Drag(FormDesigner& designer, const Eigen::Vector2f& from, const Eigen::Vector2f& to) -> bool {
+auto Drag(FormDesigner& designer, const Eigen::Vector2f& from, const Eigen::Vector2f& to) -> bool
+{
     designer.Press(from);
     designer.Move((from + to) / 2.0f);
     designer.Move(to);
     return designer.Release(to);
 }
 
-auto Text(const FormElement& element) -> std::string {
+auto Text(const FormElement& element) -> std::string
+{
     const auto* button = std::get_if<ButtonElement>(&element);
     return button != nullptr ? button->text : std::string();
 }
 
-auto ToolbarTexts(const FormDocument& config) -> std::vector<std::string> {
+auto ToolbarTexts(const FormDocument& config) -> std::vector<std::string>
+{
     std::vector<std::string> texts;
-    for (const auto& element : config.Components()) {
-        if (FormElements::RegionOf(element) == Region::Toolbar) {
+    for (const auto& element : config.Components())
+    {
+        if (FormElements::RegionOf(element) == Region::Toolbar)
+        {
             texts.push_back(Text(element));
         }
     }
     return texts;
 }
 
-auto SmallKeyboard() -> KeyboardDesigner {
+auto SmallKeyboard() -> KeyboardDesigner
+{
     KeyboardDesigner designer(*KeyboardLayout::Parse(kKeyboardYaml));
     designer.SetHold({});
     return designer;
 }
 
-auto CellCenter(float x, int row, float width = 1.0f) -> Eigen::Vector2f {
+auto CellCenter(float x, int row, float width = 1.0f) -> Eigen::Vector2f
+{
     const auto rect = Keyboard::KeyRect({.x = x, .row = row, .width = width}, {.scale = KeyboardDesigner::kScale});
     return {rect.x + rect.w / 2.0f, rect.y + rect.h / 2.0f};
 }
 
-auto Click(KeyboardDesigner& designer, const Eigen::Vector2f& point) -> bool {
+auto Click(KeyboardDesigner& designer, const Eigen::Vector2f& point) -> bool
+{
     designer.Press(point);
     return designer.Release(point);
 }
 
 } // namespace
 
-TEST(FormDesigner, DraggingSnapsToTheFormCentreAndCanBeUndone) {
+TEST(FormDesigner, DraggingSnapsToTheFormCentreAndCanBeUndone)
+{
     auto designer = SmallWatch();
     EXPECT_TRUE(Drag(designer, {40.0f, 30.0f}, {98.0f, 30.0f}));
     EXPECT_EQ(designer.Selected(), 1U);
@@ -128,7 +140,8 @@ TEST(FormDesigner, DraggingSnapsToTheFormCentreAndCanBeUndone) {
     EXPECT_FALSE(designer.Revisions().Dirty());
 }
 
-TEST(FormDesigner, QuickClicksNeverMoveComponents) {
+TEST(FormDesigner, QuickClicksNeverMoveComponents)
+{
     FormDesigner designer(Yaml::Parse(kWatchYaml)->get<FormDocument>());
     designer.Press({40.0f, 30.0f});
     designer.Move({80.0f, 60.0f});
@@ -139,7 +152,8 @@ TEST(FormDesigner, QuickClicksNeverMoveComponents) {
     EXPECT_FALSE(designer.Revisions().CanUndo());
 }
 
-TEST(FormDesigner, ClickingTheSelectionAgainClosesIt) {
+TEST(FormDesigner, ClickingTheSelectionAgainClosesIt)
+{
     auto designer = SmallWatch();
     designer.Press({40.0f, 30.0f});
     EXPECT_FALSE(designer.Release({40.0f, 30.0f}));
@@ -161,7 +175,8 @@ TEST(FormDesigner, ClickingTheSelectionAgainClosesIt) {
     EXPECT_FALSE(designer.SelectedForm().has_value());
 }
 
-TEST(FormDesigner, HoldingLiftsAComponentBeforeItFollows) {
+TEST(FormDesigner, HoldingLiftsAComponentBeforeItFollows)
+{
     FormDesigner designer(Yaml::Parse(kWatchYaml)->get<FormDocument>());
     designer.SetSnap(false);
     designer.SetHold(std::chrono::milliseconds(30));
@@ -178,7 +193,8 @@ TEST(FormDesigner, HoldingLiftsAComponentBeforeItFollows) {
     EXPECT_FLOAT_EQ(FormElements::Rect(designer.Document().Components()[1])[1], 20.0f);
 }
 
-TEST(FormDesigner, ComponentsTrackTheLaserAndLandInsideTheForm) {
+TEST(FormDesigner, ComponentsTrackTheLaserAndLandInsideTheForm)
+{
     auto designer = SmallWatch();
     designer.Press({40.0f, 30.0f});
     designer.Move({0.0f, 30.0f});
@@ -192,7 +208,8 @@ TEST(FormDesigner, ComponentsTrackTheLaserAndLandInsideTheForm) {
     EXPECT_FLOAT_EQ(landed[1], 15.0f);
 }
 
-TEST(FormDesigner, SnappingHoldsOneAlignmentInsteadOfFlickering) {
+TEST(FormDesigner, SnappingHoldsOneAlignmentInsteadOfFlickering)
+{
     auto config = Yaml::Parse(kWatchYaml)->get<FormDocument>();
     config.Components().emplace_back(PanelElement{.rect = {100.0f, 60.0f, 32.0f, 20.0f}, .bg_color = "#ffffff"});
     FormDesigner designer(std::move(config));
@@ -202,7 +219,8 @@ TEST(FormDesigner, SnappingHoldsOneAlignmentInsteadOfFlickering) {
     designer.Move({116.0f, 30.0f});
     const float first = FormElements::Rect(designer.Document().Components()[1])[0];
     EXPECT_FALSE(designer.Guides().empty());
-    for (const float x : {115.0f, 117.0f, 115.5f, 116.5f, 115.0f, 117.0f}) {
+    for (const float x : {115.0f, 117.0f, 115.5f, 116.5f, 115.0f, 117.0f})
+    {
         designer.Move({x, 30.0f});
         EXPECT_FLOAT_EQ(FormElements::Rect(designer.Document().Components()[1])[0], first) << x;
     }
@@ -211,7 +229,8 @@ TEST(FormDesigner, SnappingHoldsOneAlignmentInsteadOfFlickering) {
     designer.Release({170.0f, 30.0f});
 }
 
-TEST(FormDesigner, ElementsStayInsideTheForm) {
+TEST(FormDesigner, ElementsStayInsideTheForm)
+{
     auto designer = SmallWatch();
     Drag(designer, {40.0f, 30.0f}, {-200.0f, -200.0f});
     const auto& rect = FormElements::Rect(designer.Document().Components()[1]);
@@ -219,30 +238,34 @@ TEST(FormDesigner, ElementsStayInsideTheForm) {
     EXPECT_FLOAT_EQ(rect[1], 0.0f);
 }
 
-TEST(FormDesigner, ToolbarItemsReorderByDragging) {
+TEST(FormDesigner, ToolbarItemsReorderByDragging)
+{
     auto designer = SmallWatch();
     EXPECT_EQ(ToolbarTexts(designer.Document()), (std::vector<std::string>{"A", "B"}));
     EXPECT_TRUE(Drag(designer, {60.0f, 115.0f}, {185.0f, 115.0f}));
     EXPECT_EQ(ToolbarTexts(designer.Document()), (std::vector<std::string>{"B", "A"}));
 }
 
-TEST(FormDesigner, ElementsMoveBetweenTheFormAndTheToolbar) {
+TEST(FormDesigner, ElementsMoveBetweenTheFormAndTheToolbar)
+{
     auto designer = SmallWatch();
     EXPECT_TRUE(Drag(designer, {40.0f, 30.0f}, {190.0f, 115.0f}));
     EXPECT_EQ(ToolbarTexts(designer.Document()), (std::vector<std::string>{"A", "B", "1"}));
 
     EXPECT_TRUE(Drag(designer, {60.0f, 115.0f}, {100.0f, 50.0f}));
     EXPECT_EQ(ToolbarTexts(designer.Document()), (std::vector<std::string>{"B", "1"}));
-    const auto moved = std::ranges::find_if(designer.Document().Components(), [](const FormElement& element) -> bool {
-        return Text(element) == "A";
-    });
+    const auto moved = std::ranges::find_if(
+        designer.Document().Components(),
+        [](const FormElement& element) -> bool { return Text(element) == "A"; }
+    );
     ASSERT_NE(moved, designer.Document().Components().end());
     EXPECT_EQ(FormElements::RegionOf(*moved), Region::Form);
     const auto& rect = FormElements::Rect(*moved);
     EXPECT_NEAR(rect[0] + rect[2] / 2.0f, 100.0f, 0.01f);
 }
 
-TEST(FormDesigner, CornersResizeTheFormToolbarAndElements) {
+TEST(FormDesigner, CornersResizeTheFormToolbarAndElements)
+{
     auto designer = SmallWatch();
     EXPECT_TRUE(Drag(designer, {200.0f, 100.0f}, {248.0f, 118.0f}));
     EXPECT_FLOAT_EQ(designer.Document().Form().width, 250.0f);
@@ -258,7 +281,8 @@ TEST(FormDesigner, CornersResizeTheFormToolbarAndElements) {
     EXPECT_FLOAT_EQ(rect[3], 30.0f);
 }
 
-TEST(FormDesigner, DroppingOutsideEveryFormCancels) {
+TEST(FormDesigner, DroppingOutsideEveryFormCancels)
+{
     auto designer = SmallWatch();
     const auto count = designer.Document().Components().size();
     EXPECT_FALSE(designer.Insert(FormPart::Button, Eigen::Vector2f(-200.0f, -200.0f)).has_value());
@@ -268,7 +292,8 @@ TEST(FormDesigner, DroppingOutsideEveryFormCancels) {
     EXPECT_EQ(designer.Document().Components().size(), count + 1);
 }
 
-TEST(FormDesigner, ResizingAClockScalesItsCityToo) {
+TEST(FormDesigner, ResizingAClockScalesItsCityToo)
+{
     auto config = Yaml::Parse(kWatchYaml)->get<FormDocument>();
     config.Components().emplace_back(
         ClockElement{.rect = {20.0f, 60.0f, 0.0f, 0.0f}, .font_size = 12, .fg_color = "#ffffff", .format = "%H:%M", .city_size = 10}
@@ -288,7 +313,8 @@ TEST(FormDesigner, ResizingAClockScalesItsCityToo) {
     EXPECT_EQ(*clock.city_size, static_cast<int>(std::lround(10.0f * static_cast<float>(clock.font_size) / 12.0f)));
 }
 
-TEST(FormDesigner, ResizingStaysBetweenTheContentAndTheForm) {
+TEST(FormDesigner, ResizingStaysBetweenTheContentAndTheForm)
+{
     auto designer = SmallWatch();
     designer.SetSnap(false);
     designer.Press({40.0f, 30.0f});
@@ -310,7 +336,8 @@ TEST(FormDesigner, ResizingStaysBetweenTheContentAndTheForm) {
     EXPECT_FLOAT_EQ(designer.Document().Form().height, 100.0f);
 }
 
-TEST(FormDesigner, LabelsAreMeasuredByTheirText) {
+TEST(FormDesigner, LabelsAreMeasuredByTheirText)
+{
     auto config = Yaml::Parse(kWatchYaml)->get<FormDocument>();
     config.Components().emplace_back(
         LabelElement{
@@ -331,7 +358,8 @@ TEST(FormDesigner, LabelsAreMeasuredByTheirText) {
     EXPECT_FLOAT_EQ(FormElements::Rect(designer.Document().Components()[index])[0], 150.0f);
 }
 
-TEST(FormDesigner, ExtraFormsHoldTheirOwnElements) {
+TEST(FormDesigner, ExtraFormsHoldTheirOwnElements)
+{
     auto designer = SmallWatch();
     EXPECT_FALSE(designer.Insert(FormPart::Form, Eigen::Vector2f(100.0f, 50.0f)).has_value());
     ASSERT_EQ(designer.Document().Forms().size(), 1U);
@@ -356,7 +384,8 @@ TEST(FormDesigner, ExtraFormsHoldTheirOwnElements) {
     EXPECT_EQ(designer.Document().Components().size(), elements);
 }
 
-TEST(FormDesigner, ExtraFormsDockAgainstTheMainForm) {
+TEST(FormDesigner, ExtraFormsDockAgainstTheMainForm)
+{
     auto designer = SmallWatch();
     designer.Insert(FormPart::Form, std::nullopt);
     const auto form = designer.FormBounds(1);
@@ -369,7 +398,8 @@ TEST(FormDesigner, ExtraFormsDockAgainstTheMainForm) {
     EXPECT_FLOAT_EQ(designer.Document().Forms()[0].y, 0.0f);
 }
 
-TEST(FormDesigner, PartsLandWhereTheyAreDropped) {
+TEST(FormDesigner, PartsLandWhereTheyAreDropped)
+{
     auto designer = SmallWatch();
     const auto button = designer.Insert(FormPart::Button, Eigen::Vector2f(100.0f, 50.0f));
     ASSERT_TRUE(button.has_value());
@@ -385,7 +415,8 @@ TEST(FormDesigner, PartsLandWhereTheyAreDropped) {
     EXPECT_FALSE(designer.Selected().has_value());
 }
 
-TEST(FormDesigner, LayersOnlySeeTheirOwnElements) {
+TEST(FormDesigner, LayersOnlySeeTheirOwnElements)
+{
     auto designer = SmallWatch();
     const Eigen::Vector2f on_button{40.0f, 30.0f};
     const Eigen::Vector2f on_panel{150.0f, 80.0f};
@@ -402,7 +433,8 @@ TEST(FormDesigner, LayersOnlySeeTheirOwnElements) {
     designer.Release(on_button);
 }
 
-TEST(KeyboardDesigner, PlusCellsAddKeys) {
+TEST(KeyboardDesigner, PlusCellsAddKeys)
+{
     auto designer = SmallKeyboard();
     EXPECT_EQ(designer.HitTest(CellCenter(2.0f, 0)).kind, KeyHitKind::Cell);
     EXPECT_TRUE(Click(designer, CellCenter(2.0f, 0)));
@@ -413,7 +445,8 @@ TEST(KeyboardDesigner, PlusCellsAddKeys) {
     EXPECT_TRUE(std::holds_alternative<BlankKey>(key.action));
 }
 
-TEST(KeyboardDesigner, ColumnsAndRowsGrowAndShrinkAfterConfirming) {
+TEST(KeyboardDesigner, ColumnsAndRowsGrowAndShrinkAfterConfirming)
+{
     auto designer = SmallKeyboard();
     designer.AddColumn();
     EXPECT_FLOAT_EQ(designer.Document().Columns(), 4.0f);
@@ -435,7 +468,8 @@ TEST(KeyboardDesigner, ColumnsAndRowsGrowAndShrinkAfterConfirming) {
     EXPECT_FALSE(designer.RemoveRow());
 }
 
-TEST(KeyboardDesigner, QuickClicksOnlySelectKeys) {
+TEST(KeyboardDesigner, QuickClicksOnlySelectKeys)
+{
     KeyboardDesigner designer(*KeyboardLayout::Parse(kKeyboardYaml));
     designer.Press(CellCenter(0.0f, 0));
     designer.Hover(CellCenter(2.0f, 1));
@@ -445,7 +479,8 @@ TEST(KeyboardDesigner, QuickClicksOnlySelectKeys) {
     EXPECT_EQ(designer.Document().Keys()[0].row, 0);
 }
 
-TEST(KeyboardDesigner, ClickingTheSelectedKeyAgainClosesIt) {
+TEST(KeyboardDesigner, ClickingTheSelectedKeyAgainClosesIt)
+{
     auto designer = SmallKeyboard();
     EXPECT_FALSE(Click(designer, CellCenter(0.0f, 0)));
     EXPECT_EQ(designer.Selected(), 0U);
@@ -455,7 +490,8 @@ TEST(KeyboardDesigner, ClickingTheSelectedKeyAgainClosesIt) {
     EXPECT_EQ(designer.Selected(), 0U);
 }
 
-TEST(KeyboardDesigner, KeysDragOnlyIntoFreeSpace) {
+TEST(KeyboardDesigner, KeysDragOnlyIntoFreeSpace)
+{
     auto designer = SmallKeyboard();
     designer.Press(CellCenter(0.0f, 0));
     designer.Hover(CellCenter(2.0f, 1));
@@ -471,7 +507,8 @@ TEST(KeyboardDesigner, KeysDragOnlyIntoFreeSpace) {
     EXPECT_EQ(designer.Document().Keys().back().row, 1);
 }
 
-TEST(KeyboardDesigner, TemplatesGrowTheGridButNeverOverlap) {
+TEST(KeyboardDesigner, TemplatesGrowTheGridButNeverOverlap)
+{
     auto designer = SmallKeyboard();
     EXPECT_TRUE(designer.Place(KeyTemplate::Arrows, 3.0f, 0));
     EXPECT_FLOAT_EQ(designer.Document().Columns(), 6.0f);
@@ -481,7 +518,8 @@ TEST(KeyboardDesigner, TemplatesGrowTheGridButNeverOverlap) {
     EXPECT_TRUE(designer.Document().Validate().has_value());
 }
 
-TEST(KeyboardDesigner, WidthStopsAtTheNextKey) {
+TEST(KeyboardDesigner, WidthStopsAtTheNextKey)
+{
     auto designer = SmallKeyboard();
     EXPECT_FALSE(designer.Resize(0, kKeyStep));
     EXPECT_TRUE(designer.Resize(1, 1.0f));

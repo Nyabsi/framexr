@@ -24,11 +24,14 @@
 #include "Keymap.hpp"
 #include "KeyTranslator.hpp"
 
-namespace {
+namespace
+{
 
-auto Load(const char* layout) -> std::shared_ptr<const Keymap> {
+auto Load(const char* layout) -> std::shared_ptr<const Keymap>
+{
     auto loaded = Keymap::FromNames(layout, "");
-    if (!loaded) {
+    if (!loaded)
+    {
         return nullptr;
     }
     return std::make_shared<const Keymap>(std::move(*loaded));
@@ -36,7 +39,8 @@ auto Load(const char* layout) -> std::shared_ptr<const Keymap> {
 
 } // namespace
 
-TEST(KeyboardRegion, ParsesLayoutAndVariant) {
+TEST(KeyboardRegion, ParsesLayoutAndVariant)
+{
     const auto plain = KeyTranslator::ParseRegion("fi");
     EXPECT_EQ(plain.layout, "fi");
     EXPECT_TRUE(plain.variant.empty());
@@ -45,10 +49,12 @@ TEST(KeyboardRegion, ParsesLayoutAndVariant) {
     EXPECT_EQ(variant.variant, "classic");
 }
 
-TEST(KeyTranslator, FinnishSymbolsAreTypedWithTheDesktopKeys) {
+TEST(KeyTranslator, FinnishSymbolsAreTypedWithTheDesktopKeys)
+{
     const auto finnish = Load("fi");
     const auto us = Load("us");
-    if (!finnish || !us) {
+    if (!finnish || !us)
+    {
         GTEST_SKIP() << "xkb layout data not installed";
     }
     const auto translator = KeyTranslator::Create(finnish, us);
@@ -65,10 +71,12 @@ TEST(KeyTranslator, FinnishSymbolsAreTypedWithTheDesktopKeys) {
     EXPECT_EQ(us->KeySym(minus->key, minus->modifiers), plus);
 }
 
-TEST(KeyTranslator, KeysThatAlreadyMatchOrCannotBeTypedAreLeftAlone) {
+TEST(KeyTranslator, KeysThatAlreadyMatchOrCannotBeTypedAreLeftAlone)
+{
     const auto finnish = Load("fi");
     const auto us = Load("us");
-    if (!finnish || !us) {
+    if (!finnish || !us)
+    {
         GTEST_SKIP() << "xkb layout data not installed";
     }
     const auto translator = KeyTranslator::Create(finnish, us);
@@ -81,34 +89,43 @@ TEST(KeyTranslator, KeysThatAlreadyMatchOrCannotBeTypedAreLeftAlone) {
     EXPECT_FALSE(same.Translate(VirtualKey::Minus, 0, false).has_value());
 }
 
-TEST(KeyTranslator, CapsLockPicksTheCaseOnTheDesktop) {
+TEST(KeyTranslator, CapsLockPicksTheCaseOnTheDesktop)
+{
     const auto finnish = Load("fi");
     const auto german = Load("de");
-    if (!finnish || !german) {
+    if (!finnish || !german)
+    {
         GTEST_SKIP() << "xkb layout data not installed";
     }
     const auto translator = KeyTranslator::Create(finnish, german);
     const uint32_t wanted = finnish->KeySym(VirtualKey::Oem7, kModCapsLock);
     const auto upper = translator.Translate(VirtualKey::Oem7, 0, true);
-    if (german->KeySym(VirtualKey::Oem7, kModCapsLock) == wanted) {
+    if (german->KeySym(VirtualKey::Oem7, kModCapsLock) == wanted)
+    {
         EXPECT_FALSE(upper.has_value());
-    } else {
+    }
+    else
+    {
         ASSERT_TRUE(upper.has_value());
         EXPECT_EQ(german->KeySym(upper->key, static_cast<uint8_t>(upper->modifiers | kModCapsLock)), wanted);
     }
 }
 
-TEST(KeyTranslator, JisSymbolsAreTypedWithTheDesktopKeys) {
+TEST(KeyTranslator, JisSymbolsAreTypedWithTheDesktopKeys)
+{
     const auto japanese = Load("jp");
     const auto us = Load("us");
-    if (!japanese || !us) {
+    if (!japanese || !us)
+    {
         GTEST_SKIP() << "xkb layout data not installed";
     }
     const auto translator = KeyTranslator::Create(japanese, us);
-    for (const auto key : {VirtualKey::Oem4, VirtualKey::Oem7, VirtualKey::Yen, VirtualKey::AbntC1}) {
+    for (const auto key : {VirtualKey::Oem4, VirtualKey::Oem7, VirtualKey::Yen, VirtualKey::AbntC1})
+    {
         const uint32_t wanted = japanese->KeySym(key, 0);
         const auto typed = translator.Translate(key, 0, false);
-        if (us->KeySym(key, 0) == wanted) {
+        if (us->KeySym(key, 0) == wanted)
+        {
             EXPECT_FALSE(typed.has_value());
             continue;
         }

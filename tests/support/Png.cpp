@@ -23,31 +23,39 @@
 #include <string_view>
 #include <vector>
 
-namespace {
+namespace
+{
 
-auto Crc32(std::span<const unsigned char> data) -> uint32_t {
+auto Crc32(std::span<const unsigned char> data) -> uint32_t
+{
     uint32_t crc = ~0U;
-    for (const unsigned char byte : data) {
+    for (const unsigned char byte : data)
+    {
         crc ^= byte;
-        for (int bit = 0; bit < 8; ++bit) {
+        for (int bit = 0; bit < 8; ++bit)
+        {
             crc = (crc >> 1U) ^ (0xEDB88320U & (0U - (crc & 1U)));
         }
     }
     return ~crc;
 }
 
-auto AppendBigEndian(std::vector<unsigned char>& out, uint32_t value) -> void {
-    for (int shift = 24; shift >= 0; shift -= 8) {
+auto AppendBigEndian(std::vector<unsigned char>& out, uint32_t value) -> void
+{
+    for (int shift = 24; shift >= 0; shift -= 8)
+    {
         out.push_back(static_cast<unsigned char>(value >> static_cast<uint32_t>(shift)));
     }
 }
 
 } // namespace
 
-auto Png::Write(const std::filesystem::path& path, uint32_t width, uint32_t height, std::span<const unsigned char> rgba) -> void {
+auto Png::Write(const std::filesystem::path& path, uint32_t width, uint32_t height, std::span<const unsigned char> rgba) -> void
+{
     std::vector<unsigned char> raw;
     raw.reserve((size_t{width} * 4 + 1) * height);
-    for (uint32_t y = 0; y < height; ++y) {
+    for (uint32_t y = 0; y < height; ++y)
+    {
         raw.push_back(0);
         const auto row = rgba.subspan(size_t{y} * width * 4, size_t{width} * 4);
         raw.insert(raw.end(), row.begin(), row.end());
@@ -56,11 +64,13 @@ auto Png::Write(const std::filesystem::path& path, uint32_t width, uint32_t heig
     std::vector<unsigned char> zlib{0x78, 0x01};
     uint32_t adler_a = 1;
     uint32_t adler_b = 0;
-    for (const unsigned char byte : raw) {
+    for (const unsigned char byte : raw)
+    {
         adler_a = (adler_a + byte) % 65521U;
         adler_b = (adler_b + adler_a) % 65521U;
     }
-    for (size_t offset = 0; offset < raw.size(); offset += 65535) {
+    for (size_t offset = 0; offset < raw.size(); offset += 65535)
+    {
         const auto length = static_cast<uint32_t>(std::min<size_t>(65535, raw.size() - offset));
         zlib.push_back(offset + length >= raw.size() ? 1 : 0);
         zlib.push_back(static_cast<unsigned char>(length & 0xffU));
@@ -73,7 +83,8 @@ auto Png::Write(const std::filesystem::path& path, uint32_t width, uint32_t heig
     AppendBigEndian(zlib, (adler_b << 16U) | adler_a);
 
     std::vector<unsigned char> png{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
-    const auto chunk = [&png](std::string_view type, std::span<const unsigned char> data) -> void {
+    const auto chunk = [&png](std::string_view type, std::span<const unsigned char> data) -> void
+    {
         AppendBigEndian(png, static_cast<uint32_t>(data.size()));
         std::vector<unsigned char> body(type.begin(), type.end());
         body.insert(body.end(), data.begin(), data.end());

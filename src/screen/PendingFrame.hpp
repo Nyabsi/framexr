@@ -36,7 +36,8 @@
 #include "Frame.hpp"
 #include "ProcessedFrame.hpp"
 
-class PendingFrame final : public ProcessedFrame {
+class PendingFrame final : public ProcessedFrame
+{
   public:
     explicit PendingFrame(Frame&& frame);
     ~PendingFrame() override;

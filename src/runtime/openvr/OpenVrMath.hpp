@@ -24,7 +24,8 @@
 #include <Eigen/Geometry>
 #include <openvr.h>
 
-class OpenVrMath {
+class OpenVrMath
+{
   public:
     static auto ToAffine(const vr::HmdMatrix34_t& matrix) -> Eigen::Affine3f;
     static auto ToHmdMatrix(const Eigen::Affine3f& affine) -> vr::HmdMatrix34_t;

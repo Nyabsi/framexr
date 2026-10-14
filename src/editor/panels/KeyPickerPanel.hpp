@@ -31,12 +31,14 @@ class Editor;
 
 class StackComponent;
 
-struct KeyGroup {
+struct KeyGroup
+{
     std::string_view name;
     std::span<const VirtualKey> keys;
 };
 
-class KeyPickerPanel final : public FormComponent {
+class KeyPickerPanel final : public FormComponent
+{
   public:
     static auto Caption(VirtualKey key) -> std::string;
 

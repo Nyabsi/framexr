@@ -25,7 +25,8 @@
 
 constexpr uint16_t kScancodeExtended = 0xE000;
 
-class Scancodes final {
+class Scancodes final
+{
   public:
     static auto ForKey(VirtualKey key) -> std::optional<uint16_t>;
 };

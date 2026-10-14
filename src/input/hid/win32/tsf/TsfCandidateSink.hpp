@@ -30,7 +30,8 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
-class TsfCandidateSink final : public ITfUIElementSink {
+class TsfCandidateSink final : public ITfUIElementSink
+{
   public:
     explicit TsfCandidateSink(Microsoft::WRL::ComPtr<ITfUIElementMgr> elements);
     TsfCandidateSink(const TsfCandidateSink&) = delete;

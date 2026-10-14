@@ -42,18 +42,21 @@
 
 constexpr std::string_view kKeyboardName = "kbd";
 
-struct KeyboardPlacement {
+struct KeyboardPlacement
+{
     float scale = 1.0f;
     Eigen::Vector2f origin = Eigen::Vector2f::Zero();
 };
 
-struct LetterLegend {
+struct LetterLegend
+{
     LabelComponent* label = nullptr;
     std::string lower;
     std::string upper;
 };
 
-class Keyboard final : public View {
+class Keyboard final : public View
+{
   public:
     static constexpr float kPixelsPerUnit = 80.0f;
     static constexpr float kKeyboardMargin = 14.0f;

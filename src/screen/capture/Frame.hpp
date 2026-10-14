@@ -38,7 +38,8 @@ constexpr uint32_t kDrmFormatAbgr2101010 = 0x30334241;
 constexpr uint32_t kDrmFormatXbgr2101010 = 0x30334258;
 constexpr uint64_t kDrmFormatModInvalid = 0x00ff'ffff'ffff'ffff;
 
-enum class FrameTransform : uint8_t {
+enum class FrameTransform : uint8_t
+{
     Undefined,
     Normal,
     Rotated90,
@@ -50,7 +51,8 @@ enum class FrameTransform : uint8_t {
     Flipped270,
 };
 
-struct FrameFormat {
+struct FrameFormat
+{
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t fourcc = 0;
@@ -58,30 +60,35 @@ struct FrameFormat {
     FrameTransform transform = FrameTransform::Undefined;
 };
 
-struct FramePlane {
+struct FramePlane
+{
     int fd = -1;
     uint32_t offset = 0;
     int32_t stride = 0;
 };
 
-struct MouseMeta {
+struct MouseMeta
+{
     float x = 0.0f;
     float y = 0.0f;
 };
 
-struct DmabufFrame {
+struct DmabufFrame
+{
     FrameFormat format;
     std::vector<FramePlane> planes;
     std::optional<MouseMeta> mouse;
 };
 
-struct MemFdFrame {
+struct MemFdFrame
+{
     FrameFormat format;
     FramePlane plane;
     std::optional<MouseMeta> mouse;
 };
 
-struct MemPtrFrame {
+struct MemPtrFrame
+{
     FrameFormat format;
     const std::byte* data = nullptr;
     size_t size = 0;
@@ -90,7 +97,8 @@ struct MemPtrFrame {
 
 using Frame = std::variant<DmabufFrame, MemFdFrame, MemPtrFrame>;
 
-struct DrmFormat {
+struct DrmFormat
+{
     uint32_t fourcc = 0;
     std::vector<uint64_t> modifiers;
 };

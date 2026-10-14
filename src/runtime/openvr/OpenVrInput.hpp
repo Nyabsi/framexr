@@ -30,14 +30,16 @@
 #include "Devices.hpp"
 #include "Interaction.hpp"
 
-struct OpenVrHandSource {
+struct OpenVrHandSource
+{
     std::optional<vr::TrackedDeviceIndex_t> device;
     vr::VRInputValueHandle_t input = vr::k_ulInvalidInputValueHandle;
     vr::VRActionHandle_t pose = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t haptics = vr::k_ulInvalidActionHandle;
 };
 
-struct OpenVrActions {
+struct OpenVrActions
+{
     vr::VRActionSetHandle_t set = vr::k_ulInvalidActionSetHandle;
     vr::VRActionHandle_t click = vr::k_ulInvalidActionHandle;
     vr::VRActionHandle_t grab = vr::k_ulInvalidActionHandle;
@@ -50,7 +52,8 @@ struct OpenVrActions {
     vr::VRActionHandle_t move_mouse = vr::k_ulInvalidActionHandle;
 };
 
-class OpenVrInput final {
+class OpenVrInput final
+{
   public:
     static auto SetActionManifest() -> Result<>;
     static auto Create() -> Result<OpenVrInput>;

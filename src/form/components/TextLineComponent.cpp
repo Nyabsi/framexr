@@ -34,18 +34,22 @@ TextLineComponent::TextLineComponent(
     : FormComponent(std::move(name)),
       m_text(text),
       m_font_size(font_size),
-      m_color(color) {
+      m_color(color)
+{
     SetSize({0.0f, height});
 }
 
-auto TextLineComponent::SetCentered(bool centered) -> void {
+auto TextLineComponent::SetCentered(bool centered) -> void
+{
     m_centered = centered;
     MarkDirty();
 }
 
-auto TextLineComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto TextLineComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     auto rect = frame.rect;
-    if (!m_centered) {
+    if (!m_centered)
+    {
         rect.y += static_cast<float>(m_font_size) * frame.scale;
     }
     state.push_back(

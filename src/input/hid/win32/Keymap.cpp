@@ -31,7 +31,8 @@
 #include "Scancodes.hpp"
 #include "Utf16.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kTypingModifiers = std::to_array<uint8_t>({0, kModShift, kModMeta, kModShift | kModMeta});
 constexpr uint32_t kFirstKeycode = 8;
@@ -50,28 +51,35 @@ constexpr auto kLayouts = std::to_array<std::pair<std::string_view, std::wstring
     {"cn", L"00000804"}, {"tw", L"00000404"},
 });
 
-auto FirstCodepoint(std::wstring_view text) -> uint32_t {
-    if (text.empty()) {
+auto FirstCodepoint(std::wstring_view text) -> uint32_t
+{
+    if (text.empty())
+    {
         return 0;
     }
     const auto high = static_cast<uint32_t>(text[0]);
-    if (high >= 0xD800 && high < 0xDC00 && text.size() > 1) {
+    if (high >= 0xD800 && high < 0xDC00 && text.size() > 1)
+    {
         return 0x10000 + ((high - 0xD800) << 10) + (static_cast<uint32_t>(text[1]) - 0xDC00);
     }
     return high;
 }
 
-auto KeyboardInput(uint8_t modifiers) -> std::array<BYTE, 256> {
+auto KeyboardInput(uint8_t modifiers) -> std::array<BYTE, 256>
+{
     std::array<BYTE, 256> state{};
     constexpr BYTE kDown = 0x80;
-    if ((modifiers & kModShift) != 0) {
+    if ((modifiers & kModShift) != 0)
+    {
         state[VK_SHIFT] = kDown;
         state[VK_LSHIFT] = kDown;
     }
-    if ((modifiers & kModCapsLock) != 0) {
+    if ((modifiers & kModCapsLock) != 0)
+    {
         state[VK_CAPITAL] = 0x01;
     }
-    if ((modifiers & kModMeta) != 0) {
+    if ((modifiers & kModMeta) != 0)
+    {
         state[VK_CONTROL] = kDown;
         state[VK_LCONTROL] = kDown;
         state[VK_MENU] = kDown;
@@ -80,13 +88,16 @@ auto KeyboardInput(uint8_t modifiers) -> std::array<BYTE, 256> {
     return state;
 }
 
-auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
+auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation
+{
     const auto scancode = Scancodes::ForKey(key);
-    if (!scancode) {
+    if (!scancode)
+    {
         return {};
     }
     const UINT virtual_key = MapVirtualKeyExW(*scancode, MAPVK_VSC_TO_VK_EX, layout);
-    if (virtual_key == 0) {
+    if (virtual_key == 0)
+    {
         return {};
     }
     const auto state = KeyboardInput(modifiers);
@@ -100,7 +111,8 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
         kKeepKeyboardState,
         layout
     );
-    if (count < 0) {
+    if (count < 0)
+    {
         const auto empty = KeyboardInput(0);
         std::array<wchar_t, 8> flush{};
         ToUnicodeEx(
@@ -115,7 +127,8 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
         return {.text = std::wstring(1, buffer[0]), .dead = true};
     }
     std::wstring text(buffer.data(), static_cast<size_t>(std::max(count, 0)));
-    if (std::ranges::any_of(text, [](wchar_t character) -> bool { return character < 0x20 || character == 0x7F; })) {
+    if (std::ranges::any_of(text, [](wchar_t character) -> bool { return character < 0x20 || character == 0x7F; }))
+    {
         return {};
     }
     return {.text = std::move(text)};
@@ -123,41 +136,51 @@ auto Translate(HKL layout, VirtualKey key, uint8_t modifiers) -> Translation {
 
 } // namespace
 
-auto Keymap::UnloadLayout(void* layout) -> void {
+auto Keymap::UnloadLayout(void* layout) -> void
+{
     UnloadKeyboardLayout(static_cast<HKL>(layout));
 }
 
-auto Keymap::KeepLayout(void*) -> void {
+auto Keymap::KeepLayout(void*) -> void
+{
 }
 
-Keymap::Keymap(std::unique_ptr<void, void (*)(void*)> layout) : m_layout(std::move(layout)) {
+Keymap::Keymap(std::unique_ptr<void, void (*)(void*)> layout) : m_layout(std::move(layout))
+{
 }
 
-auto Keymap::FromWayland() -> Result<Keymap> {
+auto Keymap::FromWayland() -> Result<Keymap>
+{
     return Unexpected("Wayland support not enabled.");
 }
 
-auto Keymap::FromX11() -> Result<Keymap> {
+auto Keymap::FromX11() -> Result<Keymap>
+{
     return Unexpected("X11 support not enabled.");
 }
 
-auto Keymap::FromWindows() -> Result<Keymap> {
+auto Keymap::FromWindows() -> Result<Keymap>
+{
     HWND foreground = GetForegroundWindow();
     const DWORD thread = foreground != nullptr ? GetWindowThreadProcessId(foreground, nullptr) : 0;
     HKL layout = GetKeyboardLayout(thread);
-    if (layout == nullptr) {
+    if (layout == nullptr)
+    {
         return Unexpected("Could not read the active keyboard layout");
     }
     return Keymap(std::unique_ptr<void, void (*)(void*)>(layout, &KeepLayout));
 }
 
-auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
+auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap>
+{
     const auto name = variant.empty() ? std::string(layout) : std::format("{}({})", layout, variant);
     const auto* found = std::ranges::find(kLayouts, std::string_view(name), &std::pair<std::string_view, std::wstring_view>::first);
-    if (found == kLayouts.end()) {
+    if (found == kLayouts.end())
+    {
         found = std::ranges::find(kLayouts, layout, &std::pair<std::string_view, std::wstring_view>::first);
     }
-    if (found == kLayouts.end()) {
+    if (found == kLayouts.end())
+    {
         return Unexpected(std::format("Unknown keyboard region '{}'", name));
     }
 
@@ -167,30 +190,37 @@ auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Res
 
     const std::wstring identifier(found->second);
     HKL handle = LoadKeyboardLayoutW(identifier.c_str(), KLF_NOTELLSHELL);
-    if (handle == nullptr) {
+    if (handle == nullptr)
+    {
         return Unexpected(std::format("Keyboard layout for region '{}' is not available", name));
     }
     const bool owned = std::ranges::find(loaded, handle) == loaded.end();
     return Keymap(std::unique_ptr<void, void (*)(void*)>(handle, owned ? &UnloadLayout : &KeepLayout));
 }
 
-auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
+auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t
+{
     const auto translated = Translate(static_cast<HKL>(m_layout.get()), key, modifiers);
     const uint32_t codepoint = FirstCodepoint(translated.text);
     return translated.dead && codepoint != 0 ? kDeadKeyBit | codepoint : codepoint;
 }
 
-auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
+auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string
+{
     const auto translated = Translate(static_cast<HKL>(m_layout.get()), key, modifiers);
     return translated.dead ? std::string() : Utf16::Narrow(translated.text);
 }
 
-auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
+auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey>
+{
     const auto wanted = static_cast<uint32_t>(character);
-    for (const uint8_t modifiers : kTypingModifiers) {
-        for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code) {
+    for (const uint8_t modifiers : kTypingModifiers)
+    {
+        for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code)
+        {
             const auto key = static_cast<VirtualKey>(code);
-            if (!VirtualKeys::ModifierOf(key) && KeySym(key, modifiers) == wanted) {
+            if (!VirtualKeys::ModifierOf(key) && KeySym(key, modifiers) == wanted)
+            {
                 return TranslatedKey{.key = key, .modifiers = modifiers};
             }
         }
@@ -198,11 +228,13 @@ auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
     return std::nullopt;
 }
 
-auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
+auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string
+{
     return Utf16::Narrow(Translate(static_cast<HKL>(m_layout.get()), key, modifier).text);
 }
 
-auto Keymap::HasAltGr() const -> bool {
+auto Keymap::HasAltGr() const -> bool
+{
     constexpr std::array kDigits{
         VirtualKey::N0,
         VirtualKey::N1,
@@ -215,8 +247,12 @@ auto Keymap::HasAltGr() const -> bool {
         VirtualKey::N8,
         VirtualKey::N9,
     };
-    return std::ranges::any_of(kDigits, [this](VirtualKey key) -> bool {
-        const auto altgr = KeySym(key, kModMeta);
-        return altgr != 0 && altgr != KeySym(key, 0);
-    });
+    return std::ranges::any_of(
+        kDigits,
+        [this](VirtualKey key) -> bool
+        {
+            const auto altgr = KeySym(key, kModMeta);
+            return altgr != 0 && altgr != KeySym(key, 0);
+        }
+    );
 }

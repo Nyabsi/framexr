@@ -25,24 +25,32 @@
 
 #include <winsock2.h>
 
-namespace {
+namespace
+{
 
 constexpr auto kInvalid = static_cast<intptr_t>(INVALID_SOCKET);
 
-auto EnsureWinsock() -> void {
+auto EnsureWinsock() -> void
+{
     static std::once_flag once;
-    std::call_once(once, []() -> void {
-        WSADATA data{};
-        WSAStartup(MAKEWORD(2, 2), &data);
-    });
+    std::call_once(
+        once,
+        []() -> void
+        {
+            WSADATA data{};
+            WSAStartup(MAKEWORD(2, 2), &data);
+        }
+    );
 }
 
-auto LastError() -> std::string {
+auto LastError() -> std::string
+{
     const int error = WSAGetLastError();
     return std::format("{} (os error {})", std::system_category().message(error), error);
 }
 
-auto Address(uint32_t host, uint16_t port) -> sockaddr_in {
+auto Address(uint32_t host, uint16_t port) -> sockaddr_in
+{
     sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
@@ -50,41 +58,52 @@ auto Address(uint32_t host, uint16_t port) -> sockaddr_in {
     return address;
 }
 
-auto Handle(intptr_t handle) -> SOCKET {
+auto Handle(intptr_t handle) -> SOCKET
+{
     return static_cast<SOCKET>(handle);
 }
 
 } // namespace
 
-auto UdpSocket::Bind(UdpAddress address, uint16_t port) -> Result<UdpSocket> {
+auto UdpSocket::Bind(UdpAddress address, uint16_t port) -> Result<UdpSocket>
+{
     EnsureWinsock();
     const SOCKET socket_handle = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (socket_handle == INVALID_SOCKET) {
+    if (socket_handle == INVALID_SOCKET)
+    {
         return Unexpected(LastError());
     }
     UdpSocket created(static_cast<intptr_t>(socket_handle));
     const auto local = Address(address == UdpAddress::Loopback ? INADDR_LOOPBACK : INADDR_ANY, port);
-    if (bind(socket_handle, reinterpret_cast<const sockaddr*>(&local), sizeof(local)) != 0) {
+    if (bind(socket_handle, reinterpret_cast<const sockaddr*>(&local), sizeof(local)) != 0)
+    {
         return Unexpected(LastError());
     }
     return created;
 }
 
-UdpSocket::UdpSocket(intptr_t handle) : m_handle(handle) {
+UdpSocket::UdpSocket(intptr_t handle) : m_handle(handle)
+{
 }
 
-UdpSocket::~UdpSocket() {
-    if (m_handle != kInvalid) {
+UdpSocket::~UdpSocket()
+{
+    if (m_handle != kInvalid)
+    {
         closesocket(Handle(m_handle));
     }
 }
 
-UdpSocket::UdpSocket(UdpSocket&& other) noexcept : m_handle(std::exchange(other.m_handle, kInvalid)) {
+UdpSocket::UdpSocket(UdpSocket&& other) noexcept : m_handle(std::exchange(other.m_handle, kInvalid))
+{
 }
 
-auto UdpSocket::operator=(UdpSocket&& other) noexcept -> UdpSocket& {
-    if (this != &other) {
-        if (m_handle != kInvalid) {
+auto UdpSocket::operator=(UdpSocket&& other) noexcept -> UdpSocket&
+{
+    if (this != &other)
+    {
+        if (m_handle != kInvalid)
+        {
             closesocket(Handle(m_handle));
         }
         m_handle = std::exchange(other.m_handle, kInvalid);
@@ -92,38 +111,47 @@ auto UdpSocket::operator=(UdpSocket&& other) noexcept -> UdpSocket& {
     return *this;
 }
 
-auto UdpSocket::ConnectLoopback(uint16_t port) -> Result<> {
+auto UdpSocket::ConnectLoopback(uint16_t port) -> Result<>
+{
     const auto remote = Address(INADDR_LOOPBACK, port);
-    if (connect(Handle(m_handle), reinterpret_cast<const sockaddr*>(&remote), sizeof(remote)) != 0) {
+    if (connect(Handle(m_handle), reinterpret_cast<const sockaddr*>(&remote), sizeof(remote)) != 0)
+    {
         return Unexpected(LastError());
     }
     return {};
 }
 
-auto UdpSocket::LocalPort() const -> uint16_t {
+auto UdpSocket::LocalPort() const -> uint16_t
+{
     sockaddr_in address{};
     int length = sizeof(address);
-    if (getsockname(Handle(m_handle), reinterpret_cast<sockaddr*>(&address), &length) != 0) {
+    if (getsockname(Handle(m_handle), reinterpret_cast<sockaddr*>(&address), &length) != 0)
+    {
         return 0;
     }
     return ntohs(address.sin_port);
 }
 
-auto UdpSocket::SetReceiveTimeout(std::chrono::milliseconds timeout) -> Result<> {
+auto UdpSocket::SetReceiveTimeout(std::chrono::milliseconds timeout) -> Result<>
+{
     const auto value = static_cast<DWORD>(timeout.count());
-    if (setsockopt(Handle(m_handle), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&value), sizeof(value)) != 0) {
+    if (setsockopt(Handle(m_handle), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&value), sizeof(value)) != 0)
+    {
         return Unexpected(LastError());
     }
     return {};
 }
 
-auto UdpSocket::Send(std::span<const std::byte> data) const -> bool {
+auto UdpSocket::Send(std::span<const std::byte> data) const -> bool
+{
     return send(Handle(m_handle), reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0) != SOCKET_ERROR;
 }
 
-auto UdpSocket::Receive(std::span<std::byte> buffer) const -> std::optional<size_t> {
+auto UdpSocket::Receive(std::span<std::byte> buffer) const -> std::optional<size_t>
+{
     const int received = recv(Handle(m_handle), reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
-    if (received <= 0) {
+    if (received <= 0)
+    {
         return std::nullopt;
     }
     return static_cast<size_t>(received);

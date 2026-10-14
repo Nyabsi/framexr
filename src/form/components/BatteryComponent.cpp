@@ -26,7 +26,8 @@
 #include "Devices.hpp"
 #include "Json.hpp"
 
-namespace {
+namespace
+{
 
 constexpr std::array<std::string_view, 5> kDeviceTags{"", "H", "L", "R", "T"};
 
@@ -34,7 +35,8 @@ constexpr std::array<std::string_view, 5> kDeviceTags{"", "H", "L", "R", "T"};
 
 #include "document/FormParser.hpp"
 
-auto BatteryComponent::Parse(const nlohmann::json& json) -> BatteryElement {
+auto BatteryComponent::Parse(const nlohmann::json& json) -> BatteryElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -46,10 +48,12 @@ auto BatteryComponent::Parse(const nlohmann::json& json) -> BatteryElement {
     };
 }
 
-auto BatteryComponent::Serialize(nlohmann::ordered_json& json, const BatteryElement& element) -> void {
+auto BatteryComponent::Serialize(nlohmann::ordered_json& json, const BatteryElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     json["device"] = element.device;
@@ -58,8 +62,8 @@ auto BatteryComponent::Serialize(nlohmann::ordered_json& json, const BatteryElem
     json["charging_color"] = element.charging_color;
 }
 
-auto BatteryComponent::Create(FormComponent& parent, const BatteryElement& element, const FormContext& context)
-    -> BatteryComponent& {
+auto BatteryComponent::Create(FormComponent& parent, const BatteryElement& element, const FormContext& context) -> BatteryComponent&
+{
     auto& component = parent.AddComponent<BatteryComponent>("", element.device, element.low_threshold);
     component.SetRect(FormParser::ToRect(element.rect));
     component.Label().SetFontSize(element.font_size);
@@ -77,39 +81,49 @@ BatteryComponent::BatteryComponent(std::string name, size_t device, float low_th
     : FormComponent(std::move(name)),
       m_label(AddComponent<LabelComponent>("label")),
       m_device(device),
-      m_low_threshold(low_threshold) {
+      m_low_threshold(low_threshold)
+{
 }
 
-auto BatteryComponent::SetColors(const Eigen::Vector4f& normal, const Eigen::Vector4f& low, const Eigen::Vector4f& charging)
-    -> void {
+auto BatteryComponent::SetColors(const Eigen::Vector4f& normal, const Eigen::Vector4f& low, const Eigen::Vector4f& charging) -> void
+{
     m_normal_color = normal;
     m_low_color = low;
     m_charging_color = charging;
     m_label.SetFgColor(normal);
 }
 
-auto BatteryComponent::Layout() -> void {
+auto BatteryComponent::Layout() -> void
+{
     m_label.SetSize(Size());
 }
 
-auto BatteryComponent::Update() -> void {
-    if (m_device >= g_devices->All().size()) {
+auto BatteryComponent::Update() -> void
+{
+    if (m_device >= g_devices->All().size())
+    {
         m_label.SetText("");
         return;
     }
     const auto& device = g_devices->All()[m_device];
-    if (!device.soc) {
+    if (!device.soc)
+    {
         m_label.SetText("");
         m_label.SetFgColor(Eigen::Vector4f::Zero());
         return;
     }
     const auto percent = static_cast<uint32_t>(std::min(*device.soc * 100.0f, 99.0f));
     m_label.SetText(std::format("{}{}", kDeviceTags[static_cast<size_t>(device.role)], percent));
-    if (device.charging) {
+    if (device.charging)
+    {
         m_label.SetFgColor(m_charging_color);
-    } else if (*device.soc < m_low_threshold) {
+    }
+    else if (*device.soc < m_low_threshold)
+    {
         m_label.SetFgColor(m_low_color);
-    } else {
+    }
+    else
+    {
         m_label.SetFgColor(m_normal_color);
     }
 }

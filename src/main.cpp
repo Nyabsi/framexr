@@ -56,26 +56,33 @@
 #error "No desktop support! Enable either wayland or x11 features!"
 #endif
 
-namespace {
+namespace
+{
 
 std::atomic<bool> running{true};
 
-auto OnTerminate() -> void {
+auto OnTerminate() -> void
+{
     running.store(false, std::memory_order_relaxed);
 }
 
-auto EnsureSingleInstance(bool replace) -> bool {
+auto EnsureSingleInstance(bool replace) -> bool
+{
     const auto path = Platform::RuntimeDirectory() / "framexr.pid";
 
-    if (const auto contents = ConfigStore::ReadFile(path)) {
+    if (const auto contents = ConfigStore::ReadFile(path))
+    {
         char* end = nullptr;
         const auto pid = std::strtoul(contents->c_str(), &end, 10);
-        if (end != contents->c_str() && pid > 0 && Platform::ProcessAlive(static_cast<uint32_t>(pid))) {
-            if (!replace) {
+        if (end != contents->c_str() && pid > 0 && Platform::ProcessAlive(static_cast<uint32_t>(pid)))
+        {
+            if (!replace)
+            {
                 return false;
             }
             Platform::Terminate(static_cast<uint32_t>(pid));
-            while (Platform::ProcessAlive(static_cast<uint32_t>(pid))) {
+            while (Platform::ProcessAlive(static_cast<uint32_t>(pid)))
+            {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
         }
@@ -83,48 +90,61 @@ auto EnsureSingleInstance(bool replace) -> bool {
 
     std::ofstream stream(path, std::ios::trunc);
     stream << Platform::ProcessId();
-    if (!stream) {
+    if (!stream)
+    {
         FatalError(std::format("Failed to write {}", path.string()));
     }
     return true;
 }
 
-auto InitLogging() -> void {
+auto InitLogging() -> void
+{
     std::filesystem::path path = Platform::DefaultLogFile();
-    if (g_command_line->LogTo()) {
+    if (g_command_line->LogTo())
+    {
         path = *g_command_line->LogTo();
-    } else if (const char* env = std::getenv("FRAMEXR_LOGFILE")) {
+    }
+    else if (const char* env = std::getenv("FRAMEXR_LOGFILE"))
+    {
         path = env;
     }
 
-    if (auto file = Platform::OpenLogFile(path)) {
+    if (auto file = Platform::OpenLogFile(path))
+    {
         std::printf("Logging to %s\n", path.string().c_str());
         std::fflush(stdout);
         g_logger->SetOutputFile(*file);
-    } else {
+    }
+    else
+    {
         std::fputs(std::format("Failed to open log file (path: {}): {}\n", path.string(), file.error().Message()).c_str(), stdout);
         std::fflush(stdout);
     }
 }
 
-auto BuildVersion() -> std::string {
+auto BuildVersion() -> std::string
+{
     std::string describe = FRAMEXR_GIT_DESCRIBE;
-    if (!describe.starts_with('v') && !describe.ends_with("-unknown")) {
+    if (!describe.starts_with('v') && !describe.ends_with("-unknown"))
+    {
         describe = std::format("{}-{}", FRAMEXR_PKG_VERSION, describe);
     }
 
-    if (describe.starts_with('v')) {
+    if (describe.starts_with('v'))
+    {
         const auto version_end = describe.find_first_not_of("0123456789.", 1);
         const auto count_end = version_end != std::string::npos && describe[version_end] == '-'
                                  ? describe.find_first_not_of("0123456789", version_end + 1)
                                  : std::string::npos;
-        if (count_end != std::string::npos && count_end > version_end + 1 && describe.compare(count_end, 2, "-g") == 0) {
+        if (count_end != std::string::npos && count_end > version_end + 1 && describe.compare(count_end, 2, "-g") == 0)
+        {
             const auto hash_end = describe.find_first_not_of("0123456789abcdef", count_end + 2);
             const auto hash = describe.substr(
                 count_end + 2,
                 hash_end == std::string::npos ? std::string::npos : hash_end - count_end - 2
             );
-            if (!hash.empty()) {
+            if (!hash.empty())
+            {
                 describe = std::format(
                     "{}.r{}.{}{}",
                     describe.substr(1, version_end - 1),
@@ -138,7 +158,8 @@ auto BuildVersion() -> std::string {
     return describe + FRAMEXR_BUILD_SUFFIX;
 }
 
-auto LocalTime() -> std::string {
+auto LocalTime() -> std::string
+{
     const std::tm local = Platform::LocalTime(std::time(nullptr));
     std::array<char, 64> buffer{};
     const auto date_length = std::strftime(buffer.data(), buffer.size(), "%a %b", &local);
@@ -151,15 +172,18 @@ auto LocalTime() -> std::string {
     );
 }
 
-auto Run(std::span<char*> arguments) -> int {
+auto Run(std::span<char*> arguments) -> int
+{
     auto command_line = std::make_unique<CommandLine>();
     g_command_line = command_line.get();
-    if (const auto exit_code = g_command_line->Parse(arguments)) {
+    if (const auto exit_code = g_command_line->Parse(arguments))
+    {
         return *exit_code;
     }
     Platform::Init();
 
-    if (!g_command_line->Multi() && !EnsureSingleInstance(g_command_line->Replace())) {
+    if (!g_command_line->Multi() && !EnsureSingleInstance(g_command_line->Replace()))
+    {
         std::puts("Looks like FrameXR is already running.");
         std::puts("Use --replace and I will terminate it for you.");
         return 0;
@@ -170,7 +194,8 @@ auto Run(std::span<char*> arguments) -> int {
     LOG_INFO("Welcome to {} version {}!", FRAMEXR_PKG_NAME, BuildVersion());
     LOG_INFO("It is {}.", LocalTime());
 
-    if (g_command_line->Uninstall()) {
+    if (g_command_line->Uninstall())
+    {
         Runtime::Uninstall();
         return 0;
     }
@@ -203,12 +228,16 @@ auto Run(std::span<char*> arguments) -> int {
 
 } // namespace
 
-auto main(int argc, char** argv) -> int {
+auto main(int argc, char** argv) -> int
+{
     auto logger = std::make_unique<Logger>();
     g_logger = logger.get();
-    try {
+    try
+    {
         return Run(std::span(argv, static_cast<size_t>(argc)));
-    } catch (const std::exception& exception) {
+    }
+    catch (const std::exception& exception)
+    {
         FatalError(exception.what());
     }
 }

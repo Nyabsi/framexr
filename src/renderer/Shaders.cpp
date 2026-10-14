@@ -21,7 +21,8 @@
 
 #include "Shaders.hpp"
 
-namespace {
+namespace
+{
 
 alignas(4) constexpr unsigned char kCommonVertex[] = {
 #embed "CommonVertex.spv"
@@ -59,42 +60,52 @@ alignas(4) constexpr unsigned char kSwapchainFragment[] = {
 
 } // namespace
 
-auto Shaders::Color() -> ShaderProgram {
+auto Shaders::Color() -> ShaderProgram
+{
     return {kCommonVertex, kColorFragment, {DescriptorKind::Uniform}};
 }
 
-auto Shaders::Line() -> ShaderProgram {
+auto Shaders::Line() -> ShaderProgram
+{
     return {kCommonVertex, kLineFragment, {DescriptorKind::Uniform}};
 }
 
-auto Shaders::Glyph() -> ShaderProgram {
+auto Shaders::Glyph() -> ShaderProgram
+{
     return {kCommonVertex, kGlyphFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }
 
-auto Shaders::Sprite() -> ShaderProgram {
+auto Shaders::Sprite() -> ShaderProgram
+{
     return {kCommonVertex, kSpriteFragment, {DescriptorKind::Texture}};
 }
 
-auto Shaders::SpriteTint() -> ShaderProgram {
+auto Shaders::SpriteTint() -> ShaderProgram
+{
     return {kCommonVertex, kSpriteTintFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }
 
-auto Shaders::SpriteHighlight() -> ShaderProgram {
+auto Shaders::SpriteHighlight() -> ShaderProgram
+{
     return {kCommonVertex, kSpriteHighlightFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }
 
-auto Shaders::Grid() -> ShaderProgram {
+auto Shaders::Grid() -> ShaderProgram
+{
     return {kCommonVertex, kGridFragment, {}};
 }
 
-auto Shaders::Screen() -> ShaderProgram {
+auto Shaders::Screen() -> ShaderProgram
+{
     return {kCommonVertex, kScreenFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }
 
-auto Shaders::Srgb() -> ShaderProgram {
+auto Shaders::Srgb() -> ShaderProgram
+{
     return {kCommonVertex, kSrgbFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }
 
-auto Shaders::Swapchain() -> ShaderProgram {
+auto Shaders::Swapchain() -> ShaderProgram
+{
     return {kCommonVertex, kSwapchainFragment, {DescriptorKind::Texture, DescriptorKind::Uniform}};
 }

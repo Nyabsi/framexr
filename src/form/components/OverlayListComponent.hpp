@@ -29,7 +29,8 @@
 #include "FormComponent.hpp"
 #include "document/Common.hpp"
 
-struct OverlayListTemplate {
+struct OverlayListTemplate
+{
     std::optional<OverlayAction> click_down;
     std::optional<OverlayAction> click_up;
     std::optional<OverlayAction> long_click_up;
@@ -43,7 +44,8 @@ struct OverlayListTemplate {
     std::optional<OverlayAction> scroll_up;
 };
 
-struct OverlayListElement {
+struct OverlayListElement
+{
     std::array<float, 4> rect{};
     std::optional<float> corner_radius;
     int font_size = 0;
@@ -55,7 +57,8 @@ struct OverlayListElement {
     size_t form = 0;
 };
 
-class OverlayListComponent final : public FormComponent {
+class OverlayListComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "OverlayList";
 

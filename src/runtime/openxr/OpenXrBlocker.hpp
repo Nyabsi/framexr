@@ -25,7 +25,8 @@
 
 class Monado;
 
-class OpenXrBlocker final {
+class OpenXrBlocker final
+{
   public:
     auto Update(OverlayId watch_id, Monado& monado) -> void;
 

@@ -25,7 +25,8 @@
 #include "OneEuroFilter.hpp"
 #include "RotationFilter.hpp"
 
-class PoseFilter final {
+class PoseFilter final
+{
   public:
     PoseFilter(OneEuroSettings position, OneEuroSettings rotation);
 

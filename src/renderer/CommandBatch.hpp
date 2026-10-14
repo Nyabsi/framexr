@@ -32,7 +32,8 @@
 #include "CommandBuffer.hpp"
 #include "Error.hpp"
 
-class CommandBatch final {
+class CommandBatch final
+{
   public:
     auto Push(CommandBuffer command_buffer) -> void;
     auto Submit() -> Result<>;

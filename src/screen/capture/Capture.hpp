@@ -30,7 +30,8 @@
 
 using FrameProcessor = std::function<std::unique_ptr<ProcessedFrame>(Frame&&)>;
 
-class Capture {
+class Capture
+{
   public:
     virtual ~Capture() = default;
 

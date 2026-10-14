@@ -26,7 +26,8 @@ class Editor;
 
 class StackComponent;
 
-class CapturePanel final : public FormComponent {
+class CapturePanel final : public FormComponent
+{
   public:
     CapturePanel(Editor& editor, const Eigen::Vector2f& size);
 

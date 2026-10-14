@@ -40,15 +40,18 @@
 #include "OpenXrPose.hpp"
 #include "Shaders.hpp"
 
-namespace {
+namespace
+{
 
 constexpr unsigned char kDefaultSkybox[] = {
 #embed "table_mountain_2.dds"
 };
 
-auto ReadBinaryFile(const std::filesystem::path& path) -> std::optional<std::vector<std::byte>> {
+auto ReadBinaryFile(const std::filesystem::path& path) -> std::optional<std::vector<std::byte>>
+{
     std::ifstream stream(path, std::ios::binary);
-    if (!stream) {
+    if (!stream)
+    {
         return std::nullopt;
     }
     const std::vector<char> contents{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
@@ -58,42 +61,56 @@ auto ReadBinaryFile(const std::filesystem::path& path) -> std::optional<std::vec
 
 } // namespace
 
-auto OpenXrSkybox::Create(const OpenXrState& xr) -> std::unique_ptr<OpenXrSkybox> {
-    if (!g_config->use_skybox || !xr.instance->HasEquirect2()) {
+auto OpenXrSkybox::Create(const OpenXrState& xr) -> std::unique_ptr<OpenXrSkybox>
+{
+    if (!g_config->use_skybox || !xr.instance->HasEquirect2())
+    {
         return nullptr;
     }
     auto skybox = Load();
     return skybox ? std::move(*skybox) : nullptr;
 }
 
-OpenXrSkybox::OpenXrSkybox(std::shared_ptr<Image> texture) : m_texture(std::move(texture)) {
+OpenXrSkybox::OpenXrSkybox(std::shared_ptr<Image> texture) : m_texture(std::move(texture))
+{
 }
 
-auto OpenXrSkybox::Load() -> Result<std::unique_ptr<OpenXrSkybox>> {
+auto OpenXrSkybox::Load() -> Result<std::unique_ptr<OpenXrSkybox>>
+{
     ASSIGN_OR_RETURN(auto command_buffer, g_device->CreateCommandBuffer(g_device->TransferQueue()));
 
     std::shared_ptr<Image> texture;
-    if (const auto& custom = g_config->skybox_texture; !custom.empty()) {
-        if (const auto contents = ReadBinaryFile(ConfigStore::Root() / custom)) {
-            if (auto image = command_buffer.UploadDds(*contents)) {
+    if (const auto& custom = g_config->skybox_texture; !custom.empty())
+    {
+        if (const auto contents = ReadBinaryFile(ConfigStore::Root() / custom))
+        {
+            if (auto image = command_buffer.UploadDds(*contents))
+            {
                 texture = std::move(*image);
-            } else {
+            }
+            else
+            {
                 LOG_WARN("Could not use custom skybox texture at: {}", custom);
                 LOG_WARN("{}", image.error().Message());
             }
-        } else {
+        }
+        else
+        {
             LOG_WARN("Could not open custom skybox texture at: {}", custom);
         }
     }
-    if (!texture) {
+    if (!texture)
+    {
         ASSIGN_OR_RETURN(texture, command_buffer.UploadDds(std::as_bytes(std::span(kDefaultSkybox))));
     }
     RETURN_IF_ERROR(command_buffer.SubmitUpload());
     return std::unique_ptr<OpenXrSkybox>(new OpenXrSkybox(std::move(texture)));
 }
 
-auto OpenXrSkybox::PrepareSky(const OpenXrState& xr, CommandBatch& batch) -> Result<> {
-    if (m_sky) {
+auto OpenXrSkybox::PrepareSky(const OpenXrState& xr, CommandBatch& batch) -> Result<>
+{
+    if (m_sky)
+    {
         return {};
     }
     ASSIGN_OR_RETURN(auto swapchain, OpenXrSwapchain::Create(*xr.instance, xr.session, m_texture->Extent(), true));
@@ -114,8 +131,10 @@ auto OpenXrSkybox::PrepareSky(const OpenXrState& xr, CommandBatch& batch) -> Res
     return {};
 }
 
-auto OpenXrSkybox::PrepareGrid(const OpenXrState& xr, CommandBatch& batch) -> Result<> {
-    if (m_grid) {
+auto OpenXrSkybox::PrepareGrid(const OpenXrState& xr, CommandBatch& batch) -> Result<>
+{
+    if (m_grid)
+    {
         return {};
     }
     ASSIGN_OR_RETURN(auto swapchain, OpenXrSwapchain::Create(*xr.instance, xr.session, {.width = 1024, .height = 1024}, true));
@@ -133,12 +152,14 @@ auto OpenXrSkybox::PrepareGrid(const OpenXrState& xr, CommandBatch& batch) -> Re
     return {};
 }
 
-auto OpenXrSkybox::Render(const OpenXrState& xr, CommandBatch& batch) -> Result<> {
+auto OpenXrSkybox::Render(const OpenXrState& xr, CommandBatch& batch) -> Result<>
+{
     RETURN_IF_ERROR(PrepareSky(xr, batch));
     return PrepareGrid(xr, batch);
 }
 
-auto OpenXrSkybox::Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>> {
+auto OpenXrSkybox::Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>>
+{
     constexpr float kPi = std::numbers::pi_v<float>;
     const Eigen::Vector3f hmd = g_interaction->Hmd().translation();
 

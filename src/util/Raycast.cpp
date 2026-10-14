@@ -27,7 +27,8 @@
 #include <numbers>
 
 auto Raycast::Plane(const Eigen::Affine3f& source, const Eigen::Vector3f& source_forward, const Eigen::Affine3f& plane)
-    -> std::pair<float, Eigen::Vector2f> {
+    -> std::pair<float, Eigen::Vector2f>
+{
     const Eigen::Matrix3f plane_linear = plane.linear();
     const Eigen::Matrix3f source_linear = source.linear();
     const Eigen::Vector3f plane_origin = plane.translation();
@@ -48,7 +49,8 @@ auto Raycast::Cylinder(
     const Eigen::Vector3f& source_forward,
     const Eigen::Affine3f& plane,
     float curvature
-) -> std::optional<std::pair<float, Eigen::Vector2f>> {
+) -> std::optional<std::pair<float, Eigen::Vector2f>>
+{
     const Eigen::Matrix3f plane_linear = plane.linear();
     const Eigen::Matrix3f source_linear = source.linear();
     const Eigen::Vector3f plane_origin = plane.translation();
@@ -69,7 +71,8 @@ auto Raycast::Cylinder(
     const float c = std::fma(radius, -radius, origin_xz.dot(origin_xz));
 
     const float discriminant = std::fma(length_origin, length_origin, -(length_direction * c));
-    if (discriminant < std::numeric_limits<float>::epsilon()) {
+    if (discriminant < std::numeric_limits<float>::epsilon())
+    {
         return std::nullopt;
     }
 
@@ -77,12 +80,14 @@ auto Raycast::Cylinder(
     const float t1 = (-length_origin - sqrt_discriminant) / length_direction;
     const float t2 = (-length_origin + sqrt_discriminant) / length_direction;
     const float t = std::max(t1, t2);
-    if (t < std::numeric_limits<float>::epsilon()) {
+    if (t < std::numeric_limits<float>::epsilon())
+    {
         return std::nullopt;
     }
 
     const Eigen::Vector3f hit_local = ray_origin + ray_direction * t;
-    if (hit_local.z() > 0.0f) {
+    if (hit_local.z() > 0.0f)
+    {
         return std::nullopt;
     }
 

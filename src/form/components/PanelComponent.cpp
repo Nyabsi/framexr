@@ -20,19 +20,22 @@
 
 #include "document/FormParser.hpp"
 
-auto PanelComponent::Parse(const nlohmann::json& json) -> PanelElement {
+auto PanelComponent::Parse(const nlohmann::json& json) -> PanelElement
+{
     return {
         .corner_radius = FormParser::Optional<float>(json, "corner_radius"),
         .bg_color = json.at("bg_color").get<std::string>(),
     };
 }
 
-auto PanelComponent::Serialize(nlohmann::ordered_json& json, const PanelElement& element) -> void {
+auto PanelComponent::Serialize(nlohmann::ordered_json& json, const PanelElement& element) -> void
+{
     FormParser::PutRadius(json, element.corner_radius);
     json["bg_color"] = element.bg_color;
 }
 
-auto PanelComponent::Create(FormComponent& parent, const PanelElement& element, const FormContext& context) -> PanelComponent& {
+auto PanelComponent::Create(FormComponent& parent, const PanelElement& element, const FormContext& context) -> PanelComponent&
+{
     auto& panel = parent.AddComponent<PanelComponent>();
     panel.SetRect(FormParser::ToRect(element.rect));
     panel.SetCornerRadius(element.corner_radius);
@@ -40,25 +43,30 @@ auto PanelComponent::Create(FormComponent& parent, const PanelElement& element, 
     return panel;
 }
 
-PanelComponent::PanelComponent(std::string name) : FormComponent(std::move(name)) {
+PanelComponent::PanelComponent(std::string name) : FormComponent(std::move(name))
+{
 }
 
-auto PanelComponent::SetBgColor(const Eigen::Vector4f& bg_color) -> void {
+auto PanelComponent::SetBgColor(const Eigen::Vector4f& bg_color) -> void
+{
     m_bg_color = bg_color;
     MarkDirty();
 }
 
-auto PanelComponent::SetCornerRadius(std::optional<float> corner_radius) -> void {
+auto PanelComponent::SetCornerRadius(std::optional<float> corner_radius) -> void
+{
     m_corner_radius = corner_radius;
     MarkDirty();
 }
 
-auto PanelComponent::SetThemeShape(Shape shape) -> void {
+auto PanelComponent::SetThemeShape(Shape shape) -> void
+{
     m_shape = shape;
     MarkDirty();
 }
 
-auto PanelComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto PanelComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     state.push_back(
         FillItem{
             .rect = frame.rect,

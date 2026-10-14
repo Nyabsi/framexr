@@ -27,11 +27,13 @@
 ColorFieldComponent::ColorFieldComponent(std::string name, std::string_view caption, const std::string& color)
     : FormComponent(std::move(name)),
       m_caption(AddComponent<TextLineComponent>("caption", caption, kFontSize, FormTheme::Rgba("@subtle"))),
-      m_swatch(AddComponent<SwatchComponent>("swatch", color, FormTheme::Rgba(color))) {
+      m_swatch(AddComponent<SwatchComponent>("swatch", color, FormTheme::Rgba(color)))
+{
     SetSize({0.0f, kHeight});
 }
 
-auto ColorFieldComponent::Layout() -> void {
+auto ColorFieldComponent::Layout() -> void
+{
     const float available = Size().x() - kGap;
     const float caption = available * 2.2f / 5.0f;
     m_caption.SetRect({0.0f, 0.0f, caption, Size().y()});

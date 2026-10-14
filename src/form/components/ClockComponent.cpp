@@ -27,13 +27,15 @@
 #include "Config.hpp"
 #include "Logger.hpp"
 
-namespace {
+namespace
+{
 
 constexpr float kCityGap = 6.0f;
 
 constexpr float kCityLine = 1.3f;
 
-enum class NumberPadding : uint8_t {
+enum class NumberPadding : uint8_t
+{
     Zero,
     Space,
     None,
@@ -57,11 +59,13 @@ constexpr std::array<std::string_view, 12> kMonthNames{
     "December"
 };
 
-auto AppendNumber(std::string& out, int64_t value, int width, NumberPadding padding) -> void {
+auto AppendNumber(std::string& out, int64_t value, int width, NumberPadding padding) -> void
+{
     const auto digits = std::to_string(value < 0 ? -value : value);
     const auto sign = value < 0 ? "-" : "";
     const auto fill = static_cast<int>(digits.size()) + (value < 0 ? 1 : 0);
-    if (padding != NumberPadding::None && fill < width) {
+    if (padding != NumberPadding::None && fill < width)
+    {
         const auto pad = std::string(static_cast<size_t>(width - fill), padding == NumberPadding::Zero ? '0' : ' ');
         out += padding == NumberPadding::Zero ? std::format("{}{}{}", sign, pad, digits) : std::format("{}{}{}", pad, sign, digits);
         return;
@@ -70,18 +74,21 @@ auto AppendNumber(std::string& out, int64_t value, int width, NumberPadding padd
     out += digits;
 }
 
-auto AppendOffset(std::string& out, std::chrono::seconds offset, bool colon) -> void {
+auto AppendOffset(std::string& out, std::chrono::seconds offset, bool colon) -> void
+{
     const auto total = offset.count();
     const auto absolute = total < 0 ? -total : total;
     out += total < 0 ? '-' : '+';
     out += std::format("{:02}", absolute / 3600);
-    if (colon) {
+    if (colon)
+    {
         out += ':';
     }
     out += std::format("{:02}", (absolute % 3600) / 60);
 }
 
-auto IsoWeek(std::chrono::sys_days day) -> std::pair<int, unsigned> {
+auto IsoWeek(std::chrono::sys_days day) -> std::pair<int, unsigned>
+{
     const std::chrono::weekday weekday(day);
     const auto thursday = day + std::chrono::days(3 - static_cast<int>((weekday.c_encoding() + 6) % 7));
     const std::chrono::year_month_day thursday_date(thursday);
@@ -94,7 +101,8 @@ auto IsoWeek(std::chrono::sys_days day) -> std::pair<int, unsigned> {
 
 #include "document/FormParser.hpp"
 
-auto ClockComponent::Parse(const nlohmann::json& json) -> ClockElement {
+auto ClockComponent::Parse(const nlohmann::json& json) -> ClockElement
+{
     return {
         .font_size = json.at("font_size").get<int>(),
         .fg_color = json.at("fg_color").get<std::string>(),
@@ -105,32 +113,42 @@ auto ClockComponent::Parse(const nlohmann::json& json) -> ClockElement {
     };
 }
 
-auto ClockComponent::Serialize(nlohmann::ordered_json& json, const ClockElement& element) -> void {
+auto ClockComponent::Serialize(nlohmann::ordered_json& json, const ClockElement& element) -> void
+{
     json["font_size"] = element.font_size;
     json["fg_color"] = element.fg_color;
-    if (element.centered) {
+    if (element.centered)
+    {
         json["centered"] = true;
     }
     json["format"] = element.format;
-    if (element.timezone) {
+    if (element.timezone)
+    {
         FormParser::PutTimezone(json, *element.timezone);
     }
-    if (element.city_size) {
+    if (element.city_size)
+    {
         json["city_size"] = *element.city_size;
     }
 }
 
-auto ClockComponent::Create(FormComponent& parent, const ClockElement& element, const FormContext& context) -> ClockComponent& {
+auto ClockComponent::Create(FormComponent& parent, const ClockElement& element, const FormContext& context) -> ClockComponent&
+{
     const std::chrono::time_zone* zone = nullptr;
     bool broken = false;
-    if (element.timezone) {
-        if (const auto name = ZoneName(*element.timezone)) {
+    if (element.timezone)
+    {
+        if (const auto name = ZoneName(*element.timezone))
+        {
             zone = Zone(*name);
-            if (zone == nullptr) {
+            if (zone == nullptr)
+            {
                 LOG_ERROR("Failed to parse timezone '{}'", *name);
                 broken = true;
             }
-        } else {
+        }
+        else
+        {
             broken = true;
         }
     }
@@ -139,7 +157,8 @@ auto ClockComponent::Create(FormComponent& parent, const ClockElement& element, 
     component.Label().SetFontSize(element.font_size);
     component.Label().SetFgColor(broken ? FormTheme::FallbackColor() : FormParser::Color(element.fg_color, context.theme));
     component.Label().SetCentered(element.centered);
-    if (element.city_size) {
+    if (element.city_size)
+    {
         component.SetCity(City(element.timezone), *element.city_size);
     }
     return component;
@@ -149,28 +168,38 @@ ClockComponent::ClockComponent(std::string name, std::string format, const std::
     : FormComponent(std::move(name)),
       m_label(AddComponent<LabelComponent>("label")),
       m_format(std::move(format)),
-      m_zone(zone) {
+      m_zone(zone)
+{
 }
 
-auto ClockComponent::SetCity(std::string_view city, int font_size) -> void {
-    if (m_city == nullptr) {
+auto ClockComponent::SetCity(std::string_view city, int font_size) -> void
+{
+    if (m_city == nullptr)
+    {
         m_city = &AddComponent<LabelComponent>("city");
     }
     m_city->SetText(city);
     m_city->SetFontSize(font_size);
 }
 
-auto ClockComponent::Zone(std::string_view name) -> const std::chrono::time_zone* {
-    try {
+auto ClockComponent::Zone(std::string_view name) -> const std::chrono::time_zone*
+{
+    try
+    {
         return std::chrono::locate_zone(name);
-    } catch (const std::runtime_error&) {
+    }
+    catch (const std::runtime_error&)
+    {
         return nullptr;
     }
 }
 
-auto ClockComponent::ZoneName(const std::variant<size_t, std::string>& zone) -> std::optional<std::string> {
-    if (const auto* index = std::get_if<size_t>(&zone)) {
-        if (*index < g_config->timezones.size()) {
+auto ClockComponent::ZoneName(const std::variant<size_t, std::string>& zone) -> std::optional<std::string>
+{
+    if (const auto* index = std::get_if<size_t>(&zone))
+    {
+        if (*index < g_config->timezones.size())
+        {
             return g_config->timezones[*index];
         }
         LOG_ERROR("Timezone index out of range '{}'", *index);
@@ -179,17 +208,26 @@ auto ClockComponent::ZoneName(const std::variant<size_t, std::string>& zone) -> 
     return std::get<std::string>(zone);
 }
 
-auto ClockComponent::City(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string {
+auto ClockComponent::City(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string
+{
     std::string name;
-    if (!zone) {
-        try {
+    if (!zone)
+    {
+        try
+        {
             name = std::string(std::chrono::current_zone()->name());
-        } catch (const std::runtime_error&) {
+        }
+        catch (const std::runtime_error&)
+        {
             name = "Local";
         }
-    } else if (const auto* index = std::get_if<size_t>(&*zone)) {
+    }
+    else if (const auto* index = std::get_if<size_t>(&*zone))
+    {
         name = *index < g_config->timezones.size() ? g_config->timezones[*index] : std::string("Local");
-    } else {
+    }
+    else
+    {
         name = std::get<std::string>(*zone);
     }
     auto city = name.substr(name.rfind('/') == std::string::npos ? 0 : name.rfind('/') + 1);
@@ -201,7 +239,8 @@ auto ClockComponent::FormatTime(
     std::string_view format,
     const std::chrono::time_zone* zone,
     std::chrono::system_clock::time_point now
-) -> std::string {
+) -> std::string
+{
     const auto* effective_zone = zone != nullptr ? zone : std::chrono::current_zone();
     const auto info = effective_zone->get_info(now);
     const auto local = std::chrono::floor<std::chrono::nanoseconds>(now) + std::chrono::nanoseconds(info.offset);
@@ -221,21 +260,24 @@ auto ClockComponent::FormatTime(
     const auto [iso_year, iso_week] = IsoWeek(std::chrono::sys_days(date));
 
     std::string out;
-    for (size_t index = 0; index < format.size(); ++index) {
-        if (format[index] != '%' || index + 1 >= format.size()) {
+    for (size_t index = 0; index < format.size(); ++index)
+    {
+        if (format[index] != '%' || index + 1 >= format.size())
+        {
             out += format[index];
             continue;
         }
         auto spec = format[++index];
         std::optional<NumberPadding> pad_override;
-        if ((spec == '-' || spec == '_' || spec == '0') && index + 1 < format.size()) {
+        if ((spec == '-' || spec == '_' || spec == '0') && index + 1 < format.size())
+        {
             pad_override = spec == '-' ? NumberPadding::None : (spec == '_' ? NumberPadding::Space : NumberPadding::Zero);
             spec = format[++index];
         }
-        const auto number = [&](int64_t value, int width, NumberPadding padding) -> void {
-            AppendNumber(out, value, width, pad_override.value_or(padding));
-        };
-        switch (spec) {
+        const auto number = [&](int64_t value, int width, NumberPadding padding) -> void
+        { AppendNumber(out, value, width, pad_override.value_or(padding)); };
+        switch (spec)
+        {
         case 'Y': number(year, 4, NumberPadding::Zero); break;
         case 'C': number(year / 100, 2, NumberPadding::Zero); break;
         case 'y': number(year % 100, 2, NumberPadding::Zero); break;
@@ -294,15 +336,19 @@ auto ClockComponent::FormatTime(
             );
             break;
         case 'Z':
-            if (zone == nullptr) {
+            if (zone == nullptr)
+            {
                 AppendOffset(out, info.offset, true);
-            } else {
+            }
+            else
+            {
                 out += info.abbrev;
             }
             break;
         case 'z': AppendOffset(out, info.offset, false); break;
         case ':':
-            if (index + 1 < format.size() && format[index + 1] == 'z') {
+            if (index + 1 < format.size() && format[index + 1] == 'z')
+            {
                 ++index;
                 AppendOffset(out, info.offset, true);
             }
@@ -317,9 +363,11 @@ auto ClockComponent::FormatTime(
     return out;
 }
 
-auto ClockComponent::Layout() -> void {
+auto ClockComponent::Layout() -> void
+{
     m_label.SetSize(Size());
-    if (m_city != nullptr) {
+    if (m_city != nullptr)
+    {
         const auto size = static_cast<float>(m_city->FontSize());
         const bool centered = m_label.Centered();
         m_city->SetRect(
@@ -331,6 +379,7 @@ auto ClockComponent::Layout() -> void {
     }
 }
 
-auto ClockComponent::Update() -> void {
+auto ClockComponent::Update() -> void
+{
     m_label.SetText(FormatTime(m_format, m_zone, std::chrono::system_clock::now()));
 }

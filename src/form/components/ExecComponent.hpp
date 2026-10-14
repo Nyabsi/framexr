@@ -34,7 +34,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct ExecElement {
+struct ExecElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -45,7 +46,8 @@ struct ExecElement {
     size_t form = 0;
 };
 
-class ExecComponent final : public FormComponent {
+class ExecComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Exec";
 

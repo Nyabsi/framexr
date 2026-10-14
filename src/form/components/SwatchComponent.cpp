@@ -26,9 +26,11 @@
 #include "FormTheme.hpp"
 #include "OutlineComponent.hpp"
 
-namespace {
+namespace
+{
 
-auto RimColor() -> Eigen::Vector4f {
+auto RimColor() -> Eigen::Vector4f
+{
     auto color = FormTheme::Rgba("@subtle");
     color.w() = 0.35f;
     return color;
@@ -41,14 +43,17 @@ SwatchComponent::SwatchComponent(std::string name, std::string_view text, const 
       m_text(text),
       m_color(color),
       m_interactive(interactive),
-      m_rim(AddComponent<OutlineComponent>("rim", std::nullopt, HighlightOutline{.color = RimColor(), .width = 1.0f})) {
+      m_rim(AddComponent<OutlineComponent>("rim", std::nullopt, HighlightOutline{.color = RimColor(), .width = 1.0f}))
+{
 }
 
-auto SwatchComponent::Layout() -> void {
+auto SwatchComponent::Layout() -> void
+{
     m_rim.SetSize(Size());
 }
 
-auto SwatchComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto SwatchComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     const float radius = FormTheme::Resolve(std::nullopt, frame.rounding, Shape::Control) * frame.scale;
     state.push_back(FillItem{.rect = frame.rect, .radius = radius, .color = m_color, .owner = this});
     state.push_back(
@@ -61,7 +66,8 @@ auto SwatchComponent::Emit(FormState& state, const FormFrame& frame) -> void {
             .owner = this,
         }
     );
-    if (m_interactive) {
+    if (m_interactive)
+    {
         state.push_back(InteractItem{.rect = frame.rect, .radius = radius, .owner = this});
     }
 }

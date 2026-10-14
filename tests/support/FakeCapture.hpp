@@ -25,7 +25,8 @@
 
 #include "Capture.hpp"
 
-class FakeCapture final : public Capture {
+class FakeCapture final : public Capture
+{
   public:
     FakeCapture(uint32_t width, uint32_t height, std::vector<std::byte> bgra);
 

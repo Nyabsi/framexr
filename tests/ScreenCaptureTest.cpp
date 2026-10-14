@@ -45,16 +45,20 @@
 #include "ScreenCastPortal.hpp"
 #endif
 
-namespace {
+namespace
+{
 
-auto RenderUntilReady(ScreenRenderer& renderer, const std::string& name) -> void {
+auto RenderUntilReady(ScreenRenderer& renderer, const std::string& name) -> void
+{
     bool ready = false;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    while (!ready && std::chrono::steady_clock::now() < deadline) {
+    while (!ready && std::chrono::steady_clock::now() < deadline)
+    {
         const auto readiness = renderer.ShouldRender();
         ASSERT_TRUE(readiness.has_value());
         ready = *readiness == RenderReadiness::Should;
-        if (!ready) {
+        if (!ready)
+        {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
@@ -83,7 +87,8 @@ auto RenderUntilReady(ScreenRenderer& renderer, const std::string& name) -> void
 
 } // namespace
 
-TEST(ScreenCapture, ScreenPipelineBlendsLikeOriginal) {
+TEST(ScreenCapture, ScreenPipelineBlendsLikeOriginal)
+{
     constexpr uint32_t kSize = 64;
     constexpr unsigned char kGray = 128;
     std::vector<std::byte> bgra(size_t{kSize} * kSize * 4, std::byte{kGray});
@@ -107,16 +112,20 @@ TEST(ScreenCapture, ScreenPipelineBlendsLikeOriginal) {
     const double encoded = squared <= 0.0031308 ? 12.92 * squared : 1.055 * std::pow(squared, 1.0 / 2.4) - 0.055;
     const int expected = static_cast<int>(std::lround(encoded * 255.0));
     const size_t center = (size_t{kSize} / 2 * kSize + kSize / 2) * 4;
-    for (size_t channel = 0; channel < 3; ++channel) {
+    for (size_t channel = 0; channel < 3; ++channel)
+    {
         EXPECT_NEAR(pixels[center + channel], expected, 1) << "channel " << channel;
     }
 }
 
-TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
+TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens)
+{
     constexpr uint32_t kSize = 64;
     std::vector<std::byte> stripes(size_t{kSize} * kSize * 4);
-    for (size_t y = 0; y < kSize; ++y) {
-        for (size_t x = 0; x < kSize; ++x) {
+    for (size_t y = 0; y < kSize; ++y)
+    {
+        for (size_t x = 0; x < kSize; ++x)
+        {
             const auto value = x % 2 == 0 ? std::byte{255} : std::byte{0};
             const size_t offset = (y * kSize + x) * 4;
             stripes[offset] = value;
@@ -128,14 +137,17 @@ TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
     ScreenRenderer renderer("stripes", std::make_unique<FakeCapture>(kSize, kSize, std::move(stripes)));
     RenderUntilReady(renderer, "stripes");
 
-    const auto render = [&](const TexelFootprint& footprint) -> std::vector<unsigned char> {
+    const auto render = [&](const TexelFootprint& footprint) -> std::vector<unsigned char>
+    {
         renderer.SetTexelFootprint(footprint);
         bool ready = false;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        while (!ready && std::chrono::steady_clock::now() < deadline) {
+        while (!ready && std::chrono::steady_clock::now() < deadline)
+        {
             const auto readiness = renderer.ShouldRender();
             ready = readiness && *readiness == RenderReadiness::Should;
-            if (!ready) {
+            if (!ready)
+            {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
         }
@@ -149,11 +161,13 @@ TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
         g_device->GraphicsQueue().WaitIdle();
         return GpuReadback::Read(**target);
     };
-    const auto contrast = [](const std::vector<unsigned char>& pixels, size_t x) -> int {
+    const auto contrast = [](const std::vector<unsigned char>& pixels, size_t x) -> int
+    {
         const size_t row = size_t{kSize} / 2 * kSize;
         return std::abs(static_cast<int>(pixels[(row + x) * 4]) - static_cast<int>(pixels[(row + x + 1) * 4]));
     };
-    const auto facing = [](float distance) -> TexelFootprint {
+    const auto facing = [](float distance) -> TexelFootprint
+    {
         return {
             .eye = Eigen::Vector3f(0.0f, 0.0f, distance),
             .size = Eigen::Vector2f::Ones(),
@@ -179,9 +193,11 @@ TEST(ScreenCapture, LowpassFilterSoftensOnlyMinifiedScreens) {
 }
 
 #if FRAMEXR_FEATURE_WAYLAND
-TEST(ScreenCapture, PipewireFrameGoesThroughScreenPipeline) {
+TEST(ScreenCapture, PipewireFrameGoesThroughScreenPipeline)
+{
     const char* token = std::getenv("FRAMEXR_TEST_PW_TOKEN");
-    if (token == nullptr) {
+    if (token == nullptr)
+    {
         GTEST_SKIP() << "set FRAMEXR_TEST_PW_TOKEN to a ScreenCast restore token";
     }
     auto selection = ScreenCastPortal::SelectScreen({.restore_token = token, .screens_only = true, .persist = true}).get();
@@ -195,9 +211,11 @@ TEST(ScreenCapture, PipewireFrameGoesThroughScreenPipeline) {
 #if FRAMEXR_FEATURE_X11
 #include "XshmCapture.hpp"
 
-TEST(ScreenCapture, XshmFrameGoesThroughScreenPipeline) {
+TEST(ScreenCapture, XshmFrameGoesThroughScreenPipeline)
+{
     auto monitors = Xshm::Monitors();
-    if (!monitors || monitors->empty()) {
+    if (!monitors || monitors->empty())
+    {
         GTEST_SKIP() << "no X11 display";
     }
     const auto screen = monitors->front();

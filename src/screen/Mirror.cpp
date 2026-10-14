@@ -30,28 +30,34 @@
 #include "ScreenRenderer.hpp"
 #include "TaskQueue.hpp"
 
-Mirror::Mirror(std::string name, bool show_hide) : m_selection(ScreenCastPortal::SelectScreen({})) {
+Mirror::Mirror(std::string name, bool show_hide) : m_selection(ScreenCastPortal::SelectScreen({}))
+{
     SetName(std::move(name));
     SetShowHide(show_hide);
     SetWantVisible(true);
     SetSpawnScale(0.5f * g_config->desktop_view_scale);
 }
 
-auto Mirror::Update() -> void {
-    if (m_selection && m_selection->wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+auto Mirror::Update() -> void
+{
+    if (m_selection && m_selection->wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+    {
         Attach();
     }
     if (const auto meta = Composer()->Meta();
-        meta && (meta->extent.width != m_extent.width || meta->extent.height != m_extent.height)) {
+        meta && (meta->extent.width != m_extent.width || meta->extent.height != m_extent.height))
+    {
         m_extent = meta->extent;
         SetInteractionTransform(UiTransform(m_extent));
     }
 }
 
-auto Mirror::Attach() -> void {
+auto Mirror::Attach() -> void
+{
     auto selection = m_selection->get();
     m_selection.reset();
-    if (!selection || selection->streams.empty()) {
+    if (!selection || selection->streams.empty())
+    {
         LOG_WARN(
             "Failed to create mirror due to PipeWire error: {}",
             selection ? std::string("no streams selected") : selection.error().Message()

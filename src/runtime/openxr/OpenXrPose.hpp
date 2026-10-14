@@ -27,7 +27,8 @@
 
 #include <openxr/openxr.h>
 
-class OpenXrPose {
+class OpenXrPose
+{
   public:
     static auto FromTransform(const Eigen::Affine3f& transform) -> XrPosef;
     static auto FromTranslationRotation(const Eigen::Vector3f& translation, const Eigen::Quaternionf& rotation) -> XrPosef;

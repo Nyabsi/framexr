@@ -27,7 +27,8 @@
 #include "Logger.hpp"
 #include "Toast.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kConnectTimeout = std::chrono::seconds(5);
 constexpr uint32_t kReturn = 0xff0d;
@@ -36,7 +37,8 @@ constexpr uint32_t kBackSpace = 0xff08;
 constexpr uint32_t kEscape = 0xff1b;
 constexpr uint32_t kUnicodeKeysym = 0x01000000;
 
-struct SpecialKeysym {
+struct SpecialKeysym
+{
     VirtualKey key;
     uint32_t keysym;
 };
@@ -59,41 +61,55 @@ constexpr SpecialKeysym kSpecialKeysyms[] = {
     {VirtualKey::Delete, 0xffff},
 };
 
-auto Keysym(VirtualKey key, std::string_view text) -> uint32_t {
-    for (const auto& special : kSpecialKeysyms) {
-        if (special.key == key) {
+auto Keysym(VirtualKey key, std::string_view text) -> uint32_t
+{
+    for (const auto& special : kSpecialKeysyms)
+    {
+        if (special.key == key)
+        {
             return special.keysym;
         }
     }
     const auto codepoints = FontCache::DecodeUtf8(text);
-    if (codepoints.empty()) {
+    if (codepoints.empty())
+    {
         return 0;
     }
     return codepoints.front() < 0x100 ? codepoints.front() : (kUnicodeKeysym | codepoints.front());
 }
 
-auto KeysymText(uint32_t keysym) -> std::string {
-    if ((keysym & 0xff000000U) == kUnicodeKeysym) {
+auto KeysymText(uint32_t keysym) -> std::string
+{
+    if ((keysym & 0xff000000U) == kUnicodeKeysym)
+    {
         keysym &= 0x00ffffffU;
-    } else if (keysym < 0x20 || keysym >= 0x100) {
+    }
+    else if (keysym < 0x20 || keysym >= 0x100)
+    {
         return {};
     }
     return FontCache::EncodeUtf8(std::span(&keysym, 1));
 }
 
-auto PopCodepoint(std::string& text) -> void {
-    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U) {
+auto PopCodepoint(std::string& text) -> void
+{
+    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0U) == 0x80U)
+    {
         text.pop_back();
     }
-    if (!text.empty()) {
+    if (!text.empty())
+    {
         text.pop_back();
     }
 }
 
-auto Truncate(std::string& text, size_t codepoints) -> void {
+auto Truncate(std::string& text, size_t codepoints) -> void
+{
     size_t count = 0;
-    for (size_t i = 0; i < text.size(); ++i) {
-        if ((static_cast<unsigned char>(text[i]) & 0xC0U) != 0x80U && count++ == codepoints) {
+    for (size_t i = 0; i < text.size(); ++i)
+    {
+        if ((static_cast<unsigned char>(text[i]) & 0xC0U) != 0x80U && count++ == codepoints)
+        {
             text.resize(i);
             return;
         }
@@ -102,67 +118,87 @@ auto Truncate(std::string& text, size_t codepoints) -> void {
 
 } // namespace
 
-auto Chatbox::Active() const -> bool {
+auto Chatbox::Active() const -> bool
+{
     return m_open && g_interaction->FocusedTextInput().get() == this;
 }
 
-auto Chatbox::Toggle() -> void {
-    if (Active()) {
+auto Chatbox::Toggle() -> void
+{
+    if (Active())
+    {
         Close();
-    } else {
+    }
+    else
+    {
         Open();
     }
 }
 
-auto Chatbox::Update(bool visible) -> void {
-    if (m_open && (!visible || !Active())) {
+auto Chatbox::Update(bool visible) -> void
+{
+    if (m_open && (!visible || !Active()))
+    {
         Close();
     }
-    if (m_connecting) {
+    if (m_connecting)
+    {
         Connect();
     }
-    if (m_ime) {
+    if (m_ime)
+    {
         m_ime->Poll();
     }
 }
 
-auto Chatbox::Display() const -> std::string {
-    if (m_connecting) {
+auto Chatbox::Display() const -> std::string
+{
+    if (m_connecting)
+    {
         return m_draft + "\u2026";
     }
-    if (!m_ime) {
+    if (!m_ime)
+    {
         return m_draft;
     }
     std::string display = m_draft + m_ime->Preedit();
-    for (size_t index = 0; index < m_ime->Candidates().size(); ++index) {
+    for (size_t index = 0; index < m_ime->Candidates().size(); ++index)
+    {
         display += std::format("{}{}.{}", index == 0 ? "  " : " ", index + 1, m_ime->Candidates()[index]);
     }
     return display;
 }
 
-auto Chatbox::SetScript(ImeScript script) -> void {
+auto Chatbox::SetScript(ImeScript script) -> void
+{
     m_script = script;
-    if (m_open) {
+    if (m_open)
+    {
         Attach();
         Changed();
     }
 }
 
-auto Chatbox::Key(VirtualKey key, uint8_t modifiers, std::string_view text) -> void {
-    if (m_connecting) {
+auto Chatbox::Key(VirtualKey key, uint8_t modifiers, std::string_view text) -> void
+{
+    if (m_connecting)
+    {
         m_queued.push_back({.key = key, .modifiers = modifiers, .text = std::string(text)});
         return;
     }
     const uint32_t keysym = Keysym(key, text);
-    if (m_ime && keysym != 0 && m_ime->Key(key, keysym, modifiers)) {
+    if (m_ime && keysym != 0 && m_ime->Key(key, keysym, modifiers))
+    {
         Changed();
         return;
     }
     Edit(keysym, text);
 }
 
-auto Chatbox::Edit(uint32_t keysym, std::string_view text) -> void {
-    switch (keysym) {
+auto Chatbox::Edit(uint32_t keysym, std::string_view text) -> void
+{
+    switch (keysym)
+    {
     case kReturn:
     case kKpEnter: Send(std::exchange(m_draft, {})); break;
     case kEscape: Close(); return;
@@ -172,23 +208,28 @@ auto Chatbox::Edit(uint32_t keysym, std::string_view text) -> void {
     Changed();
 }
 
-auto Chatbox::Attach() -> void {
+auto Chatbox::Attach() -> void
+{
     m_ime.reset();
     m_queued.clear();
     m_connecting.reset();
-    if (m_script != ImeScript::None) {
+    if (m_script != ImeScript::None)
+    {
         m_connecting = std::chrono::steady_clock::now() + kConnectTimeout;
         Connect();
     }
 }
 
-auto Chatbox::Connect() -> void {
+auto Chatbox::Connect() -> void
+{
     auto connected = ImeContext::Connect(m_script);
-    if (const auto now = std::chrono::steady_clock::now(); connected && !*connected && now < m_connecting.value_or(now)) {
+    if (const auto now = std::chrono::steady_clock::now(); connected && !*connected && now < m_connecting.value_or(now))
+    {
         return;
     }
     m_connecting.reset();
-    if (!connected || !*connected) {
+    if (!connected || !*connected)
+    {
         const auto reason = connected ? std::string("The input method did not start in time.") : connected.error().Message();
         LOG_WARN("Chatbox input method: {}", reason);
         Toast::Show({.title = "No input method", .body = reason, .timeout = 6.0f});
@@ -200,14 +241,17 @@ auto Chatbox::Connect() -> void {
     m_ime->SetOnCommit([this](const std::string& committed) -> void { m_draft += committed; });
     m_ime->SetOnForward([this](uint32_t keysym) -> void { Edit(keysym, KeysymText(keysym)); });
     m_ime->SetOnChange([this]() -> void { Changed(); });
-    for (const auto& queued : std::exchange(m_queued, {})) {
+    for (const auto& queued : std::exchange(m_queued, {}))
+    {
         Key(queued.key, queued.modifiers, queued.text);
     }
     Changed();
 }
 
-auto Chatbox::Open() -> void {
-    if (g_osc == nullptr) {
+auto Chatbox::Open() -> void
+{
+    if (g_osc == nullptr)
+    {
         LOG_WARN("OSC is turned off, the keyboard cannot type into the VRChat chatbox");
         Toast::Show({.title = "Chatbox unavailable", .body = "OSC is turned off in FrameXR.", .timeout = 5.0f});
         return;
@@ -221,32 +265,40 @@ auto Chatbox::Open() -> void {
     Changed();
 }
 
-auto Chatbox::Close() -> void {
+auto Chatbox::Close() -> void
+{
     m_open = false;
     m_draft.clear();
     m_ime.reset();
     m_connecting.reset();
     m_queued.clear();
-    if (g_interaction->FocusedTextInput().get() == this) {
+    if (g_interaction->FocusedTextInput().get() == this)
+    {
         g_interaction->SetFocusedTextInput(nullptr);
     }
     Changed();
 }
 
-auto Chatbox::Send(std::string text) -> void {
+auto Chatbox::Send(std::string text) -> void
+{
     Truncate(text, kMaxLength);
-    if (!text.empty()) {
+    if (!text.empty())
+    {
         Deliver("/chatbox/input", {std::move(text), true, true});
     }
 }
 
-auto Chatbox::Deliver(const std::string& address, const std::vector<OscValue>& values) -> void {
-    if (g_osc == nullptr) {
+auto Chatbox::Deliver(const std::string& address, const std::vector<OscValue>& values) -> void
+{
+    if (g_osc == nullptr)
+    {
         return;
     }
-    if (const auto sent = g_osc->SendMessage(address, values); !sent) {
+    if (const auto sent = g_osc->SendMessage(address, values); !sent)
+    {
         LOG_WARN("Could not send {}: {}", address, sent.error().Message());
-        if (!std::exchange(m_warned, true)) {
+        if (!std::exchange(m_warned, true))
+        {
             Toast::Show({
                 .title = "VRChat isn't receiving OSC",
                 .body = "Turn it on in VRChat: Action Menu, Options, OSC, Enabled.",
@@ -256,12 +308,15 @@ auto Chatbox::Deliver(const std::string& address, const std::vector<OscValue>& v
     }
 }
 
-auto Chatbox::Changed() -> void {
-    if (const bool typing = Active() && (!m_draft.empty() || (m_ime && !m_ime->Preedit().empty())); typing != m_typing) {
+auto Chatbox::Changed() -> void
+{
+    if (const bool typing = Active() && (!m_draft.empty() || (m_ime && !m_ime->Preedit().empty())); typing != m_typing)
+    {
         m_typing = typing;
         Deliver("/chatbox/typing", {typing});
     }
-    if (m_on_change) {
+    if (m_on_change)
+    {
         m_on_change();
     }
 }

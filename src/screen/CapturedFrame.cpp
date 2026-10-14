@@ -43,5 +43,6 @@
 CapturedFrame::CapturedFrame(std::shared_ptr<Image> captured_image, FrameFormat frame_format, std::optional<MouseMeta> mouse_meta)
     : m_texture(std::move(captured_image)),
       m_format(frame_format),
-      m_mouse(mouse_meta) {
+      m_mouse(mouse_meta)
+{
 }

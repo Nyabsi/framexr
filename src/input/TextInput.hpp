@@ -23,7 +23,8 @@
 
 #include "VirtualKeys.hpp"
 
-class TextInput {
+class TextInput
+{
   public:
     virtual ~TextInput() = default;
 

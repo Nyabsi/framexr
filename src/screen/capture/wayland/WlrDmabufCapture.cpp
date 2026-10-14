@@ -32,77 +32,100 @@
 
 WlrDmabufCapture::WlrDmabufCapture(std::unique_ptr<WaylandClient> client, uint32_t output_id)
     : m_output_id(output_id),
-      m_client(std::move(client)) {
+      m_client(std::move(client))
+{
 }
 
-WlrDmabufCapture::~WlrDmabufCapture() {
-    if (m_worker.valid()) {
+WlrDmabufCapture::~WlrDmabufCapture()
+{
+    if (m_worker.valid())
+    {
         m_worker.wait();
     }
-    if (m_channel) {
-        for (const auto& frame : m_channel->TakeAll()) {
+    if (m_channel)
+    {
+        for (const auto& frame : m_channel->TakeAll())
+        {
             CloseFrame(frame);
         }
     }
-    for (const int fd : m_fds) {
+    for (const int fd : m_fds)
+    {
         close(fd);
     }
 }
 
-auto WlrDmabufCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
+auto WlrDmabufCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void
+{
     m_channel = std::make_shared<FrameChannel<DmabufFrame>>(2);
     m_processor = std::move(processor);
 }
 
-auto WlrDmabufCapture::CloseFrame(const DmabufFrame& frame) -> void {
-    for (const auto& plane : frame.planes) {
-        if (plane.fd >= 0) {
+auto WlrDmabufCapture::CloseFrame(const DmabufFrame& frame) -> void
+{
+    for (const auto& plane : frame.planes)
+    {
+        if (plane.fd >= 0)
+        {
             close(plane.fd);
         }
     }
 }
 
-auto WlrDmabufCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!m_channel) {
+auto WlrDmabufCapture::Receive() -> std::unique_ptr<ProcessedFrame>
+{
+    if (!m_channel)
+    {
         return nullptr;
     }
     auto frames = m_channel->TakeAll();
-    if (frames.empty()) {
+    if (frames.empty())
+    {
         return nullptr;
     }
     auto latest = std::move(frames.back());
     frames.pop_back();
-    for (const auto& frame : frames) {
+    for (const auto& frame : frames)
+    {
         CloseFrame(frame);
     }
 
-    while (m_fds.size() > 6 * latest.planes.size()) {
+    while (m_fds.size() > 6 * latest.planes.size())
+    {
         close(m_fds.back());
         m_fds.pop_back();
     }
-    for (const auto& plane : latest.planes) {
-        if (plane.fd >= 0) {
+    for (const auto& plane : latest.planes)
+    {
+        if (plane.fd >= 0)
+        {
             m_fds.push_front(plane.fd);
         }
     }
     return m_processor(Frame(std::move(latest)));
 }
 
-auto WlrDmabufCapture::Resume() -> void {
+auto WlrDmabufCapture::Resume() -> void
+{
     Receive();
 }
 
-auto WlrDmabufCapture::RequestNewFrame() -> void {
-    if (m_worker.valid()) {
-        if (m_worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+auto WlrDmabufCapture::RequestNewFrame() -> void
+{
+    if (m_worker.valid())
+    {
+        if (m_worker.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        {
             return;
         }
         m_client = m_worker.get();
     }
-    if (!m_client) {
+    if (!m_client)
+    {
         return;
     }
-    if (!m_channel) {
+    if (!m_channel)
+    {
         FatalError("must call Start once before RequestNewFrame");
     }
     m_worker = std::async(std::launch::async, &WlrDmabufCapture::CaptureFrame, std::move(m_client), m_output_id, m_channel);
@@ -112,7 +135,8 @@ auto WlrDmabufCapture::CaptureFrame(
     std::unique_ptr<WaylandClient> client,
     uint32_t output_id,
     const std::shared_ptr<FrameChannel<DmabufFrame>>& channel
-) -> std::unique_ptr<WaylandClient> {
+) -> std::unique_ptr<WaylandClient>
+{
     static constexpr zwlr_export_dmabuf_frame_v1_listener kListener{
         .frame = &WlrDmabufCapture::OnFrame,
         .object = &WlrDmabufCapture::OnObject,
@@ -122,7 +146,8 @@ auto WlrDmabufCapture::CaptureFrame(
 
     auto* manager = client->DmabufManager();
     const auto* output = client->FindOutput(output_id);
-    if (manager == nullptr || output == nullptr) {
+    if (manager == nullptr || output == nullptr)
+    {
         return client;
     }
 
@@ -130,20 +155,26 @@ auto WlrDmabufCapture::CaptureFrame(
     auto* frame = zwlr_export_dmabuf_manager_v1_capture_output(manager, 1, output->output);
     zwlr_export_dmabuf_frame_v1_add_listener(frame, &kListener, &request);
 
-    while (!request.finished) {
-        if (wl_display_dispatch(client->Display()) < 0) {
+    while (!request.finished)
+    {
+        if (wl_display_dispatch(client->Display()) < 0)
+        {
             zwlr_export_dmabuf_frame_v1_destroy(frame);
             CloseFrame(request.frame);
             return client;
         }
     }
 
-    if (request.ready) {
+    if (request.ready)
+    {
         LOG_DEBUG("DMA-Buf frame captured");
-        if (const auto evicted = channel->Push(std::move(request.frame))) {
+        if (const auto evicted = channel->Push(std::move(request.frame)))
+        {
             CloseFrame(*evicted);
         }
-    } else {
+    }
+    else
+    {
         CloseFrame(request.frame);
     }
     return client;
@@ -162,7 +193,8 @@ auto WlrDmabufCapture::OnFrame(
     uint32_t mod_high,
     uint32_t mod_low,
     uint32_t num_objects
-) -> void {
+) -> void
+{
     auto* request = static_cast<DmabufFrameRequest*>(data);
     request->started = true;
     request->frame.format = {
@@ -184,23 +216,27 @@ auto WlrDmabufCapture::OnObject(
     uint32_t offset,
     uint32_t stride,
     uint32_t
-) -> void {
+) -> void
+{
     auto* request = static_cast<DmabufFrameRequest*>(data);
-    if (!request->started || index >= request->frame.planes.size()) {
+    if (!request->started || index >= request->frame.planes.size())
+    {
         close(fd);
         return;
     }
     request->frame.planes[index] = {.fd = fd, .offset = offset, .stride = static_cast<int32_t>(stride)};
 }
 
-auto WlrDmabufCapture::OnReady(void* data, zwlr_export_dmabuf_frame_v1* frame, uint32_t, uint32_t, uint32_t) -> void {
+auto WlrDmabufCapture::OnReady(void* data, zwlr_export_dmabuf_frame_v1* frame, uint32_t, uint32_t, uint32_t) -> void
+{
     auto* request = static_cast<DmabufFrameRequest*>(data);
     zwlr_export_dmabuf_frame_v1_destroy(frame);
     request->ready = request->started;
     request->finished = true;
 }
 
-auto WlrDmabufCapture::OnCancel(void* data, zwlr_export_dmabuf_frame_v1* frame, uint32_t) -> void {
+auto WlrDmabufCapture::OnCancel(void* data, zwlr_export_dmabuf_frame_v1* frame, uint32_t) -> void
+{
     auto* request = static_cast<DmabufFrameRequest*>(data);
     LOG_WARN("DMA-Buf frame capture cancelled");
     zwlr_export_dmabuf_frame_v1_destroy(frame);

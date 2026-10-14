@@ -49,7 +49,8 @@
 #include "TextInput.hpp"
 #include "framexr_config.h"
 
-namespace {
+namespace
+{
 
 constexpr float kButtonPadding = 7.0f;
 
@@ -65,52 +66,67 @@ constexpr unsigned char kKeyClickSound[] = {
 #embed "421581.wav"
 };
 
-auto Click() -> void {
-    if (g_config->keyboard_sound_enabled) {
+auto Click() -> void
+{
+    if (g_config->keyboard_sound_enabled)
+    {
         g_audio->Play(std::as_bytes(std::span(kKeyClickSound)));
     }
 }
 
-auto ActiveColor() -> Eigen::Vector4f {
+auto ActiveColor() -> Eigen::Vector4f
+{
     return {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 0.5f};
 }
 
-auto LatchedColor() -> Eigen::Vector4f {
+auto LatchedColor() -> Eigen::Vector4f
+{
     return {1.0f, 1.0f, 1.0f, 0.16f};
 }
 
-auto LatchedOutline() -> HighlightOutline {
+auto LatchedOutline() -> HighlightOutline
+{
     return {.color = {198.0f / 255.0f, 160.0f / 255.0f, 246.0f / 255.0f, 1.0f}, .width = 3.0f};
 }
 
-auto Color(std::string_view hex) -> Eigen::Vector4f {
+auto Color(std::string_view hex) -> Eigen::Vector4f
+{
     return FormTheme::ParseColor(hex).value_or(FormTheme::FallbackColor());
 }
 
-auto RegionKeymap(const std::string& name) -> std::shared_ptr<const Keymap> {
+auto RegionKeymap(const std::string& name) -> std::shared_ptr<const Keymap>
+{
     static std::map<std::string, std::shared_ptr<const Keymap>, std::less<>> loaded;
-    if (const auto found = loaded.find(name); found != loaded.end()) {
+    if (const auto found = loaded.find(name); found != loaded.end())
+    {
         return found->second;
     }
     std::shared_ptr<const Keymap> keymap;
     const auto region = KeyTranslator::ParseRegion(name);
-    if (auto created = Keymap::FromNames(region.layout, region.variant)) {
+    if (auto created = Keymap::FromNames(region.layout, region.variant))
+    {
         keymap = std::make_shared<const Keymap>(std::move(*created));
-    } else {
+    }
+    else
+    {
         LOG_ERROR("Keyboard region {}: {}", name, created.error().Message());
     }
     loaded.emplace(name, keymap);
     return keymap;
 }
 
-auto Tail(std::string text, int size, float width) -> std::string {
-    if (FontCache::Width(text, size) <= width) {
+auto Tail(std::string text, int size, float width) -> std::string
+{
+    if (FontCache::Width(text, size) <= width)
+    {
         return text;
     }
     constexpr std::string_view kEllipsis = "\u2026";
-    while (!text.empty() && FontCache::Width(std::string(kEllipsis) + text, size) > width) {
+    while (!text.empty() && FontCache::Width(std::string(kEllipsis) + text, size) > width)
+    {
         size_t end = 1;
-        while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0U) == 0x80U) {
+        while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0U) == 0x80U)
+        {
             ++end;
         }
         text.erase(0, end);
@@ -118,13 +134,16 @@ auto Tail(std::string text, int size, float width) -> std::string {
     return std::string(kEllipsis) + text;
 }
 
-auto StartsWithLetter(std::string_view text) -> bool {
+auto StartsWithLetter(std::string_view text) -> bool
+{
     const auto codepoints = FontCache::DecodeUtf8(text);
-    if (codepoints.empty()) {
+    if (codepoints.empty())
+    {
         return false;
     }
     const uint32_t first = codepoints.front();
-    if (first < 0x80) {
+    if (first < 0x80)
+    {
         return std::isalpha(static_cast<int>(first)) != 0;
     }
 #ifdef _WIN32
@@ -137,14 +156,16 @@ auto StartsWithLetter(std::string_view text) -> bool {
 
 } // namespace
 
-auto Keyboard::CanvasSize(const KeyboardLayout& layout) -> Eigen::Vector2f {
+auto Keyboard::CanvasSize(const KeyboardLayout& layout) -> Eigen::Vector2f
+{
     return {
         std::fma(layout.Columns(), kPixelsPerUnit, 2.0f * kKeyboardMargin),
         std::fma(static_cast<float>(layout.Rows()), kPixelsPerUnit, 2.0f * kKeyboardMargin),
     };
 }
 
-auto Keyboard::KeyRect(const KeyDefinition& key, const KeyboardPlacement& placement) -> CanvasRect {
+auto Keyboard::KeyRect(const KeyDefinition& key, const KeyboardPlacement& placement) -> CanvasRect
+{
     const float scale = placement.scale;
     return {
         placement.origin.x() + std::fma(kPixelsPerUnit, key.x, kKeyboardMargin + kButtonPadding) * scale,
@@ -160,7 +181,8 @@ auto Keyboard::Fill(
     const std::shared_ptr<const Keymap>& keymap,
     const KeyboardPlacement& placement,
     Keyboard* owner
-) -> void {
+) -> void
+{
     auto& board = parent.AddComponent<FormComponent>("keyboard");
     board.SetPosition(placement.origin);
     board.SetScale(placement.scale);
@@ -171,11 +193,13 @@ auto Keyboard::Fill(
     const Eigen::Vector4f fg_color = Color("@text");
     const Eigen::Vector4f bg_color = Color("@panel");
     std::shared_ptr<const Keymap> region_keymap;
-    if (const auto region_name = layout.Region().value_or(g_config->keyboard_region); !region_name.empty()) {
+    if (const auto region_name = layout.Region().value_or(g_config->keyboard_region); !region_name.empty())
+    {
         region_keymap = RegionKeymap(region_name);
     }
     const auto typing = region_keymap ? region_keymap : keymap;
-    if (owner != nullptr) {
+    if (owner != nullptr)
+    {
         auto& input = owner->m_input;
         input.SetAltModifier(layout.AltModifierMask());
         input.SetTypingKeymap(typing);
@@ -190,38 +214,51 @@ auto Keyboard::Fill(
     const bool has_altgr = typing_keymap != nullptr && typing_keymap->HasAltGr();
     const Keymap* label_keymap = layout.AutoLabels().value_or(true) ? typing_keymap : nullptr;
 
-    for (const auto& key : layout.Keys()) {
+    for (const auto& key : layout.Keys())
+    {
         const auto rect = KeyRect(key, {});
         std::vector<std::string> labels;
         auto& placed = board.AddComponent<KeyComponent>();
         auto cap_type = KeyCapType::Regular;
         std::optional<std::string> upper_case;
 
-        if (owner != nullptr) {
+        if (owner != nullptr)
+        {
             owner->Bind(placed, key, keymap);
             owner->m_keys.push_back(&placed);
         }
-        if (const auto* typed = std::get_if<TypeKey>(&key.action)) {
+        if (const auto* typed = std::get_if<TypeKey>(&key.action))
+        {
             const auto virtual_key = typed->key;
-            if (label_keymap != nullptr && !key.label) {
-                switch (VirtualKeys::Type(virtual_key)) {
-                case KeyType::Symbol: {
+            if (label_keymap != nullptr && !key.label)
+            {
+                switch (VirtualKeys::Type(virtual_key))
+                {
+                case KeyType::Symbol:
+                {
                     auto label0 = label_keymap->LabelForKey(virtual_key, 0);
                     auto label1 = label_keymap->LabelForKey(virtual_key, kModShift);
-                    if (StartsWithLetter(label0)) {
+                    if (StartsWithLetter(label0))
+                    {
                         labels.push_back(std::move(label0));
                         upper_case = std::move(label1);
-                        if (has_altgr) {
+                        if (has_altgr)
+                        {
                             cap_type = KeyCapType::RegularAltGr;
                             labels.push_back(label_keymap->LabelForKey(virtual_key, kModMeta));
                         }
-                    } else {
+                    }
+                    else
+                    {
                         labels.push_back(std::move(label0));
                         labels.push_back(std::move(label1));
-                        if (has_altgr) {
+                        if (has_altgr)
+                        {
                             labels.push_back(label_keymap->LabelForKey(virtual_key, kModMeta));
                             cap_type = KeyCapType::ReversedAltGr;
-                        } else {
+                        }
+                        else
+                        {
                             cap_type = KeyCapType::Reversed;
                         }
                     }
@@ -234,13 +271,16 @@ auto Keyboard::Fill(
         }
         placed.SetInteractive(owner != nullptr);
 
-        if (labels.empty()) {
+        if (labels.empty())
+        {
             labels = layout.Labels(key);
-            if (labels.size() == 1 && labels.front().size() == 1 && StartsWithLetter(labels.front())) {
+            if (labels.size() == 1 && labels.front().size() == 1 && StartsWithLetter(labels.front()))
+            {
                 upper_case = std::string(1, static_cast<char>(std::toupper(static_cast<unsigned char>(labels.front().front()))));
             }
         }
-        if (key.shifted_label) {
+        if (key.shifted_label)
+        {
             upper_case = *key.shifted_label;
         }
         placed.SetRect(rect);
@@ -249,12 +289,14 @@ auto Keyboard::Fill(
         placed.SetFgColor(key.style.fg_color ? Color(*key.style.fg_color) : fg_color);
         placed.SetBgColor(key.style.bg_color ? Color(*key.style.bg_color) : bg_color);
         placed.SetLegends(cap_type, labels, layout.ImeLabels(key));
-        if (const auto* typed = std::get_if<TypeKey>(&key.action); owner != nullptr && typed && typed->key == VirtualKey::Space) {
+        if (const auto* typed = std::get_if<TypeKey>(&key.action); owner != nullptr && typed && typed->key == VirtualKey::Space)
+        {
             owner->m_space = &placed;
             owner->m_space_cap = cap_type;
             owner->m_space_labels = labels;
         }
-        if (owner != nullptr && upper_case && !placed.Legends().empty()) {
+        if (owner != nullptr && upper_case && !placed.Legends().empty())
+        {
             owner->m_letters.push_back(
                 {.label = placed.Legends().front(), .lower = labels.front(), .upper = std::move(*upper_case)}
             );
@@ -262,7 +304,8 @@ auto Keyboard::Fill(
     }
 }
 
-Keyboard::Keyboard() {
+Keyboard::Keyboard()
+{
     SetName(std::string(kKeyboardName));
     SetGrabbable(true);
     SetRecenter(true);
@@ -272,13 +315,15 @@ Keyboard::Keyboard() {
     m_chatbox->SetOnChange([this]() -> void { ShowDraft(); });
 }
 
-auto Keyboard::Create(const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Keyboard>> {
+auto Keyboard::Create(const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Keyboard>>
+{
     auto keyboard = std::unique_ptr<Keyboard>(new Keyboard());
     RETURN_IF_ERROR(keyboard->Apply(keymap, KeyboardLayout::Find(g_config->keyboard_profile)));
     return keyboard;
 }
 
-auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const KeyboardLayout& layout) -> Result<> {
+auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const KeyboardLayout& layout) -> Result<>
+{
     const auto size = CanvasSize(layout);
     auto form = std::make_unique<Form>(std::string(kKeyboardName));
     form->SetSize(size.array().floor().matrix());
@@ -297,93 +342,136 @@ auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const Keyboard
     return {};
 }
 
-auto Keyboard::Update() -> void {
-    if (!WantVisible()) {
+auto Keyboard::Update() -> void
+{
+    if (!WantVisible())
+    {
         m_input.Reset();
     }
     m_chatbox->Update(WantVisible());
-    if (const auto ime = WantVisible() && m_native ? m_ime : ImeScript::None; ime != m_selected_ime) {
+    if (const auto ime = WantVisible() && m_native ? m_ime : ImeScript::None; ime != m_selected_ime)
+    {
         m_selected_ime = ime;
         g_hid->SelectInputMethod(ime);
     }
-    if (m_input.Uppercase() != m_uppercase) {
+    if (m_input.Uppercase() != m_uppercase)
+    {
         m_uppercase = m_input.Uppercase();
-        for (const auto& letter : m_letters) {
+        for (const auto& letter : m_letters)
+        {
             letter.label->SetText(m_uppercase ? letter.upper : letter.lower);
         }
     }
     if (const KeyEmphasis emphasis{.shifted = m_input.Holds(kModShift), .altgr = m_input.Holds(kModMeta), .native = m_native};
-        emphasis != m_emphasis) {
+        emphasis != m_emphasis)
+    {
         m_emphasis = emphasis;
-        for (auto* key : m_keys) {
+        for (auto* key : m_keys)
+        {
             key->Emphasize(emphasis);
         }
     }
 }
 
-auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const std::shared_ptr<const Keymap>& keymap) -> void {
-    if (std::holds_alternative<ProfileKey>(definition.action)) {
-        key.SetOnPress([keymap](PointerMode) -> void {
-            Click();
-            KeyboardPicker::Open(keymap);
-        });
-    } else if (std::holds_alternative<ImeKey>(definition.action)) {
-        key.SetOnPress([this](PointerMode) -> void {
-            Click();
-            m_native = !m_native && m_ime != ImeScript::None;
-            m_chatbox->SetScript(m_native ? m_ime : ImeScript::None);
-        });
-        key.SetHighlightColor([this]() -> std::optional<Eigen::Vector4f> {
-            return m_native ? std::optional(LatchedColor()) : std::nullopt;
-        });
-        key.SetOutline([this]() -> std::optional<HighlightOutline> {
-            return m_native ? std::optional(LatchedOutline()) : std::nullopt;
-        });
-    } else if (std::holds_alternative<ChatboxKey>(definition.action)) {
-        key.SetOnPress([this](PointerMode) -> void {
-            Click();
-            m_chatbox->Toggle();
-        });
-        key.SetHighlightColor([this]() -> std::optional<Eigen::Vector4f> {
-            return m_chatbox->Active() ? std::optional(LatchedColor()) : std::nullopt;
-        });
-        key.SetOutline([this]() -> std::optional<HighlightOutline> {
-            return m_chatbox->Active() ? std::optional(LatchedOutline()) : std::nullopt;
-        });
-    } else if (const auto* action = std::get_if<ActionKey>(&definition.action)) {
+auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const std::shared_ptr<const Keymap>& keymap) -> void
+{
+    if (std::holds_alternative<ProfileKey>(definition.action))
+    {
+        key.SetOnPress(
+            [keymap](PointerMode) -> void
+            {
+                Click();
+                KeyboardPicker::Open(keymap);
+            }
+        );
+    }
+    else if (std::holds_alternative<ImeKey>(definition.action))
+    {
+        key.SetOnPress(
+            [this](PointerMode) -> void
+            {
+                Click();
+                m_native = !m_native && m_ime != ImeScript::None;
+                m_chatbox->SetScript(m_native ? m_ime : ImeScript::None);
+            }
+        );
+        key.SetHighlightColor(
+            [this]() -> std::optional<Eigen::Vector4f> { return m_native ? std::optional(LatchedColor()) : std::nullopt; }
+        );
+        key.SetOutline(
+            [this]() -> std::optional<HighlightOutline> { return m_native ? std::optional(LatchedOutline()) : std::nullopt; }
+        );
+    }
+    else if (std::holds_alternative<ChatboxKey>(definition.action))
+    {
+        key.SetOnPress(
+            [this](PointerMode) -> void
+            {
+                Click();
+                m_chatbox->Toggle();
+            }
+        );
+        key.SetHighlightColor(
+            [this]() -> std::optional<Eigen::Vector4f>
+            { return m_chatbox->Active() ? std::optional(LatchedColor()) : std::nullopt; }
+        );
+        key.SetOutline(
+            [this]() -> std::optional<HighlightOutline>
+            { return m_chatbox->Active() ? std::optional(LatchedOutline()) : std::nullopt; }
+        );
+    }
+    else if (const auto* action = std::get_if<ActionKey>(&definition.action))
+    {
         auto runner = std::make_shared<ActionRunner>();
-        key.SetOnPress([runner, actions = action->press](PointerMode) -> void {
-            Click();
-            runner->Run(actions);
-        });
+        key.SetOnPress(
+            [runner, actions = action->press](PointerMode) -> void
+            {
+                Click();
+                runner->Run(actions);
+            }
+        );
         key.SetOnRelease([runner, actions = action->release]() -> void { runner->Run(actions); });
-    } else if (const auto* typed = std::get_if<TypeKey>(&definition.action)) {
+    }
+    else if (const auto* typed = std::get_if<TypeKey>(&definition.action))
+    {
         const auto virtual_key = typed->key;
-        key.SetOnPress([this, virtual_key](PointerMode mode) -> void {
-            Click();
-            m_input.Press(virtual_key, mode);
-        });
+        key.SetOnPress(
+            [this, virtual_key](PointerMode mode) -> void
+            {
+                Click();
+                m_input.Press(virtual_key, mode);
+            }
+        );
         key.SetOnRelease([this, virtual_key]() -> void { m_input.Release(virtual_key); });
-        if (const auto modifier = VirtualKeys::ModifierOf(virtual_key); modifier && !VirtualKeys::Latches(virtual_key)) {
-            key.SetHighlightColor([this, bit = *modifier]() -> std::optional<Eigen::Vector4f> {
-                return m_input.Holds(bit) ? std::optional(ActiveColor()) : std::nullopt;
-            });
-        } else {
-            key.SetHighlightColor([this, virtual_key]() -> std::optional<Eigen::Vector4f> {
-                return m_input.Latched(virtual_key) ? std::optional(LatchedColor()) : std::nullopt;
-            });
-            key.SetOutline([this, virtual_key]() -> std::optional<HighlightOutline> {
-                return m_input.Latched(virtual_key) ? std::optional(LatchedOutline()) : std::nullopt;
-            });
+        if (const auto modifier = VirtualKeys::ModifierOf(virtual_key); modifier && !VirtualKeys::Latches(virtual_key))
+        {
+            key.SetHighlightColor(
+                [this, bit = *modifier]() -> std::optional<Eigen::Vector4f>
+                { return m_input.Holds(bit) ? std::optional(ActiveColor()) : std::nullopt; }
+            );
+        }
+        else
+        {
+            key.SetHighlightColor(
+                [this, virtual_key]() -> std::optional<Eigen::Vector4f>
+                { return m_input.Latched(virtual_key) ? std::optional(LatchedColor()) : std::nullopt; }
+            );
+            key.SetOutline(
+                [this, virtual_key]() -> std::optional<HighlightOutline>
+                { return m_input.Latched(virtual_key) ? std::optional(LatchedOutline()) : std::nullopt; }
+            );
         }
     }
 }
 
-auto Keyboard::ShowDraft() -> void {
-    if (m_space == nullptr) {
+auto Keyboard::ShowDraft() -> void
+{
+    if (m_space == nullptr)
+    {
         return;
     }
-    if (!m_chatbox->Active()) {
+    if (!m_chatbox->Active())
+    {
         m_space->SetLegends(m_space_cap, m_space_labels);
         return;
     }
@@ -394,25 +482,31 @@ auto Keyboard::ShowDraft() -> void {
     m_space->SetLegends(KeyCapType::Regular, legend);
 }
 
-auto Keyboard::SwitchProfile(std::shared_ptr<const Keymap> keymap, std::string profile) -> void {
+auto Keyboard::SwitchProfile(std::shared_ptr<const Keymap> keymap, std::string profile) -> void
+{
     LOG_INFO("Switching keyboard profile to {}", profile);
     g_config->keyboard_profile = std::move(profile);
     g_tasks->Enqueue(
         ModifyOverlayTask{
             .selector = std::string(kKeyboardName),
-            .modify = [keymap = std::move(keymap)](View& view) -> void {
+            .modify = [keymap = std::move(keymap)](View& view) -> void
+            {
                 auto& keyboard = dynamic_cast<Keyboard&>(view);
                 const float before = keyboard.SpawnScale();
-                if (auto applied = keyboard.Apply(keymap, KeyboardLayout::Find(g_config->keyboard_profile)); !applied) {
+                if (auto applied = keyboard.Apply(keymap, KeyboardLayout::Find(g_config->keyboard_profile)); !applied)
+                {
                     LOG_ERROR("Could not create keyboard: {}", applied.error().Message());
                     return;
                 }
                 const float factor = before > 0.0f ? keyboard.SpawnScale() / before : 1.0f;
                 keyboard.Transform().linear() *= factor;
-                if (auto& saved = keyboard.SavedTransform()) {
+                if (auto& saved = keyboard.SavedTransform())
+                {
                     saved->linear() *= factor;
-                    for (auto& [name, transform] : g_config->transform_values) {
-                        if (name == kKeyboardName) {
+                    for (auto& [name, transform] : g_config->transform_values)
+                    {
+                        if (name == kKeyboardName)
+                        {
                             transform = *saved;
                         }
                     }

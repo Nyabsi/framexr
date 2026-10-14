@@ -22,7 +22,8 @@
 
 #include "ImeScript.hpp"
 
-class InputMethod {
+class InputMethod
+{
   public:
     static auto Create() -> std::unique_ptr<InputMethod>;
 

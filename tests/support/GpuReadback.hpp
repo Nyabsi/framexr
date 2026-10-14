@@ -24,7 +24,8 @@
 
 class Image;
 
-class GpuReadback final {
+class GpuReadback final
+{
   public:
     static auto Read(Image& image) -> std::vector<unsigned char>;
     static auto DistinctColors(std::span<const unsigned char> rgba) -> size_t;

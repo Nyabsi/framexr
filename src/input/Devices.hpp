@@ -28,7 +28,8 @@
 #include <utility>
 #include <vector>
 
-enum class TrackedDeviceRole : uint8_t {
+enum class TrackedDeviceRole : uint8_t
+{
     None,
     Hmd,
     LeftHand,
@@ -36,7 +37,8 @@ enum class TrackedDeviceRole : uint8_t {
     Tracker,
 };
 
-struct TrackedDevice {
+struct TrackedDevice
+{
     uint32_t id = 0;
     std::optional<float> soc;
     bool charging = false;
@@ -45,7 +47,8 @@ struct TrackedDevice {
 
 using DeviceSignal = std::function<void(const TrackedDevice&)>;
 
-class Devices final {
+class Devices final
+{
   public:
     [[nodiscard]] static auto RoleName(TrackedDeviceRole role) -> std::string_view;
 

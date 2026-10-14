@@ -25,7 +25,8 @@
 
 #include "FormComponent.hpp"
 
-class TextLineComponent final : public FormComponent {
+class TextLineComponent final : public FormComponent
+{
   public:
     TextLineComponent(std::string name, std::string_view text, int font_size, const Eigen::Vector4f& color, float height = 0.0f);
 

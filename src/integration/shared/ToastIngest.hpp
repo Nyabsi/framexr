@@ -38,7 +38,8 @@
 
 struct DBusMessage;
 
-class ToastIngest final {
+class ToastIngest final
+{
   public:
     static auto Encode(const ToastMessage& toast) -> std::vector<std::byte>;
     static auto Decode(std::span<const std::byte> message) -> Result<ToastMessage>;

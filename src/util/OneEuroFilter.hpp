@@ -22,13 +22,15 @@
 
 #include <Eigen/Geometry>
 
-struct OneEuroSettings {
+struct OneEuroSettings
+{
     float min_cutoff = 1.0f;
     float beta = 0.0f;
     float derivative_cutoff = 1.0f;
 };
 
-class OneEuroFilter final {
+class OneEuroFilter final
+{
   public:
     static constexpr float kMinDeltaSeconds = 1e-4f;
 

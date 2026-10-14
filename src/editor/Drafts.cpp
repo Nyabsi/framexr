@@ -28,24 +28,29 @@
 #include "Logger.hpp"
 #include "Yaml.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kInterval = std::chrono::seconds(1);
 
 template <typename Document>
-auto Keep(EditTarget target, const History<Document>& history, uint64_t& drafted) -> void {
+auto Keep(EditTarget target, const History<Document>& history, uint64_t& drafted) -> void
+{
     const auto path = Drafts::File(target);
     std::error_code error;
-    if (!history.Dirty()) {
+    if (!history.Dirty())
+    {
         std::filesystem::remove(path, error);
         drafted = 0;
         return;
     }
-    if (history.Version() == drafted) {
+    if (history.Version() == drafted)
+    {
         return;
     }
     const auto temporary = std::filesystem::path(path).concat(".tmp");
-    if (ConfigStore::WriteFile(temporary, Yaml::Emit(nlohmann::ordered_json(history.Current())))) {
+    if (ConfigStore::WriteFile(temporary, Yaml::Emit(nlohmann::ordered_json(history.Current()))))
+    {
         std::filesystem::rename(temporary, path, error);
         drafted = history.Version();
     }
@@ -53,8 +58,10 @@ auto Keep(EditTarget target, const History<Document>& history, uint64_t& drafted
 
 } // namespace
 
-auto Drafts::File(EditTarget target) -> std::filesystem::path {
-    switch (target) {
+auto Drafts::File(EditTarget target) -> std::filesystem::path
+{
+    switch (target)
+    {
     case EditTarget::Watch: break;
     case EditTarget::Keyboard: return ConfigStore::Root() / "drafts" / "keyboard.yaml";
     case EditTarget::Theme: return ConfigStore::Root() / "drafts" / "theme.yaml";
@@ -62,9 +69,11 @@ auto Drafts::File(EditTarget target) -> std::filesystem::path {
     return ConfigStore::Root() / "drafts" / "watch.yaml";
 }
 
-auto Drafts::Save(const Editor& editor, bool force) -> void {
+auto Drafts::Save(const Editor& editor, bool force) -> void
+{
     const auto now = std::chrono::steady_clock::now();
-    if (!force && now - m_last < kInterval) {
+    if (!force && now - m_last < kInterval)
+    {
         return;
     }
     m_last = now;
@@ -73,26 +82,35 @@ auto Drafts::Save(const Editor& editor, bool force) -> void {
     Keep(EditTarget::Theme, editor.ThemeHistory(), m_theme);
 }
 
-auto Drafts::Restore(Editor& editor) -> bool {
+auto Drafts::Restore(Editor& editor) -> bool
+{
     bool restored = false;
-    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Watch))) {
-        if (const auto parsed = Yaml::Parse(*text)) {
-            try {
+    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Watch)))
+    {
+        if (const auto parsed = Yaml::Parse(*text))
+        {
+            try
+            {
                 auto draft = parsed->get<FormDocument>();
                 editor.WatchDesign().Revisions().Edit([&draft](FormDocument& document) -> void { document = std::move(draft); });
                 m_watch = editor.WatchDesign().Revisions().Version();
                 editor.WatchChanged();
                 restored = true;
-            } catch (const nlohmann::json::exception& error) {
+            }
+            catch (const nlohmann::json::exception& error)
+            {
                 LOG_WARN("Ignoring broken watch draft: {}", error.what());
             }
         }
     }
-    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Keyboard))) {
-        if (auto draft = KeyboardLayout::Parse(*text)) {
+    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Keyboard)))
+    {
+        if (auto draft = KeyboardLayout::Parse(*text))
+        {
             auto& revisions = editor.KeyboardDesign().Revisions();
             const auto& profiles = KeyboardLayout::All();
-            if (const auto saved = std::ranges::find(profiles, draft->Name(), &KeyboardLayout::Name); saved != profiles.end()) {
+            if (const auto saved = std::ranges::find(profiles, draft->Name(), &KeyboardLayout::Name); saved != profiles.end())
+            {
                 revisions.Reset(*saved);
                 draft->SetSource(saved->Source());
             }
@@ -100,13 +118,17 @@ auto Drafts::Restore(Editor& editor) -> bool {
             revisions.Edit([&draft](KeyboardLayout& layout) -> void { layout = std::move(*draft); });
             m_keyboard = revisions.Version();
             restored = true;
-        } else {
+        }
+        else
+        {
             LOG_WARN("Ignoring broken keyboard draft: {}", draft.error().Message());
         }
     }
-    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Theme))) {
+    if (const auto text = ConfigStore::ReadFile(File(EditTarget::Theme)))
+    {
         auto& history = editor.ThemeHistory();
-        if (auto draft = FormTheme::Parse(*text); draft && draft->name == history.Current().name) {
+        if (auto draft = FormTheme::Parse(*text); draft && draft->name == history.Current().name)
+        {
             draft->source = history.Current().source;
             editor.EditTheme([&draft](ThemeDefinition& edited) -> void { edited = std::move(*draft); });
             m_theme = history.Version();

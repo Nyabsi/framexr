@@ -25,7 +25,8 @@
 
 #include "Frame.hpp"
 
-class FrameTransforms final {
+class FrameTransforms final
+{
   public:
     static auto IsRotated90(FrameTransform transform) -> bool;
     static auto IsRotated180(FrameTransform transform) -> bool;

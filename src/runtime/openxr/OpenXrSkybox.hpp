@@ -31,7 +31,8 @@
 #include "OpenXrState.hpp"
 #include "OpenXrSwapchain.hpp"
 
-class OpenXrSkybox final {
+class OpenXrSkybox final
+{
   public:
     static auto Create(const OpenXrState& xr) -> std::unique_ptr<OpenXrSkybox>;
 

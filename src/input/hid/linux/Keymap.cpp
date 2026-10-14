@@ -44,18 +44,22 @@
 #include <xkbcommon/xkbcommon-x11.h>
 #endif
 
-namespace {
+namespace
+{
 
 #if FRAMEXR_FEATURE_WAYLAND
 
-auto OnKeyboardKeymap(void* data, wl_keyboard*, uint32_t format, int32_t fd, uint32_t size) -> void {
+auto OnKeyboardKeymap(void* data, wl_keyboard*, uint32_t format, int32_t fd, uint32_t size) -> void
+{
     auto* query = static_cast<WaylandKeymapQuery*>(data);
-    if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
+    if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1)
+    {
         close(fd);
         return;
     }
     auto* mapping = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (mapping == MAP_FAILED) {
+    if (mapping == MAP_FAILED)
+    {
         LOG_ERROR("Could not load keymap: mmap failed");
         LOG_ERROR("Default layout will be used.");
         close(fd);
@@ -70,25 +74,31 @@ auto OnKeyboardKeymap(void* data, wl_keyboard*, uint32_t format, int32_t fd, uin
     );
     munmap(mapping, size);
     close(fd);
-    if (query->keymap == nullptr) {
+    if (query->keymap == nullptr)
+    {
         LOG_ERROR("Could not load keymap: no keymap");
         LOG_ERROR("Default layout will be used.");
     }
 }
 
-auto OnKeyboardEnter(void*, wl_keyboard*, uint32_t, wl_surface*, wl_array*) -> void {
+auto OnKeyboardEnter(void*, wl_keyboard*, uint32_t, wl_surface*, wl_array*) -> void
+{
 }
 
-auto OnKeyboardLeave(void*, wl_keyboard*, uint32_t, wl_surface*) -> void {
+auto OnKeyboardLeave(void*, wl_keyboard*, uint32_t, wl_surface*) -> void
+{
 }
 
-auto OnKeyboardKey(void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t) -> void {
+auto OnKeyboardKey(void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t) -> void
+{
 }
 
-auto OnKeyboardModifiers(void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t) -> void {
+auto OnKeyboardModifiers(void*, wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t) -> void
+{
 }
 
-auto OnKeyboardRepeatInfo(void*, wl_keyboard*, int32_t rate, int32_t delay) -> void {
+auto OnKeyboardRepeatInfo(void*, wl_keyboard*, int32_t rate, int32_t delay) -> void
+{
     LOG_DEBUG("WlKeyboard RepeatInfo rate: {}, delay: {}", rate, delay);
 }
 
@@ -101,15 +111,18 @@ constexpr wl_keyboard_listener kKeyboardListener{
     .repeat_info = OnKeyboardRepeatInfo,
 };
 
-auto OnSeatCapabilities(void* data, wl_seat* seat, uint32_t capabilities) -> void {
+auto OnSeatCapabilities(void* data, wl_seat* seat, uint32_t capabilities) -> void
+{
     auto* query = static_cast<WaylandKeymapQuery*>(data);
-    if ((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0 && query->keyboard == nullptr) {
+    if ((capabilities & WL_SEAT_CAPABILITY_KEYBOARD) != 0 && query->keyboard == nullptr)
+    {
         query->keyboard = wl_seat_get_keyboard(seat);
         wl_keyboard_add_listener(query->keyboard, &kKeyboardListener, query);
     }
 }
 
-auto OnSeatName(void*, wl_seat*, const char* name) -> void {
+auto OnSeatName(void*, wl_seat*, const char* name) -> void
+{
     LOG_DEBUG("Using WlSeat: {}", name);
 }
 
@@ -118,15 +131,18 @@ constexpr wl_seat_listener kSeatListener{
     .name = OnSeatName,
 };
 
-auto OnRegistryGlobal(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version) -> void {
+auto OnRegistryGlobal(void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version) -> void
+{
     auto* query = static_cast<WaylandKeymapQuery*>(data);
-    if (std::string_view(interface) == wl_seat_interface.name && query->seat == nullptr && version >= 4) {
+    if (std::string_view(interface) == wl_seat_interface.name && query->seat == nullptr && version >= 4)
+    {
         query->seat = static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, std::min(version, 9U)));
         wl_seat_add_listener(query->seat, &kSeatListener, query);
     }
 }
 
-auto OnRegistryGlobalRemove(void*, wl_registry*, uint32_t) -> void {
+auto OnRegistryGlobalRemove(void*, wl_registry*, uint32_t) -> void
+{
 }
 
 constexpr wl_registry_listener kRegistryListener{
@@ -156,7 +172,8 @@ constexpr auto kTypingModifiers = std::to_array<uint8_t>({0, kModShift, kModMeta
 constexpr uint32_t kFirstKeycode = 8;
 constexpr uint32_t kLastKeycode = 255;
 
-auto DeadKeyLabel(xkb_keysym_t symbol) -> std::string {
+auto DeadKeyLabel(xkb_keysym_t symbol) -> std::string
+{
     const auto* found = std::ranges::find(kDeadKeyLabels, symbol, &std::pair<xkb_keysym_t, std::string_view>::first);
     return found == kDeadKeyLabels.end() ? std::string() : std::string(found->second);
 }
@@ -168,13 +185,16 @@ Keymap::Keymap(
     std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)> keymap
 )
     : m_context(std::move(context)),
-      m_keymap(std::move(keymap)) {
+      m_keymap(std::move(keymap))
+{
 }
 
-auto Keymap::FromWayland() -> Result<Keymap> {
+auto Keymap::FromWayland() -> Result<Keymap>
+{
 #if FRAMEXR_FEATURE_WAYLAND
     auto* display = wl_display_connect(nullptr);
-    if (display == nullptr) {
+    if (display == nullptr)
+    {
         return Unexpected("Could not connect to Wayland display");
     }
 
@@ -187,7 +207,8 @@ auto Keymap::FromWayland() -> Result<Keymap> {
     auto* registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &kRegistryListener, &query);
     wl_display_roundtrip(display);
-    if (query.seat == nullptr) {
+    if (query.seat == nullptr)
+    {
         wl_registry_destroy(registry);
         wl_display_disconnect(display);
         FatalError(wl_seat_interface.name);
@@ -195,14 +216,16 @@ auto Keymap::FromWayland() -> Result<Keymap> {
     wl_display_roundtrip(display);
     wl_display_roundtrip(display);
 
-    if (query.keyboard != nullptr) {
+    if (query.keyboard != nullptr)
+    {
         wl_keyboard_release(query.keyboard);
     }
     wl_seat_release(query.seat);
     wl_registry_destroy(registry);
     wl_display_disconnect(display);
 
-    if (query.keymap == nullptr) {
+    if (query.keymap == nullptr)
+    {
         return Unexpected("Could not load keymap");
     }
     return Keymap(std::move(context), std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)>(query.keymap, &xkb_keymap_unref));
@@ -211,11 +234,13 @@ auto Keymap::FromWayland() -> Result<Keymap> {
 #endif
 }
 
-auto Keymap::FromX11() -> Result<Keymap> {
+auto Keymap::FromX11() -> Result<Keymap>
+{
 #if FRAMEXR_FEATURE_X11
     std::unique_ptr<xkb_context, void (*)(xkb_context*)> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS), &xkb_context_unref);
     auto* connection = xcb_connect(nullptr, nullptr);
-    if (xcb_connection_has_error(connection) != 0) {
+    if (xcb_connection_has_error(connection) != 0)
+    {
         xcb_disconnect(connection);
         return Unexpected("Could not connect to X11 display");
     }
@@ -230,13 +255,15 @@ auto Keymap::FromX11() -> Result<Keymap> {
         nullptr
     );
     const int32_t device_id = xkb_x11_get_core_keyboard_device_id(connection);
-    if (device_id == -1) {
+    if (device_id == -1)
+    {
         xcb_disconnect(connection);
         return Unexpected("get_core_keyboard_device_id returned -1. Check your XKB installation.");
     }
     auto* keymap = xkb_x11_keymap_new_from_device(context.get(), connection, device_id, XKB_KEYMAP_COMPILE_NO_FLAGS);
     xcb_disconnect(connection);
-    if (keymap == nullptr) {
+    if (keymap == nullptr)
+    {
         return Unexpected("Could not load keymap");
     }
     return Keymap(std::move(context), std::unique_ptr<xkb_keymap, void (*)(xkb_keymap*)>(keymap, &xkb_keymap_unref));
@@ -245,13 +272,16 @@ auto Keymap::FromX11() -> Result<Keymap> {
 #endif
 }
 
-auto Keymap::FromWindows() -> Result<Keymap> {
+auto Keymap::FromWindows() -> Result<Keymap>
+{
     return Unexpected("Windows support not enabled.");
 }
 
-auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap> {
+auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Result<Keymap>
+{
     std::unique_ptr<xkb_context, void (*)(xkb_context*)> context(xkb_context_new(XKB_CONTEXT_NO_FLAGS), &xkb_context_unref);
-    if (!context) {
+    if (!context)
+    {
         return Unexpected("Could not create xkb context");
     }
     const std::string layout_name(layout);
@@ -267,17 +297,22 @@ auto Keymap::FromNames(std::string_view layout, std::string_view variant) -> Res
         xkb_keymap_new_from_names(context.get(), &names, XKB_KEYMAP_COMPILE_NO_FLAGS),
         &xkb_keymap_unref
     );
-    if (!keymap) {
+    if (!keymap)
+    {
         return Unexpected(std::format("Unknown keyboard region '{}'", layout));
     }
     return Keymap(std::move(context), std::move(keymap));
 }
 
-auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
+auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t
+{
     std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
-    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
-        if ((modifiers & modifier) != 0) {
-            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
+    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta})
+    {
+        if ((modifiers & modifier) != 0)
+        {
+            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier))
+            {
                 xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
             }
         }
@@ -285,18 +320,23 @@ auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
     return xkb_state_key_get_one_sym(state.get(), static_cast<xkb_keycode_t>(key));
 }
 
-auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
+auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string
+{
     std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
-    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta}) {
-        if ((modifiers & modifier) != 0) {
-            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
+    for (const uint8_t modifier : {kModShift, kModCapsLock, kModMeta})
+    {
+        if ((modifiers & modifier) != 0)
+        {
+            if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier))
+            {
                 xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
             }
         }
     }
     const auto keycode = static_cast<xkb_keycode_t>(key);
     const auto size = xkb_state_key_get_utf8(state.get(), keycode, nullptr, 0);
-    if (size <= 0) {
+    if (size <= 0)
+    {
         return {};
     }
     std::string text(static_cast<size_t>(size) + 1, '\0');
@@ -305,15 +345,20 @@ auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
     return text;
 }
 
-auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
+auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey>
+{
     const auto wanted = xkb_utf32_to_keysym(static_cast<uint32_t>(character));
-    if (wanted == XKB_KEY_NoSymbol) {
+    if (wanted == XKB_KEY_NoSymbol)
+    {
         return std::nullopt;
     }
-    for (const uint8_t modifiers : kTypingModifiers) {
-        for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code) {
+    for (const uint8_t modifiers : kTypingModifiers)
+    {
+        for (uint32_t code = kFirstKeycode; code <= kLastKeycode; ++code)
+        {
             const auto key = static_cast<VirtualKey>(code);
-            if (!VirtualKeys::ModifierOf(key) && KeySym(key, modifiers) == wanted) {
+            if (!VirtualKeys::ModifierOf(key) && KeySym(key, modifiers) == wanted)
+            {
                 return TranslatedKey{.key = key, .modifiers = modifiers};
             }
         }
@@ -321,16 +366,20 @@ auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
     return std::nullopt;
 }
 
-auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
+auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string
+{
     std::unique_ptr<xkb_state, void (*)(xkb_state*)> state(xkb_state_new(m_keymap.get()), &xkb_state_unref);
-    if (modifier > 0) {
-        if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier)) {
+    if (modifier > 0)
+    {
+        if (const auto modifier_key = VirtualKeys::KeyForModifier(modifier))
+        {
             xkb_state_update_key(state.get(), static_cast<xkb_keycode_t>(*modifier_key), XKB_KEY_DOWN);
         }
     }
     const auto keycode = static_cast<xkb_keycode_t>(key);
     const auto size = xkb_state_key_get_utf8(state.get(), keycode, nullptr, 0);
-    if (size <= 0) {
+    if (size <= 0)
+    {
         return DeadKeyLabel(xkb_state_key_get_one_sym(state.get(), keycode));
     }
     std::string label(static_cast<size_t>(size) + 1, '\0');
@@ -339,7 +388,8 @@ auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string 
     return label;
 }
 
-auto Keymap::HasAltGr() const -> bool {
+auto Keymap::HasAltGr() const -> bool
+{
     std::unique_ptr<xkb_state, void (*)(xkb_state*)> base(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     std::unique_ptr<xkb_state, void (*)(xkb_state*)> altgr(xkb_state_new(m_keymap.get()), &xkb_state_unref);
     xkb_state_update_key(altgr.get(), static_cast<xkb_keycode_t>(VirtualKey::Meta), XKB_KEY_DOWN);
@@ -356,9 +406,11 @@ auto Keymap::HasAltGr() const -> bool {
         VirtualKey::N8,
         VirtualKey::N9,
     };
-    for (const auto key : kDigits) {
+    for (const auto key : kDigits)
+    {
         const auto keycode = static_cast<xkb_keycode_t>(key);
-        if (xkb_state_key_get_one_sym(base.get(), keycode) != xkb_state_key_get_one_sym(altgr.get(), keycode)) {
+        if (xkb_state_key_get_one_sym(base.get(), keycode) != xkb_state_key_get_one_sym(altgr.get(), keycode))
+        {
             return true;
         }
     }

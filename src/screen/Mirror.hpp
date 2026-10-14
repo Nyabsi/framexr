@@ -32,7 +32,8 @@
 #include "ScreenCastPortal.hpp"
 #include "View.hpp"
 
-class Mirror final : public View {
+class Mirror final : public View
+{
   public:
     Mirror(std::string name, bool show_hide);
 

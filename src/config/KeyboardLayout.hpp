@@ -36,7 +36,8 @@
 
 constexpr float kKeyStep = 0.25f;
 
-enum class AltModifier : uint8_t {
+enum class AltModifier : uint8_t
+{
     None,
     Shift,
     Ctrl,
@@ -45,38 +46,51 @@ enum class AltModifier : uint8_t {
     Meta,
 };
 
-struct BlankKey {};
+struct BlankKey
+{
+};
 
-struct TypeKey {
+struct TypeKey
+{
     VirtualKey key = VirtualKey::Escape;
 };
 
-struct ProfileKey {};
+struct ProfileKey
+{
+};
 
-struct ChatboxKey {};
+struct ChatboxKey
+{
+};
 
-struct ImeKey {};
+struct ImeKey
+{
+};
 
-struct ActionKey {
+struct ActionKey
+{
     std::vector<ButtonAction> press;
     std::vector<ButtonAction> release;
 };
 
 using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ChatboxKey, ImeKey, ActionKey>;
 
-struct FixedLabel {
+struct FixedLabel
+{
     VirtualKey key;
     std::string_view lower;
     std::string_view upper;
 };
 
-struct KeyStyle {
+struct KeyStyle
+{
     std::optional<std::string> bg_color;
     std::optional<std::string> fg_color;
     std::optional<float> corner_radius;
 };
 
-struct KeyDefinition {
+struct KeyDefinition
+{
     float x = 0.0f;
     int row = 0;
     float width = 1.0f;
@@ -86,7 +100,8 @@ struct KeyDefinition {
     KeyStyle style;
 };
 
-class KeyboardLayout {
+class KeyboardLayout
+{
   public:
     [[nodiscard]] auto Name() const -> const std::string& { return m_name; }
     [[nodiscard]] auto Columns() const -> float { return m_columns; }

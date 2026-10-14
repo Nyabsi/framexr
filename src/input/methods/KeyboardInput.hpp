@@ -29,14 +29,16 @@
 #include "VirtualKeys.hpp"
 #include "methods/LaserPointer.hpp"
 
-struct KeyPress {
+struct KeyPress
+{
     VirtualKey sent = VirtualKey::Escape;
     bool translated = false;
     bool captured = false;
     bool sticky = false;
 };
 
-class KeyboardInput final {
+class KeyboardInput final
+{
   public:
     auto Press(VirtualKey key, PointerMode mode) -> void;
     auto Release(VirtualKey key) -> void;

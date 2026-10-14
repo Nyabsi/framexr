@@ -20,7 +20,8 @@
 
 #include <cstdint>
 
-enum class ImeScript : uint8_t {
+enum class ImeScript : uint8_t
+{
     None,
     Hangul,
     Kana,

@@ -26,7 +26,8 @@
 
 #include "Error.hpp"
 
-class Queue final {
+class Queue final
+{
   public:
     Queue(VkQueue queue, uint32_t family);
 

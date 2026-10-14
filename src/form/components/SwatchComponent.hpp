@@ -27,7 +27,8 @@
 
 class OutlineComponent;
 
-class SwatchComponent final : public FormComponent {
+class SwatchComponent final : public FormComponent
+{
   public:
     static constexpr int kFontSize = 14;
 

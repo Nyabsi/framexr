@@ -34,24 +34,30 @@ LaserInputComponent::LaserInputComponent(
 )
     : FormComponent(name),
       m_caption(AddComponent<TextLineComponent>("caption", caption, kCaptionFont, FormTheme::Rgba("@subtle"))),
-      m_field(AddComponent<ButtonComponent>("field")) {
+      m_field(AddComponent<ButtonComponent>("field"))
+{
     const bool focused = entry.Editing(name);
-    if (focused) {
+    if (focused)
+    {
         m_field.SetText(std::format("{}_", entry.Buffer()));
-    } else {
+    }
+    else
+    {
         m_field.SetText(value.empty() ? std::string("(empty)") : value);
     }
     m_field.SetFontSize(kFieldFont);
     m_field.SetBgColor(FormTheme::Rgba(focused ? "@surface" : "@shadow"));
     m_field.SetFgColor(FormTheme::Rgba(focused ? "@accent" : "@text"));
     m_field.SetEllipsize(true);
-    m_field.SetOnRelease([&entry, name = std::move(name), value = std::move(value), commit = std::move(commit)]() -> void {
-        entry.Begin(name, value, commit);
-    });
+    m_field.SetOnRelease(
+        [&entry, name = std::move(name), value = std::move(value), commit = std::move(commit)]() -> void
+        { entry.Begin(name, value, commit); }
+    );
     SetSize({0.0f, kCaptionHeight + kGap + kFieldHeight});
 }
 
-auto LaserInputComponent::Layout() -> void {
+auto LaserInputComponent::Layout() -> void
+{
     m_caption.SetRect({0.0f, 0.0f, Size().x(), kCaptionHeight});
     m_field.SetRect({0.0f, kCaptionHeight + kGap, Size().x(), kFieldHeight});
 }

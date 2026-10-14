@@ -35,73 +35,98 @@
 #include "Logger.hpp"
 #include "framexr_config.h"
 
-namespace {
+namespace
+{
 
 std::atomic<int64_t> next_move_ms{0};
 
 const auto kStart = std::chrono::steady_clock::now();
 
-auto ElapsedMs() -> int64_t {
+auto ElapsedMs() -> int64_t
+{
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - kStart).count();
 }
 
-auto CanMove() -> bool {
+auto CanMove() -> bool
+{
     return ElapsedMs() > next_move_ms.load(std::memory_order_relaxed);
 }
 
-auto SetNextMove(uint32_t millis_from_now) -> void {
+auto SetNextMove(uint32_t millis_from_now) -> void
+{
     next_move_ms.store(ElapsedMs() + millis_from_now, std::memory_order_relaxed);
 }
 
 } // namespace
 
-ScreenInteraction::ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform) {
-    if (FrameTransforms::IsRotated90(transform)) {
+ScreenInteraction::ScreenInteraction(const Eigen::Vector2f& position, const Eigen::Vector2f& size, FrameTransform transform)
+{
+    if (FrameTransforms::IsRotated90(transform))
+    {
         m_mouse_transform = FrameTransforms::Affine({0.0f, size.y()}, {-size.x(), 0.0f}, {position.x() + size.x(), position.y()});
-    } else if (FrameTransforms::IsRotated180(transform)) {
+    }
+    else if (FrameTransforms::IsRotated180(transform))
+    {
         m_mouse_transform = FrameTransforms::Affine({-size.x(), 0.0f}, {0.0f, -size.y()}, position + size);
-    } else if (FrameTransforms::IsRotated270(transform)) {
+    }
+    else if (FrameTransforms::IsRotated270(transform))
+    {
         m_mouse_transform = FrameTransforms::Affine({0.0f, -size.y()}, {size.x(), 0.0f}, {position.x(), position.y() + size.y()});
-    } else {
+    }
+    else
+    {
         m_mouse_transform = FrameTransforms::Affine({size.x(), 0.0f}, {0.0f, size.y()}, position);
     }
 }
 
-auto ScreenInteraction::Hover(const PointerHit& hit) -> void {
+auto ScreenInteraction::Hover(const PointerHit& hit) -> void
+{
     LOG_TRACE("Hover: [{}, {}]", hit.uv.x(), hit.uv.y());
-    if (CanMove() && (!g_config->focus_follows_mouse_mode || g_interaction->Pointers()[hit.pointer].Now().move_mouse)) {
+    if (CanMove() && (!g_config->focus_follows_mouse_mode || g_interaction->Pointers()[hit.pointer].Now().move_mouse))
+    {
         g_hid->MouseMove(m_mouse_transform * hit.uv);
         SetNextMove(g_config->mouse_move_interval_ms);
     }
 }
 
-auto ScreenInteraction::Press(const PointerHit& hit, bool pressed) -> void {
+auto ScreenInteraction::Press(const PointerHit& hit, bool pressed) -> void
+{
     uint16_t button = kMouseLeft;
-    if (hit.mode == PointerMode::Right) {
+    if (hit.mode == PointerMode::Right)
+    {
         button = kMouseRight;
-    } else if (hit.mode == PointerMode::Middle) {
+    }
+    else if (hit.mode == PointerMode::Middle)
+    {
         button = kMouseMiddle;
     }
 
-    if (hit.pointer < m_held.size()) {
-        if (pressed) {
+    if (hit.pointer < m_held.size())
+    {
+        if (pressed)
+        {
             m_held[hit.pointer] = button;
-        } else if (const auto held = std::exchange(m_held[hit.pointer], std::nullopt)) {
+        }
+        else if (const auto held = std::exchange(m_held[hit.pointer], std::nullopt))
+        {
             button = *held;
         }
     }
 
-    if (pressed) {
+    if (pressed)
+    {
         SetNextMove(g_config->click_freeze_time_ms);
     }
 
     g_hid->SendButton(button, pressed);
 
-    if (pressed) {
+    if (pressed)
+    {
         g_hid->MouseMove(m_mouse_transform * hit.uv);
     }
 }
 
-auto ScreenInteraction::Scroll(float delta_y, float delta_x) -> void {
+auto ScreenInteraction::Scroll(float delta_y, float delta_x) -> void
+{
     g_hid->Wheel(static_cast<int32_t>(delta_y * 64.0f), static_cast<int32_t>(delta_x * 64.0f));
 }

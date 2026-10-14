@@ -23,9 +23,11 @@
 
 #include "ClockComponent.hpp"
 
-namespace {
+namespace
+{
 
-auto Format(std::string_view format) -> std::string {
+auto Format(std::string_view format) -> std::string
+{
     using namespace std::chrono;
     const sys_time<seconds> instant = sys_days{year{2024} / March / 5} + hours{7} + minutes{8} + seconds{9};
     return ClockComponent::FormatTime(format, locate_zone("UTC"), instant);
@@ -33,7 +35,8 @@ auto Format(std::string_view format) -> std::string {
 
 } // namespace
 
-TEST(LabelFormatTime, MatchesChronoStrftime) {
+TEST(LabelFormatTime, MatchesChronoStrftime)
+{
     EXPECT_EQ(Format("%H:%M"), "07:08");
     EXPECT_EQ(Format("%H:%M:%S"), "07:08:09");
     EXPECT_EQ(Format("%I:%M %p"), "07:08 AM");

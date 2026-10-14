@@ -29,7 +29,8 @@
 
 #include "Error.hpp"
 
-class DdsImage final {
+class DdsImage final
+{
   public:
     static auto Parse(std::span<const std::byte> file) -> Result<DdsImage>;
 

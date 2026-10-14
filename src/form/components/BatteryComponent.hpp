@@ -31,7 +31,8 @@
 #include "LabelComponent.hpp"
 #include "document/Common.hpp"
 
-struct BatteryElement {
+struct BatteryElement
+{
     std::array<float, 4> rect{};
     int font_size = 0;
     std::string fg_color;
@@ -44,7 +45,8 @@ struct BatteryElement {
     size_t form = 0;
 };
 
-class BatteryComponent final : public FormComponent {
+class BatteryComponent final : public FormComponent
+{
   public:
     static constexpr std::string_view kType = "Battery";
 

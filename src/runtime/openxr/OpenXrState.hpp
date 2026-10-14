@@ -27,7 +27,8 @@
 
 class OpenXrInstance;
 
-struct OpenXrState {
+struct OpenXrState
+{
     const OpenXrInstance* instance = nullptr;
     XrSession session = XR_NULL_HANDLE;
     XrSpace stage = XR_NULL_HANDLE;

@@ -34,7 +34,8 @@
 #include "FrameChannel.hpp"
 #include "Xshm.hpp"
 
-class XshmCapture final : public Capture {
+class XshmCapture final : public Capture
+{
   public:
     explicit XshmCapture(std::shared_ptr<XshmScreen> screen);
     ~XshmCapture() override;

@@ -30,7 +30,8 @@
 #include "document/FormParser.hpp"
 #include "framexr_config.h"
 
-namespace {
+namespace
+{
 
 constexpr float kMinToolbarGap = 2.0f;
 
@@ -39,58 +40,71 @@ constexpr std::array<std::pair<ToolbarPosition, std::string_view>, 2> kToolbarPo
     {ToolbarPosition::Below, "Below"},
 }};
 
-auto OptionalColor(const nlohmann::json& json) -> std::optional<std::string> {
+auto OptionalColor(const nlohmann::json& json) -> std::optional<std::string>
+{
     const auto it = json.find("bg_color");
     return it == json.end() || it->is_null() ? std::nullopt : std::optional(it->get<std::string>());
 }
 
 } // namespace
 
-auto FormDocument::Size() const -> std::array<uint32_t, 2> {
+auto FormDocument::Size() const -> std::array<uint32_t, 2>
+{
     const Eigen::Vector2f origin = Origin();
     float right = origin.x() + m_form.width;
     float bottom = origin.y() + m_form.height;
-    for (size_t index = 1; index < FormCount(); ++index) {
+    for (size_t index = 1; index < FormCount(); ++index)
+    {
         const auto rect = FormRect(index, origin);
         right = std::max(right, rect.x + rect.w);
         bottom = std::max(bottom, rect.y + rect.h);
     }
-    if (const auto toolbar = ToolbarRect(origin)) {
+    if (const auto toolbar = ToolbarRect(origin))
+    {
         right = std::max(right, toolbar->x + toolbar->w);
         bottom = std::max(bottom, toolbar->y + toolbar->h);
     }
     return {static_cast<uint32_t>(std::ceil(right)), static_cast<uint32_t>(std::ceil(bottom))};
 }
 
-auto FormDocument::Origin() const -> Eigen::Vector2f {
+auto FormDocument::Origin() const -> Eigen::Vector2f
+{
     Eigen::Vector2f minimum = Eigen::Vector2f::Zero();
-    for (const auto& extra : m_forms) {
+    for (const auto& extra : m_forms)
+    {
         minimum = minimum.cwiseMin(Eigen::Vector2f(extra.x, extra.y));
     }
-    if (m_form.toolbar && m_form.toolbar->position == ToolbarPosition::Above) {
+    if (m_form.toolbar && m_form.toolbar->position == ToolbarPosition::Above)
+    {
         minimum.y() = std::min(minimum.y(), -(m_form.toolbar->height + m_form.toolbar->gap));
     }
     return -minimum;
 }
 
-auto FormDocument::FormRect(size_t index) const -> CanvasRect {
+auto FormDocument::FormRect(size_t index) const -> CanvasRect
+{
     return FormRect(index, Origin());
 }
 
-auto FormDocument::FormRect(size_t index, const Eigen::Vector2f& origin) const -> CanvasRect {
-    if (index == 0 || index > m_forms.size()) {
+auto FormDocument::FormRect(size_t index, const Eigen::Vector2f& origin) const -> CanvasRect
+{
+    if (index == 0 || index > m_forms.size())
+    {
         return {origin.x(), origin.y(), m_form.width, m_form.height};
     }
     const auto& extra = m_forms[index - 1];
     return {origin.x() + extra.x, origin.y() + extra.y, extra.width, extra.height};
 }
 
-auto FormDocument::ToolbarRect() const -> std::optional<CanvasRect> {
+auto FormDocument::ToolbarRect() const -> std::optional<CanvasRect>
+{
     return ToolbarRect(Origin());
 }
 
-auto FormDocument::ToolbarRect(const Eigen::Vector2f& origin) const -> std::optional<CanvasRect> {
-    if (!m_form.toolbar) {
+auto FormDocument::ToolbarRect(const Eigen::Vector2f& origin) const -> std::optional<CanvasRect>
+{
+    if (!m_form.toolbar)
+    {
         return std::nullopt;
     }
     const auto& toolbar = *m_form.toolbar;
@@ -98,11 +112,14 @@ auto FormDocument::ToolbarRect(const Eigen::Vector2f& origin) const -> std::opti
     return CanvasRect{origin.x(), origin.y() + top, m_form.width, toolbar.height};
 }
 
-auto FormDocument::Backgrounds(const Eigen::Vector2f& origin) const -> std::vector<FormElement> {
+auto FormDocument::Backgrounds(const Eigen::Vector2f& origin) const -> std::vector<FormElement>
+{
     std::vector<FormElement> backgrounds;
-    for (size_t index = 0; index < FormCount(); ++index) {
+    for (size_t index = 0; index < FormCount(); ++index)
+    {
         const auto& color = index == 0 ? m_form.bg_color : m_forms[index - 1].bg_color;
-        if (color) {
+        if (color)
+        {
             const auto rect = FormRect(index, origin);
             backgrounds.emplace_back(PanelElement{.rect = {rect.x, rect.y, rect.w, rect.h}, .bg_color = *color});
         }
@@ -110,45 +127,60 @@ auto FormDocument::Backgrounds(const Eigen::Vector2f& origin) const -> std::vect
     return backgrounds;
 }
 
-auto FormDocument::RemoveForm(size_t index) -> void {
-    if (index == 0 || index > m_forms.size()) {
+auto FormDocument::RemoveForm(size_t index) -> void
+{
+    if (index == 0 || index > m_forms.size())
+    {
         return;
     }
     m_forms.erase(m_forms.begin() + static_cast<std::ptrdiff_t>(index) - 1);
-    std::erase_if(m_components, [index](const FormElement& element) -> bool {
-        return FormElements::RegionOf(element) == Region::Form && FormElements::FormOf(element) == index;
-    });
-    for (auto& element : m_components) {
-        if (const auto form_index = FormElements::FormOf(element); form_index > index) {
+    std::erase_if(
+        m_components,
+        [index](const FormElement& element) -> bool
+        { return FormElements::RegionOf(element) == Region::Form && FormElements::FormOf(element) == index; }
+    );
+    for (auto& element : m_components)
+    {
+        if (const auto form_index = FormElements::FormOf(element); form_index > index)
+        {
             FormElements::SetForm(element, form_index - 1);
         }
     }
 }
 
-auto FormDocument::Arrange() const -> std::vector<FormElement> {
+auto FormDocument::Arrange() const -> std::vector<FormElement>
+{
     return Arrange(Origin());
 }
 
-auto FormDocument::Arrange(const Eigen::Vector2f& origin) const -> std::vector<FormElement> {
+auto FormDocument::Arrange(const Eigen::Vector2f& origin) const -> std::vector<FormElement>
+{
     const auto toolbar_rect = ToolbarRect(origin);
     std::vector<FormElement> arranged;
     std::vector<size_t> toolbar_items;
-    for (const auto& element : m_components) {
+    for (const auto& element : m_components)
+    {
         auto& placed = arranged.emplace_back(element);
         auto& rect = FormElements::Rect(placed);
-        if (FormElements::RegionOf(element) == Region::Toolbar) {
+        if (FormElements::RegionOf(element) == Region::Toolbar)
+        {
             toolbar_items.push_back(arranged.size() - 1);
-        } else {
+        }
+        else
+        {
             const auto form_rect = FormRect(FormElements::FormOf(element), origin);
             rect[0] += form_rect.x;
             rect[1] += form_rect.y;
         }
     }
-    if (toolbar_items.empty()) {
+    if (toolbar_items.empty())
+    {
         return arranged;
     }
-    if (!toolbar_rect) {
-        for (const auto index : std::views::reverse(toolbar_items)) {
+    if (!toolbar_rect)
+    {
+        for (const auto index : std::views::reverse(toolbar_items))
+        {
             arranged.erase(arranged.begin() + static_cast<std::ptrdiff_t>(index));
         }
         return arranged;
@@ -156,23 +188,29 @@ auto FormDocument::Arrange(const Eigen::Vector2f& origin) const -> std::vector<F
 
     const auto count = static_cast<float>(toolbar_items.size());
     float total = 0.0f;
-    for (const auto index : toolbar_items) {
+    for (const auto index : toolbar_items)
+    {
         total += FormElements::Rect(arranged[index])[2];
     }
     float gap = (toolbar_rect->w - total) / (count + 1.0f);
     float stretch = 1.0f;
-    if (gap < kMinToolbarGap && total > 0.0f) {
+    if (gap < kMinToolbarGap && total > 0.0f)
+    {
         gap = kMinToolbarGap;
         stretch = std::max(toolbar_rect->w - gap * (count + 1.0f), 0.0f) / total;
     }
     const float padding = m_form.toolbar ? m_form.toolbar->padding : 0.0f;
     float x = toolbar_rect->x + gap;
-    for (const auto index : toolbar_items) {
+    for (const auto index : toolbar_items)
+    {
         auto& rect = FormElements::Rect(arranged[index]);
         const float item_width = rect[2] * stretch;
-        if (FormElements::IsList(arranged[index])) {
+        if (FormElements::IsList(arranged[index]))
+        {
             rect = {x, toolbar_rect->y, item_width, toolbar_rect->h};
-        } else {
+        }
+        else
+        {
             rect = {x, toolbar_rect->y + padding, item_width, std::max(toolbar_rect->h - 2.0f * padding, 1.0f)};
         }
         x += item_width + gap;
@@ -180,12 +218,15 @@ auto FormDocument::Arrange(const Eigen::Vector2f& origin) const -> std::vector<F
     return arranged;
 }
 
-auto from_json(const nlohmann::json& json, FormDocument& value) -> void {
+auto from_json(const nlohmann::json& json, FormDocument& value) -> void
+{
     value.SetWidth(json.at("width").get<float>());
-    if (const auto it = json.find("theme"); it != json.end() && !it->is_null()) {
+    if (const auto it = json.find("theme"); it != json.end() && !it->is_null())
+    {
         value.SetTheme(it->get<std::string>());
     }
-    if (const auto it = json.find("spawn_pos"); it != json.end() && !it->is_null()) {
+    if (const auto it = json.find("spawn_pos"); it != json.end() && !it->is_null())
+    {
         value.SpawnPos() = it->get<std::array<float, 3>>();
     }
     const auto& form = json.at("form");
@@ -196,8 +237,10 @@ auto from_json(const nlohmann::json& json, FormDocument& value) -> void {
             .bg_color = OptionalColor(form),
         }
     );
-    if (const auto extras = json.find("forms"); extras != json.end() && !extras->is_null()) {
-        for (const auto& extra : *extras) {
+    if (const auto extras = json.find("forms"); extras != json.end() && !extras->is_null())
+    {
+        for (const auto& extra : *extras)
+        {
             const auto at = extra.at("at").get<std::array<float, 2>>();
             value.Forms().push_back({
                 .x = at[0],
@@ -208,15 +251,19 @@ auto from_json(const nlohmann::json& json, FormDocument& value) -> void {
             });
         }
     }
-    if (const auto toolbar = form.find("toolbar"); toolbar != form.end() && !toolbar->is_null()) {
+    if (const auto toolbar = form.find("toolbar"); toolbar != form.end() && !toolbar->is_null())
+    {
         ToolbarLayout layout{.height = toolbar->at("height").get<float>()};
-        if (const auto gap = toolbar->find("gap"); gap != toolbar->end()) {
+        if (const auto gap = toolbar->find("gap"); gap != toolbar->end())
+        {
             layout.gap = gap->get<float>();
         }
-        if (const auto padding = toolbar->find("padding"); padding != toolbar->end()) {
+        if (const auto padding = toolbar->find("padding"); padding != toolbar->end())
+        {
             layout.padding = padding->get<float>();
         }
-        if (const auto position = toolbar->find("position"); position != toolbar->end()) {
+        if (const auto position = toolbar->find("position"); position != toolbar->end())
+        {
             layout.position = FormParser::ParseName(*position, kToolbarPositions, "ToolbarPosition");
         }
         value.Form().toolbar = layout;
@@ -224,20 +271,24 @@ auto from_json(const nlohmann::json& json, FormDocument& value) -> void {
     value.SetComponents(json.at("components").get<std::vector<FormElement>>());
 }
 
-auto to_json(nlohmann::ordered_json& json, const FormDocument& value) -> void {
+auto to_json(nlohmann::ordered_json& json, const FormDocument& value) -> void
+{
     json = nlohmann::ordered_json::object();
     json["width"] = Json::ShortestFloat(value.Width());
-    if (value.Theme()) {
+    if (value.Theme())
+    {
         json["theme"] = *value.Theme();
     }
-    if (value.SpawnPos()) {
+    if (value.SpawnPos())
+    {
         const auto& spawn = *value.SpawnPos();
         json["spawn_pos"] = {Json::ShortestFloat(spawn[0]), Json::ShortestFloat(spawn[1]), Json::ShortestFloat(spawn[2])};
     }
     nlohmann::ordered_json form;
     form["width"] = Json::ShortestFloat(value.Form().width);
     form["height"] = Json::ShortestFloat(value.Form().height);
-    if (value.Form().toolbar) {
+    if (value.Form().toolbar)
+    {
         const auto& toolbar = *value.Form().toolbar;
         form["toolbar"] = {
             {"height", Json::ShortestFloat(toolbar.height)},
@@ -246,18 +297,22 @@ auto to_json(nlohmann::ordered_json& json, const FormDocument& value) -> void {
             {"position", FormParser::NameOf(toolbar.position, kToolbarPositions)},
         };
     }
-    if (value.Form().bg_color) {
+    if (value.Form().bg_color)
+    {
         form["bg_color"] = *value.Form().bg_color;
     }
     json["form"] = std::move(form);
-    if (!value.Forms().empty()) {
+    if (!value.Forms().empty())
+    {
         auto extras = nlohmann::ordered_json::array();
-        for (const auto& extra : value.Forms()) {
+        for (const auto& extra : value.Forms())
+        {
             nlohmann::ordered_json item;
             item["at"] = {Json::ShortestFloat(extra.x), Json::ShortestFloat(extra.y)};
             item["width"] = Json::ShortestFloat(extra.width);
             item["height"] = Json::ShortestFloat(extra.height);
-            if (extra.bg_color) {
+            if (extra.bg_color)
+            {
                 item["bg_color"] = *extra.bg_color;
             }
             extras.push_back(std::move(item));

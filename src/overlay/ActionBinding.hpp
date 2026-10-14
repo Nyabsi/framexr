@@ -32,7 +32,8 @@
 #include "methods/LaserPointer.hpp"
 #include "document/Actions.hpp"
 
-class ActionBinding final {
+class ActionBinding final
+{
   public:
     static auto Bind(FormComponent& button, const ButtonData& data) -> void;
 

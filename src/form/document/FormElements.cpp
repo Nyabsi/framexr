@@ -21,59 +21,92 @@
 #include <algorithm>
 #include <type_traits>
 
-auto FormElements::Rect(const FormElement& element) -> const std::array<float, 4>& {
+auto FormElements::Rect(const FormElement& element) -> const std::array<float, 4>&
+{
     return std::visit([](const auto& item) -> const std::array<float, 4>& { return item.rect; }, element);
 }
 
-auto FormElements::Rect(FormElement& element) -> std::array<float, 4>& {
+auto FormElements::Rect(FormElement& element) -> std::array<float, 4>&
+{
     return std::visit([](auto& item) -> std::array<float, 4>& { return item.rect; }, element);
 }
 
-auto FormElements::RegionOf(const FormElement& element) -> Region {
+auto FormElements::RegionOf(const FormElement& element) -> Region
+{
     return std::visit([](const auto& item) -> Region { return item.region; }, element);
 }
 
-auto FormElements::SetRegion(FormElement& element, Region region) -> void {
+auto FormElements::SetRegion(FormElement& element, Region region) -> void
+{
     std::visit([region](auto& item) -> void { item.region = region; }, element);
 }
 
-auto FormElements::FormOf(const FormElement& element) -> size_t {
+auto FormElements::FormOf(const FormElement& element) -> size_t
+{
     return std::visit([](const auto& item) -> size_t { return item.form; }, element);
 }
 
-auto FormElements::SetForm(FormElement& element, size_t form) -> void {
+auto FormElements::SetForm(FormElement& element, size_t form) -> void
+{
     std::visit([form](auto& item) -> void { item.form = form; }, element);
 }
 
-auto FormElements::TypeName(const FormElement& element) -> std::string_view {
+auto FormElements::TypeName(const FormElement& element) -> std::string_view
+{
     return std::visit(
-        [](const auto& item) -> std::string_view {
+        [](const auto& item) -> std::string_view
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, PanelElement>) {
+            if constexpr (std::is_same_v<Item, PanelElement>)
+            {
                 return PanelComponent::kType;
-            } else if constexpr (std::is_same_v<Item, LabelElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, LabelElement>)
+            {
                 return LabelComponent::kType;
-            } else if constexpr (std::is_same_v<Item, ClockElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ClockElement>)
+            {
                 return ClockComponent::kType;
-            } else if constexpr (std::is_same_v<Item, TimezoneElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, TimezoneElement>)
+            {
                 return TimezoneComponent::kType;
-            } else if constexpr (std::is_same_v<Item, TimerElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, TimerElement>)
+            {
                 return TimerComponent::kType;
-            } else if constexpr (std::is_same_v<Item, BatteryElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, BatteryElement>)
+            {
                 return BatteryComponent::kType;
-            } else if constexpr (std::is_same_v<Item, ExecElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ExecElement>)
+            {
                 return ExecComponent::kType;
-            } else if constexpr (std::is_same_v<Item, IpdElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, IpdElement>)
+            {
                 return IpdComponent::kType;
-            } else if constexpr (std::is_same_v<Item, DragMultiplierElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, DragMultiplierElement>)
+            {
                 return DragMultiplierComponent::kType;
-            } else if constexpr (std::is_same_v<Item, SpriteElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, SpriteElement>)
+            {
                 return SpriteComponent::kType;
-            } else if constexpr (std::is_same_v<Item, ButtonElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ButtonElement>)
+            {
                 return ButtonComponent::kType;
-            } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, BatteryListElement>)
+            {
                 return BatteryListComponent::kType;
-            } else {
+            }
+            else
+            {
                 return OverlayListComponent::kType;
             }
         },
@@ -81,20 +114,27 @@ auto FormElements::TypeName(const FormElement& element) -> std::string_view {
     );
 }
 
-auto FormElements::IsList(const FormElement& element) -> bool {
+auto FormElements::IsList(const FormElement& element) -> bool
+{
     return std::holds_alternative<BatteryListElement>(element) || std::holds_alternative<OverlayListElement>(element);
 }
 
-auto FormElements::IsText(const FormElement& element) -> bool {
+auto FormElements::IsText(const FormElement& element) -> bool
+{
     return std::visit([](const auto& item) -> bool { return requires { item.centered; }; }, element);
 }
 
-auto FormElements::Centered(const FormElement& element) -> bool {
+auto FormElements::Centered(const FormElement& element) -> bool
+{
     return std::visit(
-        [](const auto& item) -> bool {
-            if constexpr (requires { item.centered; }) {
+        [](const auto& item) -> bool
+        {
+            if constexpr (requires { item.centered; })
+            {
                 return item.centered;
-            } else {
+            }
+            else
+            {
                 return false;
             }
         },
@@ -102,35 +142,62 @@ auto FormElements::Centered(const FormElement& element) -> bool {
     );
 }
 
-auto FormElements::Create(FormComponent& parent, const FormElement& element, const FormContext& context) -> void {
+auto FormElements::Create(FormComponent& parent, const FormElement& element, const FormContext& context) -> void
+{
     std::visit(
-        [&](const auto& item) -> void {
+        [&](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, PanelElement>) {
+            if constexpr (std::is_same_v<Item, PanelElement>)
+            {
                 PanelComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, LabelElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, LabelElement>)
+            {
                 LabelComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, ClockElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ClockElement>)
+            {
                 ClockComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, TimezoneElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, TimezoneElement>)
+            {
                 TimezoneComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, TimerElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, TimerElement>)
+            {
                 TimerComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, BatteryElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, BatteryElement>)
+            {
                 BatteryComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, ExecElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ExecElement>)
+            {
                 ExecComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, IpdElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, IpdElement>)
+            {
                 IpdComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, DragMultiplierElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, DragMultiplierElement>)
+            {
                 DragMultiplierComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, SpriteElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, SpriteElement>)
+            {
                 SpriteComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, ButtonElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, ButtonElement>)
+            {
                 ButtonComponent::Create(parent, item, context);
-            } else if constexpr (std::is_same_v<Item, BatteryListElement>) {
+            }
+            else if constexpr (std::is_same_v<Item, BatteryListElement>)
+            {
                 BatteryListComponent::Create(parent, item, context);
-            } else {
+            }
+            else
+            {
                 OverlayListComponent::Create(parent, item, context);
             }
         },
@@ -138,10 +205,13 @@ auto FormElements::Create(FormComponent& parent, const FormElement& element, con
     );
 }
 
-auto FormElements::ToggleCentered(FormElement& element) -> void {
+auto FormElements::ToggleCentered(FormElement& element) -> void
+{
     std::visit(
-        [](auto& item) -> void {
-            if constexpr (requires { item.centered; }) {
+        [](auto& item) -> void
+        {
+            if constexpr (requires { item.centered; })
+            {
                 const float font = static_cast<float>(item.font_size);
                 item.rect[1] += item.centered ? font * 0.75f + item.rect[3] / 2.0f : -(font * 0.75f + item.rect[3] / 2.0f);
                 item.centered = !item.centered;
@@ -151,12 +221,17 @@ auto FormElements::ToggleCentered(FormElement& element) -> void {
     );
 }
 
-auto FormElements::FontSize(const FormElement& element) -> std::optional<int> {
+auto FormElements::FontSize(const FormElement& element) -> std::optional<int>
+{
     return std::visit(
-        [](const auto& item) -> std::optional<int> {
-            if constexpr (requires { item.font_size; }) {
+        [](const auto& item) -> std::optional<int>
+        {
+            if constexpr (requires { item.font_size; })
+            {
                 return item.font_size;
-            } else {
+            }
+            else
+            {
                 return std::nullopt;
             }
         },
@@ -164,10 +239,13 @@ auto FormElements::FontSize(const FormElement& element) -> std::optional<int> {
     );
 }
 
-auto FormElements::SetFontSize(FormElement& element, int font_size) -> void {
+auto FormElements::SetFontSize(FormElement& element, int font_size) -> void
+{
     std::visit(
-        [font_size](auto& item) -> void {
-            if constexpr (requires { item.font_size; }) {
+        [font_size](auto& item) -> void
+        {
+            if constexpr (requires { item.font_size; })
+            {
                 item.font_size = std::clamp(font_size, 6, 200);
             }
         },
@@ -175,16 +253,22 @@ auto FormElements::SetFontSize(FormElement& element, int font_size) -> void {
     );
 }
 
-auto FormElements::Color(const FormElement& element, bool background) -> std::optional<std::string> {
+auto FormElements::Color(const FormElement& element, bool background) -> std::optional<std::string>
+{
     return std::visit(
-        [background](const auto& item) -> std::optional<std::string> {
-            if constexpr (requires { item.bg_color; }) {
-                if (background) {
+        [background](const auto& item) -> std::optional<std::string>
+        {
+            if constexpr (requires { item.bg_color; })
+            {
+                if (background)
+                {
                     return item.bg_color;
                 }
             }
-            if constexpr (requires { item.fg_color; }) {
-                if (!background) {
+            if constexpr (requires { item.fg_color; })
+            {
+                if (!background)
+                {
                     return item.fg_color;
                 }
             }
@@ -194,16 +278,22 @@ auto FormElements::Color(const FormElement& element, bool background) -> std::op
     );
 }
 
-auto FormElements::SetColor(FormElement& element, bool background, const std::string& color) -> void {
+auto FormElements::SetColor(FormElement& element, bool background, const std::string& color) -> void
+{
     std::visit(
-        [background, &color](auto& item) -> void {
-            if constexpr (requires { item.bg_color; }) {
-                if (background) {
+        [background, &color](auto& item) -> void
+        {
+            if constexpr (requires { item.bg_color; })
+            {
+                if (background)
+                {
                     item.bg_color = color;
                 }
             }
-            if constexpr (requires { item.fg_color; }) {
-                if (!background) {
+            if constexpr (requires { item.fg_color; })
+            {
+                if (!background)
+                {
                     item.fg_color = color;
                 }
             }
@@ -212,12 +302,17 @@ auto FormElements::SetColor(FormElement& element, bool background, const std::st
     );
 }
 
-auto FormElements::Radius(const FormElement& element) -> std::optional<std::optional<float>> {
+auto FormElements::Radius(const FormElement& element) -> std::optional<std::optional<float>>
+{
     return std::visit(
-        [](const auto& item) -> std::optional<std::optional<float>> {
-            if constexpr (requires { item.corner_radius; }) {
+        [](const auto& item) -> std::optional<std::optional<float>>
+        {
+            if constexpr (requires { item.corner_radius; })
+            {
                 return item.corner_radius;
-            } else {
+            }
+            else
+            {
                 return std::nullopt;
             }
         },
@@ -225,10 +320,13 @@ auto FormElements::Radius(const FormElement& element) -> std::optional<std::opti
     );
 }
 
-auto FormElements::SetRadius(FormElement& element, std::optional<float> radius) -> void {
+auto FormElements::SetRadius(FormElement& element, std::optional<float> radius) -> void
+{
     std::visit(
-        [radius](auto& item) -> void {
-            if constexpr (requires { item.corner_radius; }) {
+        [radius](auto& item) -> void
+        {
+            if constexpr (requires { item.corner_radius; })
+            {
                 item.corner_radius = radius;
             }
         },

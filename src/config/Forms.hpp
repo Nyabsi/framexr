@@ -29,7 +29,8 @@
 #include "Error.hpp"
 #include "document/FormDocument.hpp"
 
-class Forms final {
+class Forms final
+{
   public:
     static constexpr std::string_view kDefaultWatch = "default";
 

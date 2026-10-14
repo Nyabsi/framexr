@@ -40,49 +40,66 @@ class View;
 
 using OverlaySelector = std::variant<OverlayId, std::string>;
 
-enum class ColorChannel : uint8_t {
+enum class ColorChannel : uint8_t
+{
     R,
     G,
     B,
     All,
 };
 
-struct ColorGainTask {
+struct ColorGainTask
+{
     ColorChannel channel = ColorChannel::All;
     float delta = 0.0f;
 };
 
-struct ResetPlayspaceTask {};
-struct FixFloorTask {};
-struct ShowHideTask {};
-struct RecenterTask {};
-struct OpenEditorTask {};
+struct ResetPlayspaceTask
+{
+};
+struct FixFloorTask
+{
+};
+struct ShowHideTask
+{
+};
+struct RecenterTask
+{
+};
+struct OpenEditorTask
+{
+};
 
 using SystemTask = std::variant<ColorGainTask, ResetPlayspaceTask, FixFloorTask, ShowHideTask, RecenterTask, OpenEditorTask>;
 
-struct ModifyOverlayTask {
+struct ModifyOverlayTask
+{
     OverlaySelector selector;
     std::function<void(View&)> modify;
 };
 
-struct CreateOverlayTask {
+struct CreateOverlayTask
+{
     OverlaySelector selector;
     std::function<std::unique_ptr<View>()> create;
 };
 
-struct DropOverlayTask {
+struct DropOverlayTask
+{
     OverlaySelector selector;
 };
 
 using Task = std::variant<ModifyOverlayTask, CreateOverlayTask, DropOverlayTask, SystemTask>;
 
-struct ScheduledTask {
+struct ScheduledTask
+{
     std::chrono::steady_clock::time_point not_before;
     uint64_t sequence = 0;
     std::shared_ptr<Task> task;
 };
 
-class TaskQueue {
+class TaskQueue
+{
   public:
     auto Enqueue(Task task) -> void;
     auto EnqueueAt(Task task, std::chrono::steady_clock::time_point not_before) -> void;

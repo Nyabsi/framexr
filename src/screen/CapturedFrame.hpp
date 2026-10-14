@@ -38,7 +38,8 @@
 
 class Image;
 
-class CapturedFrame final : public ProcessedFrame {
+class CapturedFrame final : public ProcessedFrame
+{
   public:
     CapturedFrame(std::shared_ptr<Image> captured_image, FrameFormat frame_format, std::optional<MouseMeta> mouse_meta);
 

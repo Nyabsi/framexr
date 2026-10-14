@@ -23,17 +23,20 @@ OutlineComponent::OutlineComponent(
     const std::optional<Eigen::Vector4f>& fill,
     const std::optional<HighlightOutline>& outline
 )
-    : FormComponent(std::move(name)) {
+    : FormComponent(std::move(name))
+{
     SetHighlightColor([fill]() -> std::optional<Eigen::Vector4f> { return fill; });
     SetOutline([outline]() -> std::optional<HighlightOutline> { return outline; });
 }
 
-auto OutlineComponent::SetCornerRadius(std::optional<float> corner_radius) -> void {
+auto OutlineComponent::SetCornerRadius(std::optional<float> corner_radius) -> void
+{
     m_corner_radius = corner_radius;
     MarkDirty();
 }
 
-auto OutlineComponent::Emit(FormState& state, const FormFrame& frame) -> void {
+auto OutlineComponent::Emit(FormState& state, const FormFrame& frame) -> void
+{
     state.push_back(
         InteractItem{
             .rect = frame.rect,

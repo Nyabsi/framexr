@@ -33,7 +33,8 @@
 #include <thread>
 #include <vector>
 
-class ByteWriter final {
+class ByteWriter final
+{
   public:
     auto Byte(std::byte value) -> void;
     auto Float(float value) -> void;

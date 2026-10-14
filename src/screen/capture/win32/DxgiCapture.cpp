@@ -36,14 +36,17 @@
 
 using Microsoft::WRL::ComPtr;
 
-namespace {
+namespace
+{
 
 constexpr UINT kAcquireTimeoutMs = 100;
 constexpr auto kRetryDelay = std::chrono::seconds(1);
 constexpr auto kPausedDelay = std::chrono::milliseconds(50);
 
-auto Narrow(std::wstring_view text) -> std::string {
-    if (text.empty()) {
+auto Narrow(std::wstring_view text) -> std::string
+{
+    if (text.empty())
+    {
         return {};
     }
     const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
@@ -52,8 +55,10 @@ auto Narrow(std::wstring_view text) -> std::string {
     return narrow;
 }
 
-auto Transform(DXGI_MODE_ROTATION rotation) -> FrameTransform {
-    switch (rotation) {
+auto Transform(DXGI_MODE_ROTATION rotation) -> FrameTransform
+{
+    switch (rotation)
+    {
     case DXGI_MODE_ROTATION_ROTATE90: return FrameTransform::Rotated90;
     case DXGI_MODE_ROTATION_ROTATE180: return FrameTransform::Rotated180;
     case DXGI_MODE_ROTATION_ROTATE270: return FrameTransform::Rotated270;
@@ -61,19 +66,24 @@ auto Transform(DXGI_MODE_ROTATION rotation) -> FrameTransform {
     }
 }
 
-auto FindOutput(const std::wstring& device, ComPtr<IDXGIAdapter1>& adapter_out) -> ComPtr<IDXGIOutput1> {
+auto FindOutput(const std::wstring& device, ComPtr<IDXGIAdapter1>& adapter_out) -> ComPtr<IDXGIOutput1>
+{
     ComPtr<IDXGIFactory1> factory;
-    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
+    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+    {
         return nullptr;
     }
     ComPtr<IDXGIAdapter1> adapter;
-    for (UINT a = 0; factory->EnumAdapters1(a, &adapter) != DXGI_ERROR_NOT_FOUND; ++a) {
+    for (UINT a = 0; factory->EnumAdapters1(a, &adapter) != DXGI_ERROR_NOT_FOUND; ++a)
+    {
         ComPtr<IDXGIOutput> output;
-        for (UINT o = 0; adapter->EnumOutputs(o, &output) != DXGI_ERROR_NOT_FOUND; ++o) {
+        for (UINT o = 0; adapter->EnumOutputs(o, &output) != DXGI_ERROR_NOT_FOUND; ++o)
+        {
             DXGI_OUTPUT_DESC desc{};
             output->GetDesc(&desc);
             ComPtr<IDXGIOutput1> output1;
-            if (device == desc.DeviceName && SUCCEEDED(output.As(&output1))) {
+            if (device == desc.DeviceName && SUCCEEDED(output.As(&output1)))
+            {
                 adapter_out = adapter;
                 return output1;
             }
@@ -82,10 +92,12 @@ auto FindOutput(const std::wstring& device, ComPtr<IDXGIAdapter1>& adapter_out) 
     return nullptr;
 }
 
-auto Duplicate(const std::string& name, const std::wstring& device) -> std::optional<Duplication> {
+auto Duplicate(const std::string& name, const std::wstring& device) -> std::optional<Duplication>
+{
     ComPtr<IDXGIAdapter1> adapter;
     auto output = FindOutput(device, adapter);
-    if (!output) {
+    if (!output)
+    {
         LOG_ERROR("{}: output is gone", name);
         return std::nullopt;
     }
@@ -102,11 +114,13 @@ auto Duplicate(const std::string& name, const std::wstring& device) -> std::opti
             &made.device,
             nullptr,
             &made.context
-        ))) {
+        )))
+    {
         LOG_ERROR("{}: could not create a D3D11 device", name);
         return std::nullopt;
     }
-    if (const HRESULT result = output->DuplicateOutput(made.device.Get(), &made.duplication); FAILED(result)) {
+    if (const HRESULT result = output->DuplicateOutput(made.device.Get(), &made.duplication); FAILED(result))
+    {
         LOG_ERROR("{}: DuplicateOutput failed (0x{:08x})", name, static_cast<uint32_t>(result));
         return std::nullopt;
     }
@@ -129,11 +143,14 @@ auto Duplicate(const std::string& name, const std::wstring& device) -> std::opti
     return made;
 }
 
-auto PrepareStaging(Duplication& duplication, const D3D11_TEXTURE2D_DESC& source) -> bool {
-    if (duplication.staging && duplication.format.width == source.Width && duplication.format.height == source.Height) {
+auto PrepareStaging(Duplication& duplication, const D3D11_TEXTURE2D_DESC& source) -> bool
+{
+    if (duplication.staging && duplication.format.width == source.Width && duplication.format.height == source.Height)
+    {
         return true;
     }
-    if (source.Format != DXGI_FORMAT_B8G8R8A8_UNORM) {
+    if (source.Format != DXGI_FORMAT_B8G8R8A8_UNORM)
+    {
         LOG_ERROR("Unsupported desktop texture format {}", static_cast<int>(source.Format));
         return false;
     }
@@ -150,7 +167,8 @@ auto PrepareStaging(Duplication& duplication, const D3D11_TEXTURE2D_DESC& source
         .MiscFlags = 0,
     };
     duplication.staging.Reset();
-    if (FAILED(duplication.device->CreateTexture2D(&staging, nullptr, &duplication.staging))) {
+    if (FAILED(duplication.device->CreateTexture2D(&staging, nullptr, &duplication.staging)))
+    {
         LOG_ERROR("Could not create a {}x{} staging texture", source.Width, source.Height);
         return false;
     }
@@ -167,13 +185,16 @@ auto PrepareStaging(Duplication& duplication, const D3D11_TEXTURE2D_DESC& source
     return true;
 }
 
-auto PointerMeta(const Duplication& duplication, POINT position) -> std::optional<MouseMeta> {
-    if (duplication.desktop_width <= 0 || duplication.desktop_height <= 0) {
+auto PointerMeta(const Duplication& duplication, POINT position) -> std::optional<MouseMeta>
+{
+    if (duplication.desktop_width <= 0 || duplication.desktop_height <= 0)
+    {
         return std::nullopt;
     }
     const float u = static_cast<float>(position.x) / static_cast<float>(duplication.desktop_width);
     const float v = static_cast<float>(position.y) / static_cast<float>(duplication.desktop_height);
-    switch (duplication.format.transform) {
+    switch (duplication.format.transform)
+    {
     case FrameTransform::Rotated90: return MouseMeta{.x = v, .y = 1.0f - u};
     case FrameTransform::Rotated180: return MouseMeta{.x = 1.0f - u, .y = 1.0f - v};
     case FrameTransform::Rotated270: return MouseMeta{.x = 1.0f - v, .y = u};
@@ -181,25 +202,30 @@ auto PointerMeta(const Duplication& duplication, POINT position) -> std::optiona
     }
 }
 
-auto CopyFrame(Duplication& duplication, IDXGIResource* resource, std::vector<std::byte>& pixels) -> bool {
+auto CopyFrame(Duplication& duplication, IDXGIResource* resource, std::vector<std::byte>& pixels) -> bool
+{
     ComPtr<ID3D11Texture2D> texture;
-    if (FAILED(resource->QueryInterface(IID_PPV_ARGS(&texture)))) {
+    if (FAILED(resource->QueryInterface(IID_PPV_ARGS(&texture))))
+    {
         return false;
     }
     D3D11_TEXTURE2D_DESC source{};
     texture->GetDesc(&source);
-    if (!PrepareStaging(duplication, source)) {
+    if (!PrepareStaging(duplication, source))
+    {
         return false;
     }
     duplication.context->CopyResource(duplication.staging.Get(), texture.Get());
     D3D11_MAPPED_SUBRESOURCE mapped{};
-    if (FAILED(duplication.context->Map(duplication.staging.Get(), 0, D3D11_MAP_READ, 0, &mapped))) {
+    if (FAILED(duplication.context->Map(duplication.staging.Get(), 0, D3D11_MAP_READ, 0, &mapped)))
+    {
         return false;
     }
     const size_t row = static_cast<size_t>(duplication.format.width) * 4;
     pixels.resize(row * duplication.format.height);
     const auto* source_bytes = static_cast<const std::byte*>(mapped.pData);
-    for (uint32_t y = 0; y < duplication.format.height; ++y) {
+    for (uint32_t y = 0; y < duplication.format.height; ++y)
+    {
         std::memcpy(pixels.data() + y * row, source_bytes + static_cast<size_t>(y) * mapped.RowPitch, row);
     }
     duplication.context->Unmap(duplication.staging.Get(), 0);
@@ -208,24 +234,30 @@ auto CopyFrame(Duplication& duplication, IDXGIResource* resource, std::vector<st
 
 } // namespace
 
-auto DxgiCapture::Outputs() -> Result<std::vector<DxgiOutput>> {
+auto DxgiCapture::Outputs() -> Result<std::vector<DxgiOutput>>
+{
     ComPtr<IDXGIFactory1> factory;
-    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
+    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+    {
         return Unexpected("Could not create a DXGI factory");
     }
     std::vector<DxgiOutput> outputs;
     ComPtr<IDXGIAdapter1> adapter;
-    for (UINT a = 0; factory->EnumAdapters1(a, &adapter) != DXGI_ERROR_NOT_FOUND; ++a) {
+    for (UINT a = 0; factory->EnumAdapters1(a, &adapter) != DXGI_ERROR_NOT_FOUND; ++a)
+    {
         ComPtr<IDXGIOutput> output;
-        for (UINT o = 0; adapter->EnumOutputs(o, &output) != DXGI_ERROR_NOT_FOUND; ++o) {
+        for (UINT o = 0; adapter->EnumOutputs(o, &output) != DXGI_ERROR_NOT_FOUND; ++o)
+        {
             DXGI_OUTPUT_DESC desc{};
             output->GetDesc(&desc);
-            if (desc.AttachedToDesktop == FALSE) {
+            if (desc.AttachedToDesktop == FALSE)
+            {
                 continue;
             }
             std::wstring device(desc.DeviceName);
             auto name = Narrow(device);
-            if (name.starts_with("\\\\.\\")) {
+            if (name.starts_with("\\\\.\\"))
+            {
                 name.erase(0, 4);
             }
             const auto& rect = desc.DesktopCoordinates;
@@ -240,64 +272,80 @@ auto DxgiCapture::Outputs() -> Result<std::vector<DxgiOutput>> {
             });
         }
     }
-    if (outputs.empty()) {
+    if (outputs.empty())
+    {
         return Unexpected("No monitors are attached to the desktop");
     }
     return outputs;
 }
 
-DxgiCapture::DxgiCapture(std::string name, std::wstring device) : m_name(std::move(name)), m_device(std::move(device)) {
+DxgiCapture::DxgiCapture(std::string name, std::wstring device) : m_name(std::move(name)), m_device(std::move(device))
+{
 }
 
-DxgiCapture::~DxgiCapture() {
+DxgiCapture::~DxgiCapture()
+{
     m_running.store(false);
-    if (m_thread.joinable()) {
+    if (m_thread.joinable())
+    {
         m_thread.join();
     }
 }
 
-auto DxgiCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void {
+auto DxgiCapture::Start(std::span<const DrmFormat>, FrameProcessor processor) -> void
+{
     m_channel = std::make_shared<FrameChannel<std::unique_ptr<ProcessedFrame>>>(2);
     m_processor = std::move(processor);
     m_thread = std::thread(&DxgiCapture::Run, this);
 }
 
-auto DxgiCapture::Receive() -> std::unique_ptr<ProcessedFrame> {
-    if (!m_channel) {
+auto DxgiCapture::Receive() -> std::unique_ptr<ProcessedFrame>
+{
+    if (!m_channel)
+    {
         return nullptr;
     }
     auto frames = m_channel->TakeAll();
-    if (frames.empty()) {
+    if (frames.empty())
+    {
         return nullptr;
     }
     return std::move(frames.back());
 }
 
-auto DxgiCapture::Pause() -> void {
+auto DxgiCapture::Pause() -> void
+{
     m_paused.store(true);
 }
 
-auto DxgiCapture::Resume() -> void {
-    if (m_channel) {
+auto DxgiCapture::Resume() -> void
+{
+    if (m_channel)
+    {
         m_channel->TakeAll();
     }
     m_refresh.store(true);
     m_paused.store(false);
 }
 
-auto DxgiCapture::Run() -> void {
+auto DxgiCapture::Run() -> void
+{
     std::optional<Duplication> duplication;
     std::vector<std::byte> pixels;
     std::optional<MouseMeta> mouse;
 
-    while (m_running.load()) {
-        if (m_paused.load()) {
+    while (m_running.load())
+    {
+        if (m_paused.load())
+        {
             std::this_thread::sleep_for(kPausedDelay);
             continue;
         }
-        if (!duplication) {
+        if (!duplication)
+        {
             duplication = Duplicate(m_name, m_device);
-            if (!duplication) {
+            if (!duplication)
+            {
                 std::this_thread::sleep_for(kRetryDelay);
                 continue;
             }
@@ -308,27 +356,32 @@ auto DxgiCapture::Run() -> void {
         DXGI_OUTDUPL_FRAME_INFO info{};
         ComPtr<IDXGIResource> resource;
         const HRESULT acquired = duplication->duplication->AcquireNextFrame(kAcquireTimeoutMs, &info, &resource);
-        if (acquired == DXGI_ERROR_WAIT_TIMEOUT) {
+        if (acquired == DXGI_ERROR_WAIT_TIMEOUT)
+        {
             continue;
         }
-        if (FAILED(acquired)) {
+        if (FAILED(acquired))
+        {
             LOG_INFO("{}: duplication lost (0x{:08x}), recreating", m_name, static_cast<uint32_t>(acquired));
             duplication.reset();
             continue;
         }
 
         bool changed = m_refresh.exchange(false);
-        if ((pixels.empty() || info.LastPresentTime.QuadPart != 0) && CopyFrame(*duplication, resource.Get(), pixels)) {
+        if ((pixels.empty() || info.LastPresentTime.QuadPart != 0) && CopyFrame(*duplication, resource.Get(), pixels))
+        {
             changed = true;
         }
-        if (info.LastMouseUpdateTime.QuadPart != 0) {
+        if (info.LastMouseUpdateTime.QuadPart != 0)
+        {
             mouse = info.PointerPosition.Visible != FALSE ? PointerMeta(*duplication, info.PointerPosition.Position) : std::nullopt;
             changed = true;
         }
         resource.Reset();
         duplication->duplication->ReleaseFrame();
 
-        if (!changed || pixels.empty()) {
+        if (!changed || pixels.empty())
+        {
             continue;
         }
         MemPtrFrame frame{
@@ -337,7 +390,8 @@ auto DxgiCapture::Run() -> void {
             .size = pixels.size(),
             .mouse = mouse,
         };
-        if (auto processed = m_processor(Frame(frame))) {
+        if (auto processed = m_processor(Frame(frame)))
+        {
             m_channel->Push(std::move(processed));
         }
     }

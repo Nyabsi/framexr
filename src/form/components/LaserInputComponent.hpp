@@ -28,7 +28,8 @@ class ButtonComponent;
 
 class TextLineComponent;
 
-class LaserInputComponent final : public FormComponent {
+class LaserInputComponent final : public FormComponent
+{
   public:
     static constexpr float kCaptionHeight = 16.0f;
     static constexpr float kFieldHeight = 34.0f;

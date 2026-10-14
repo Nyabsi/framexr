@@ -35,7 +35,8 @@
 #include "InputMethod.hpp"
 #include "VirtualKeys.hpp"
 
-class SendInputProvider final : public HidProvider {
+class SendInputProvider final : public HidProvider
+{
   public:
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
     auto SendButton(uint16_t button, bool down) -> void override;

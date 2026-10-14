@@ -72,31 +72,44 @@
 #include "DxgiCapture.hpp"
 #endif
 
-PendingFrame::PendingFrame(Frame&& source) : m_source(std::move(source)) {
+PendingFrame::PendingFrame(Frame&& source) : m_source(std::move(source))
+{
 #ifndef _WIN32
-    if (auto* dmabuf = std::get_if<DmabufFrame>(&m_source)) {
-        for (auto& plane : dmabuf->planes) {
+    if (auto* dmabuf = std::get_if<DmabufFrame>(&m_source))
+    {
+        for (auto& plane : dmabuf->planes)
+        {
             plane.fd = plane.fd >= 0 ? dup(plane.fd) : -1;
         }
-    } else if (auto* memfd = std::get_if<MemFdFrame>(&m_source)) {
+    }
+    else if (auto* memfd = std::get_if<MemFdFrame>(&m_source))
+    {
         memfd->plane.fd = memfd->plane.fd >= 0 ? dup(memfd->plane.fd) : -1;
-    } else
+    }
+    else
 #endif
-        if (auto* memptr = std::get_if<MemPtrFrame>(&m_source); memptr != nullptr && memptr->data != nullptr) {
+        if (auto* memptr = std::get_if<MemPtrFrame>(&m_source); memptr != nullptr && memptr->data != nullptr)
+    {
         m_bytes.assign(memptr->data, memptr->data + memptr->size);
         memptr->data = m_bytes.data();
     }
 }
 
-PendingFrame::~PendingFrame() {
+PendingFrame::~PendingFrame()
+{
 #ifndef _WIN32
-    if (const auto* dmabuf = std::get_if<DmabufFrame>(&m_source)) {
-        for (const auto& plane : dmabuf->planes) {
-            if (plane.fd >= 0) {
+    if (const auto* dmabuf = std::get_if<DmabufFrame>(&m_source))
+    {
+        for (const auto& plane : dmabuf->planes)
+        {
+            if (plane.fd >= 0)
+            {
                 close(plane.fd);
             }
         }
-    } else if (const auto* memfd = std::get_if<MemFdFrame>(&m_source); memfd != nullptr && memfd->plane.fd >= 0) {
+    }
+    else if (const auto* memfd = std::get_if<MemFdFrame>(&m_source); memfd != nullptr && memfd->plane.fd >= 0)
+    {
         close(memfd->plane.fd);
     }
 #endif

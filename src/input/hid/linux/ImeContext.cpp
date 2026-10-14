@@ -21,16 +21,20 @@
 #include "ibus/IbusContext.hpp"
 #include "ibus/IbusDaemon.hpp"
 
-auto ImeContext::Connect(ImeScript script) -> Result<std::unique_ptr<ImeContext>> {
+auto ImeContext::Connect(ImeScript script) -> Result<std::unique_ptr<ImeContext>>
+{
     static std::unique_ptr<IbusDaemon> daemon;
-    if (!daemon) {
+    if (!daemon)
+    {
         ASSIGN_OR_RETURN(daemon, IbusDaemon::Start());
     }
-    if (!daemon->Running()) {
+    if (!daemon->Running())
+    {
         daemon.reset();
         return Unexpected("IBus could not be started, install ibus and an input method for this script");
     }
-    if (!daemon->Listening()) {
+    if (!daemon->Listening())
+    {
         return std::unique_ptr<ImeContext>();
     }
     ASSIGN_OR_RETURN(auto context, IbusContext::Create(daemon->Address(), script));

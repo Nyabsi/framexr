@@ -31,7 +31,8 @@
 #include "OpenXrPose.hpp"
 #include "Shaders.hpp"
 
-namespace {
+namespace
+{
 
 constexpr float kLineWidth = 0.002f;
 
@@ -45,27 +46,33 @@ constexpr auto kColors = std::to_array<std::array<float, 6>>({
 
 } // namespace
 
-auto OpenXrLines::Create() -> Result<std::unique_ptr<OpenXrLines>> {
+auto OpenXrLines::Create() -> Result<std::unique_ptr<OpenXrLines>>
+{
     ASSIGN_OR_RETURN(auto pipeline, g_device->CreatePipeline(Shaders::Line(), g_device->NativeFormat(), Blend::Disabled));
     return std::unique_ptr<OpenXrLines>(new OpenXrLines(std::move(pipeline)));
 }
 
-OpenXrLines::OpenXrLines(std::shared_ptr<Pipeline> pipeline) : m_pipeline(std::move(pipeline)) {
+OpenXrLines::OpenXrLines(std::shared_ptr<Pipeline> pipeline) : m_pipeline(std::move(pipeline))
+{
 }
 
-auto OpenXrLines::Allocate(const OpenXrState& xr) -> Result<size_t> {
+auto OpenXrLines::Allocate(const OpenXrState& xr) -> Result<size_t>
+{
     const auto id = m_next_id++;
     ASSIGN_OR_RETURN(auto swapchain, OpenXrSwapchain::Create(*xr.instance, xr.session, {.width = 1, .height = 1}, false));
     m_lines.emplace(id, OpenXrLineContainer{.swapchain = std::move(swapchain)});
     return id;
 }
 
-auto OpenXrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void {
-    if (length < 0.01f) {
+auto OpenXrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t color, const Eigen::Affine3f& hmd) -> void
+{
+    if (length < 0.01f)
+    {
         return;
     }
     const auto entry = m_lines.find(id);
-    if (entry == m_lines.end()) {
+    if (entry == m_lines.end())
+    {
         LOG_WARN("Line {} not found", id);
         return;
     }
@@ -74,9 +81,12 @@ auto OpenXrLines::DrawFrom(size_t id, Eigen::Affine3f from, float length, size_t
     entry->second.line = OpenXrLine{.color = color, .pose = OpenXrPose::FromTransform(transform), .length = length};
 }
 
-auto OpenXrLines::Render(CommandBatch& batch) -> Result<> {
-    for (auto& [id, container] : m_lines) {
-        if (!container.line) {
+auto OpenXrLines::Render(CommandBatch& batch) -> Result<>
+{
+    for (auto& [id, container] : m_lines)
+    {
+        if (!container.line)
+        {
             continue;
         }
         ASSIGN_OR_RETURN(auto target, container.swapchain->AcquireWaitImage());
@@ -92,11 +102,14 @@ auto OpenXrLines::Render(CommandBatch& batch) -> Result<> {
     return {};
 }
 
-auto OpenXrLines::Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>> {
+auto OpenXrLines::Present(const OpenXrState& xr) -> Result<std::vector<OpenXrLayer>>
+{
     std::vector<OpenXrLayer> layers;
-    for (auto& [id, container] : m_lines) {
+    for (auto& [id, container] : m_lines)
+    {
         RETURN_IF_ERROR(container.swapchain->EnsureImageReleased());
-        if (const auto line = std::exchange(container.line, std::nullopt)) {
+        if (const auto line = std::exchange(container.line, std::nullopt))
+        {
             layers.emplace_back(
                 XrCompositionLayerQuad{
                     .type = XR_TYPE_COMPOSITION_LAYER_QUAD,

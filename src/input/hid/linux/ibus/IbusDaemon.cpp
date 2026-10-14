@@ -25,7 +25,8 @@
 
 #include "Platform.hpp"
 
-auto IbusDaemon::Start() -> Result<std::unique_ptr<IbusDaemon>> {
+auto IbusDaemon::Start() -> Result<std::unique_ptr<IbusDaemon>>
+{
     auto socket = Platform::RuntimeDirectory() / std::format("framexr-ibus-{}", Platform::ProcessId());
     ASSIGN_OR_RETURN(
         auto process,
@@ -47,22 +48,26 @@ auto IbusDaemon::Start() -> Result<std::unique_ptr<IbusDaemon>> {
 IbusDaemon::IbusDaemon(Process process, std::filesystem::path socket)
     : m_process(std::move(process)),
       m_socket(std::move(socket)),
-      m_address(std::format("unix:path={}", m_socket.string())) {
+      m_address(std::format("unix:path={}", m_socket.string()))
+{
 }
 
-IbusDaemon::~IbusDaemon() {
+IbusDaemon::~IbusDaemon()
+{
     m_process.Signal(SIGTERM);
     std::error_code error;
     std::filesystem::remove(m_socket, error);
     std::filesystem::remove(m_socket.string() + ".address", error);
 }
 
-auto IbusDaemon::Listening() const -> bool {
+auto IbusDaemon::Listening() const -> bool
+{
     std::error_code error;
     return std::filesystem::exists(m_socket, error);
 }
 
-auto IbusDaemon::Running() -> bool {
+auto IbusDaemon::Running() -> bool
+{
     const auto status = m_process.TryWait();
     return status && !*status;
 }

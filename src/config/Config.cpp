@@ -35,7 +35,8 @@
 
 Config* g_config = nullptr;
 
-namespace {
+namespace
+{
 
 constexpr auto kTopicNames = std::to_array<std::pair<ToastTopic, std::string_view>>({
     {ToastTopic::System, "System"},
@@ -52,27 +53,36 @@ constexpr auto kDisplayNames = std::to_array<std::pair<ToastDisplay, std::string
 
 } // namespace
 
-auto from_json(const nlohmann::json& json, Handedness& value) -> void {
+auto from_json(const nlohmann::json& json, Handedness& value) -> void
+{
     const auto name = Json::VariantName(json);
-    if (name == "Left") {
+    if (name == "Left")
+    {
         value = Handedness::Left;
-    } else if (name == "Right") {
+    }
+    else if (name == "Right")
+    {
         value = Handedness::Right;
-    } else {
+    }
+    else
+    {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}`, expected `Left` or `Right`", name), &json);
     }
 }
 
-auto to_json(nlohmann::json& json, const Handedness& value) -> void {
+auto to_json(nlohmann::json& json, const Handedness& value) -> void
+{
     json = value == Handedness::Left ? "Left" : "Right";
 }
 
 auto nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>>::from_json(
     const nlohmann::json& json,
     std::map<ToastTopic, ToastDisplay>& value
-) -> void {
+) -> void
+{
     value.clear();
-    for (const auto& [key, display] : json.items()) {
+    for (const auto& [key, display] : json.items())
+    {
         value[nlohmann::json(key).get<ToastTopic>()] = display.get<ToastDisplay>();
     }
 }
@@ -80,17 +90,22 @@ auto nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>>::from_json(
 auto nlohmann::adl_serializer<std::map<ToastTopic, ToastDisplay>>::to_json(
     nlohmann::json& json,
     const std::map<ToastTopic, ToastDisplay>& value
-) -> void {
+) -> void
+{
     json = nlohmann::json::object();
-    for (const auto& [topic, display] : value) {
+    for (const auto& [topic, display] : value)
+    {
         json[nlohmann::json(topic).get<std::string>()] = display;
     }
 }
 
-auto from_json(const nlohmann::json& json, ToastTopic& value) -> void {
+auto from_json(const nlohmann::json& json, ToastTopic& value) -> void
+{
     const auto name = Json::VariantName(json);
-    for (const auto& [topic, topic_name] : kTopicNames) {
-        if (topic_name == name) {
+    for (const auto& [topic, topic_name] : kTopicNames)
+    {
+        if (topic_name == name)
+        {
             value = topic;
             return;
         }
@@ -98,18 +113,24 @@ auto from_json(const nlohmann::json& json, ToastTopic& value) -> void {
     throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for ToastTopic", name), &json);
 }
 
-auto to_json(nlohmann::json& json, const ToastTopic& value) -> void {
-    for (const auto& [topic, topic_name] : kTopicNames) {
-        if (topic == value) {
+auto to_json(nlohmann::json& json, const ToastTopic& value) -> void
+{
+    for (const auto& [topic, topic_name] : kTopicNames)
+    {
+        if (topic == value)
+        {
             json = topic_name;
         }
     }
 }
 
-auto from_json(const nlohmann::json& json, ToastDisplay& value) -> void {
+auto from_json(const nlohmann::json& json, ToastDisplay& value) -> void
+{
     const auto name = Json::VariantName(json);
-    for (const auto& [display, display_name] : kDisplayNames) {
-        if (display_name == name) {
+    for (const auto& [display, display_name] : kDisplayNames)
+    {
+        if (display_name == name)
+        {
             value = display;
             return;
         }
@@ -117,9 +138,12 @@ auto from_json(const nlohmann::json& json, ToastDisplay& value) -> void {
     throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for DisplayMethod", name), &json);
 }
 
-auto to_json(nlohmann::json& json, const ToastDisplay& value) -> void {
-    for (const auto& [display, display_name] : kDisplayNames) {
-        if (display == value) {
+auto to_json(nlohmann::json& json, const ToastDisplay& value) -> void
+{
+    for (const auto& [display, display_name] : kDisplayNames)
+    {
+        if (display == value)
+        {
             json = display_name;
         }
     }

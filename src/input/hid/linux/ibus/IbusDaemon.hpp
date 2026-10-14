@@ -25,7 +25,8 @@
 #include "Error.hpp"
 #include "Process.hpp"
 
-class IbusDaemon final {
+class IbusDaemon final
+{
   public:
     static auto Start() -> Result<std::unique_ptr<IbusDaemon>>;
 

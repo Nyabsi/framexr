@@ -30,7 +30,8 @@
 #include "TaskQueue.hpp"
 #include "document/FormParser.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kSystemActions = std::to_array<std::pair<SystemAction, std::string_view>>({
     {SystemAction::ToggleAllowSliding, "ToggleAllowSliding"},
@@ -83,28 +84,34 @@ constexpr auto kPressRelease = std::to_array<std::pair<PressRelease, std::string
     {PressRelease::Press, "Press"},
 });
 
-auto ParseWatchAction(const nlohmann::json& json) -> WatchAction {
+auto ParseWatchAction(const nlohmann::json& json) -> WatchAction
+{
     const auto name = Json::VariantName(json);
     const auto& payload = Json::VariantPayload(json);
-    if (name == "Hide") {
+    if (name == "Hide")
+    {
         return WatchHide{};
     }
-    if (name == "SwitchHands") {
+    if (name == "SwitchHands")
+    {
         return WatchSwitchHands{};
     }
-    if (name == "ViewAngle") {
+    if (name == "ViewAngle")
+    {
         return WatchViewAngle{
             .kind = FormParser::ParseName(payload.at("kind"), kViewAngleKinds, "ViewAngleKind"),
             .delta = payload.at("delta").get<float>()
         };
     }
-    if (name == "Rotation") {
+    if (name == "Rotation")
+    {
         return WatchRotation{
             .axis = FormParser::ParseName(payload.at("axis"), kAxes, "Axis"),
             .delta = payload.at("delta").get<float>()
         };
     }
-    if (name == "Position") {
+    if (name == "Position")
+    {
         return WatchPosition{
             .axis = FormParser::ParseName(payload.at("axis"), kAxes, "Axis"),
             .delta = payload.at("delta").get<float>()
@@ -113,40 +120,56 @@ auto ParseWatchAction(const nlohmann::json& json) -> WatchAction {
     throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for WatchAction", name), &json);
 }
 
-auto ParseOscValue(const nlohmann::json& json) -> OscValue {
+auto ParseOscValue(const nlohmann::json& json) -> OscValue
+{
     const auto type = json.at("type").get<std::string>();
     const auto& value = json.at("value");
-    if (type == "Int") {
+    if (type == "Int")
+    {
         return value.get<int32_t>();
     }
-    if (type == "Float") {
+    if (type == "Float")
+    {
         return value.get<float>();
     }
-    if (type == "String") {
+    if (type == "String")
+    {
         return value.get<std::string>();
     }
-    if (type == "Bool") {
+    if (type == "Bool")
+    {
         return value.get<bool>();
     }
     throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for OscValue", type), &json);
 }
 
-auto WatchActionJson(const WatchAction& action) -> nlohmann::ordered_json {
+auto WatchActionJson(const WatchAction& action) -> nlohmann::ordered_json
+{
     return std::visit(
-        [](const auto& item) -> nlohmann::ordered_json {
+        [](const auto& item) -> nlohmann::ordered_json
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, WatchHide>) {
+            if constexpr (std::is_same_v<Item, WatchHide>)
+            {
                 return "Hide";
-            } else if constexpr (std::is_same_v<Item, WatchSwitchHands>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchSwitchHands>)
+            {
                 return "SwitchHands";
-            } else if constexpr (std::is_same_v<Item, WatchViewAngle>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchViewAngle>)
+            {
                 return {
                     {"ViewAngle",
                      {{"kind", FormParser::NameOf(item.kind, kViewAngleKinds)}, {"delta", Json::ShortestFloat(item.delta)}}}
                 };
-            } else if constexpr (std::is_same_v<Item, WatchRotation>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchRotation>)
+            {
                 return {{"Rotation", {{"axis", FormParser::NameOf(item.axis, kAxes)}, {"delta", Json::ShortestFloat(item.delta)}}}};
-            } else {
+            }
+            else
+            {
                 return {{"Position", {{"axis", FormParser::NameOf(item.axis, kAxes)}, {"delta", Json::ShortestFloat(item.delta)}}}};
             }
         },
@@ -154,21 +177,30 @@ auto WatchActionJson(const WatchAction& action) -> nlohmann::ordered_json {
     );
 }
 
-auto OscValueJson(const OscValue& value) -> nlohmann::ordered_json {
+auto OscValueJson(const OscValue& value) -> nlohmann::ordered_json
+{
     return std::visit(
-        [](const auto& item) -> nlohmann::ordered_json {
+        [](const auto& item) -> nlohmann::ordered_json
+        {
             using Item = std::decay_t<decltype(item)>;
             nlohmann::ordered_json json;
-            if constexpr (std::is_same_v<Item, int32_t>) {
+            if constexpr (std::is_same_v<Item, int32_t>)
+            {
                 json["type"] = "Int";
                 json["value"] = item;
-            } else if constexpr (std::is_same_v<Item, float>) {
+            }
+            else if constexpr (std::is_same_v<Item, float>)
+            {
                 json["type"] = "Float";
                 json["value"] = Json::ShortestFloat(item);
-            } else if constexpr (std::is_same_v<Item, std::string>) {
+            }
+            else if constexpr (std::is_same_v<Item, std::string>)
+            {
                 json["type"] = "String";
                 json["value"] = item;
-            } else {
+            }
+            else
+            {
                 json["type"] = "Bool";
                 json["value"] = item;
             }
@@ -178,9 +210,11 @@ auto OscValueJson(const OscValue& value) -> nlohmann::ordered_json {
     );
 }
 
-auto OptionalActions(const nlohmann::json& json, std::string_view key) -> std::optional<std::vector<ButtonAction>> {
+auto OptionalActions(const nlohmann::json& json, std::string_view key) -> std::optional<std::vector<ButtonAction>>
+{
     const auto it = json.find(key);
-    if (it == json.end() || it->is_null()) {
+    if (it == json.end() || it->is_null())
+    {
         return std::nullopt;
     }
     return it->get<std::vector<ButtonAction>>();
@@ -188,107 +222,156 @@ auto OptionalActions(const nlohmann::json& json, std::string_view key) -> std::o
 
 } // namespace
 
-auto from_json(const nlohmann::json& json, OverlaySelector& value) -> void {
-    if (json.is_number()) {
+auto from_json(const nlohmann::json& json, OverlaySelector& value) -> void
+{
+    if (json.is_number())
+    {
         value = static_cast<OverlayId>(json.get<uint64_t>());
-    } else {
+    }
+    else
+    {
         value = json.get<std::string>();
     }
 }
 
-auto from_json(const nlohmann::json& json, OverlayAction& value) -> void {
+auto from_json(const nlohmann::json& json, OverlayAction& value) -> void
+{
     const auto name = Json::VariantName(json);
-    if (name == "ToggleVisible") {
+    if (name == "ToggleVisible")
+    {
         value = OverlayToggleVisible{};
-    } else if (name == "ToggleImmovable") {
+    }
+    else if (name == "ToggleImmovable")
+    {
         value = OverlayToggleImmovable{};
-    } else if (name == "ToggleInteraction") {
+    }
+    else if (name == "ToggleInteraction")
+    {
         value = OverlayToggleInteraction{};
-    } else if (name == "Opacity") {
+    }
+    else if (name == "Opacity")
+    {
         value = OverlayOpacity{.delta = Json::VariantPayload(json).at("delta").get<float>()};
-    } else {
+    }
+    else
+    {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for OverlayAction", name), &json);
     }
 }
 
-auto from_json(const nlohmann::json& json, ButtonAction& value) -> void {
+auto from_json(const nlohmann::json& json, ButtonAction& value) -> void
+{
     const auto type = json.at("type").get<std::string>();
-    if (type == "Exec") {
+    if (type == "Exec")
+    {
         value = ExecButtonAction{
             .command = json.at("command").get<std::vector<std::string>>(),
             .toast = FormParser::Optional<std::string>(json, "toast")
         };
-    } else if (type == "VirtualKey") {
+    }
+    else if (type == "VirtualKey")
+    {
         const auto key_name = json.at("keycode").get<std::string>();
         const auto key = VirtualKeys::Parse(key_name);
-        if (!key) {
+        if (!key)
+        {
             throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for VirtualKey", key_name), &json);
         }
         value = VirtualKeyButtonAction{
             .keycode = *key,
             .action = FormParser::ParseName(json.at("action"), kPressRelease, "PressRelease")
         };
-    } else if (type == "Watch") {
+    }
+    else if (type == "Watch")
+    {
         value = WatchButtonAction{.action = ParseWatchAction(json.at("action"))};
-    } else if (type == "Overlay") {
+    }
+    else if (type == "Overlay")
+    {
         value = OverlayButtonAction{
             .target = json.at("target").get<OverlaySelector>(),
             .action = json.at("action").get<OverlayAction>()
         };
-    } else if (type == "Window") {
+    }
+    else if (type == "Window")
+    {
         value = WindowButtonAction{
             .target = json.at("target").get<std::string>(),
             .action = FormParser::ParseName(json.at("action"), kWindowActions, "WindowAction")
         };
-    } else if (type == "Toast") {
+    }
+    else if (type == "Toast")
+    {
         ToastButtonAction toast{
             .message = json.at("message").get<std::string>(),
             .body = FormParser::Optional<std::string>(json, "body")
         };
-        if (const auto it = json.find("seconds"); it != json.end() && !it->is_null()) {
+        if (const auto it = json.find("seconds"); it != json.end() && !it->is_null())
+        {
             toast.seconds = it->get<float>();
         }
         value = std::move(toast);
-    } else if (type == "ColorAdjust") {
+    }
+    else if (type == "ColorAdjust")
+    {
         value = ColorAdjustButtonAction{
             .channel = FormParser::ParseName(json.at("channel"), kColorChannels, "ColorChannel"),
             .delta = json.at("delta").get<float>()
         };
-    } else if (type == "DragMultiplier") {
+    }
+    else if (type == "DragMultiplier")
+    {
         value = DragMultiplierButtonAction{.delta = json.at("delta").get<float>()};
-    } else if (type == "System") {
+    }
+    else if (type == "System")
+    {
         value = SystemButtonAction{.action = FormParser::ParseName(json.at("action"), kSystemActions, "SystemAction")};
-    } else if (type == "SendOscValue") {
+    }
+    else if (type == "SendOscValue")
+    {
         SendOscButtonAction osc{.parameter = json.at("parameter").get<std::string>()};
-        if (const auto it = json.find("values"); it != json.end() && !it->is_null()) {
+        if (const auto it = json.find("values"); it != json.end() && !it->is_null())
+        {
             std::vector<OscValue> values;
-            for (const auto& item : *it) {
+            for (const auto& item : *it)
+            {
                 values.push_back(ParseOscValue(item));
             }
             osc.values = std::move(values);
         }
         value = std::move(osc);
-    } else if (type == "Shortcut") {
+    }
+    else if (type == "Shortcut")
+    {
         ShortcutButtonAction shortcut;
-        for (const auto& name : json.at("keys")) {
+        for (const auto& name : json.at("keys"))
+        {
             const auto key_name = name.get<std::string>();
             const auto key = VirtualKeys::Parse(key_name);
-            if (!key) {
+            if (!key)
+            {
                 throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for VirtualKey", key_name), &json);
             }
             shortcut.keys.push_back(*key);
         }
         value = std::move(shortcut);
-    } else if (type == "TypeText") {
+    }
+    else if (type == "TypeText")
+    {
         value = TypeTextButtonAction{.text = json.at("text").get<std::string>()};
-    } else if (type == "KeyboardProfile") {
+    }
+    else if (type == "KeyboardProfile")
+    {
         value = KeyboardProfileButtonAction{.profile = FormParser::Optional<std::string>(json, "profile")};
-    } else {
+    }
+    else
+    {
         throw nlohmann::json::other_error::create(501, std::format("unknown variant `{}` for ButtonAction", type), &json);
     }
 }
 
-auto from_json(const nlohmann::json& json, ButtonData& value) -> void {
+auto from_json(const nlohmann::json& json, ButtonData& value) -> void
+{
     value.click_down = OptionalActions(json, "click_down");
     value.click_up = OptionalActions(json, "click_up");
     value.long_click_up = OptionalActions(json, "long_click_up");
@@ -300,30 +383,44 @@ auto from_json(const nlohmann::json& json, ButtonData& value) -> void {
     value.long_middle_up = OptionalActions(json, "long_middle_up");
     value.scroll_down = OptionalActions(json, "scroll_down");
     value.scroll_up = OptionalActions(json, "scroll_up");
-    if (const auto it = json.find("highlight"); it != json.end() && !it->is_null()) {
+    if (const auto it = json.find("highlight"); it != json.end() && !it->is_null())
+    {
         value.highlight = FormParser::ParseName(*it, kHighlightTests, "HighlightTest");
     }
 }
 
-auto to_json(nlohmann::ordered_json& json, const OverlaySelector& value) -> void {
-    if (const auto* id = std::get_if<OverlayId>(&value)) {
+auto to_json(nlohmann::ordered_json& json, const OverlaySelector& value) -> void
+{
+    if (const auto* id = std::get_if<OverlayId>(&value))
+    {
         json = static_cast<uint64_t>(*id);
-    } else {
+    }
+    else
+    {
         json = std::get<std::string>(value);
     }
 }
 
-auto to_json(nlohmann::ordered_json& json, const OverlayAction& value) -> void {
+auto to_json(nlohmann::ordered_json& json, const OverlayAction& value) -> void
+{
     std::visit(
-        [&json](const auto& item) -> void {
+        [&json](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, OverlayToggleVisible>) {
+            if constexpr (std::is_same_v<Item, OverlayToggleVisible>)
+            {
                 json = "ToggleVisible";
-            } else if constexpr (std::is_same_v<Item, OverlayToggleImmovable>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayToggleImmovable>)
+            {
                 json = "ToggleImmovable";
-            } else if constexpr (std::is_same_v<Item, OverlayToggleInteraction>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayToggleInteraction>)
+            {
                 json = "ToggleInteraction";
-            } else {
+            }
+            else
+            {
                 json = {{"Opacity", {{"delta", Json::ShortestFloat(item.delta)}}}};
             }
         },
@@ -331,72 +428,106 @@ auto to_json(nlohmann::ordered_json& json, const OverlayAction& value) -> void {
     );
 }
 
-auto to_json(nlohmann::ordered_json& json, const ButtonAction& value) -> void {
+auto to_json(nlohmann::ordered_json& json, const ButtonAction& value) -> void
+{
     json = nlohmann::ordered_json::object();
     std::visit(
-        [&json](const auto& item) -> void {
+        [&json](const auto& item) -> void
+        {
             using Item = std::decay_t<decltype(item)>;
-            if constexpr (std::is_same_v<Item, ExecButtonAction>) {
+            if constexpr (std::is_same_v<Item, ExecButtonAction>)
+            {
                 json["type"] = "Exec";
                 json["command"] = item.command;
-                if (item.toast) {
+                if (item.toast)
+                {
                     json["toast"] = *item.toast;
                 }
-            } else if constexpr (std::is_same_v<Item, VirtualKeyButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, VirtualKeyButtonAction>)
+            {
                 json["type"] = "VirtualKey";
                 json["keycode"] = VirtualKeys::Name(item.keycode);
                 json["action"] = FormParser::NameOf(item.action, kPressRelease);
-            } else if constexpr (std::is_same_v<Item, WatchButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, WatchButtonAction>)
+            {
                 json["type"] = "Watch";
                 json["action"] = WatchActionJson(item.action);
-            } else if constexpr (std::is_same_v<Item, OverlayButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, OverlayButtonAction>)
+            {
                 json["type"] = "Overlay";
                 json["target"] = item.target;
                 json["action"] = item.action;
-            } else if constexpr (std::is_same_v<Item, WindowButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, WindowButtonAction>)
+            {
                 json["type"] = "Window";
                 json["target"] = item.target;
                 json["action"] = FormParser::NameOf(item.action, kWindowActions);
-            } else if constexpr (std::is_same_v<Item, ToastButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ToastButtonAction>)
+            {
                 json["type"] = "Toast";
                 json["message"] = item.message;
-                if (item.body) {
+                if (item.body)
+                {
                     json["body"] = *item.body;
                 }
-                if (item.seconds) {
+                if (item.seconds)
+                {
                     json["seconds"] = Json::ShortestFloat(*item.seconds);
                 }
-            } else if constexpr (std::is_same_v<Item, ColorAdjustButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ColorAdjustButtonAction>)
+            {
                 json["type"] = "ColorAdjust";
                 json["channel"] = FormParser::NameOf(item.channel, kColorChannels);
                 json["delta"] = Json::ShortestFloat(item.delta);
-            } else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, DragMultiplierButtonAction>)
+            {
                 json["type"] = "DragMultiplier";
                 json["delta"] = Json::ShortestFloat(item.delta);
-            } else if constexpr (std::is_same_v<Item, SystemButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, SystemButtonAction>)
+            {
                 json["type"] = "System";
                 json["action"] = FormParser::NameOf(item.action, kSystemActions);
-            } else if constexpr (std::is_same_v<Item, ShortcutButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, ShortcutButtonAction>)
+            {
                 json["type"] = "Shortcut";
                 auto keys = nlohmann::ordered_json::array();
-                for (const auto key : item.keys) {
+                for (const auto key : item.keys)
+                {
                     keys.push_back(VirtualKeys::Name(key));
                 }
                 json["keys"] = std::move(keys);
-            } else if constexpr (std::is_same_v<Item, TypeTextButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, TypeTextButtonAction>)
+            {
                 json["type"] = "TypeText";
                 json["text"] = item.text;
-            } else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>) {
+            }
+            else if constexpr (std::is_same_v<Item, KeyboardProfileButtonAction>)
+            {
                 json["type"] = "KeyboardProfile";
-                if (item.profile) {
+                if (item.profile)
+                {
                     json["profile"] = *item.profile;
                 }
-            } else {
+            }
+            else
+            {
                 json["type"] = "SendOscValue";
                 json["parameter"] = item.parameter;
-                if (item.values) {
+                if (item.values)
+                {
                     auto values = nlohmann::ordered_json::array();
-                    for (const auto& osc_value : *item.values) {
+                    for (const auto& osc_value : *item.values)
+                    {
                         values.push_back(OscValueJson(osc_value));
                     }
                     json["values"] = std::move(values);
@@ -407,10 +538,13 @@ auto to_json(nlohmann::ordered_json& json, const ButtonAction& value) -> void {
     );
 }
 
-auto to_json(nlohmann::ordered_json& json, const ButtonData& value) -> void {
+auto to_json(nlohmann::ordered_json& json, const ButtonData& value) -> void
+{
     json = nlohmann::ordered_json::object();
-    const auto put = [&json](std::string_view key, const std::optional<std::vector<ButtonAction>>& actions) -> void {
-        if (actions) {
+    const auto put = [&json](std::string_view key, const std::optional<std::vector<ButtonAction>>& actions) -> void
+    {
+        if (actions)
+        {
             json[key] = *actions;
         }
     };
@@ -425,7 +559,8 @@ auto to_json(nlohmann::ordered_json& json, const ButtonData& value) -> void {
     put("long_middle_up", value.long_middle_up);
     put("scroll_down", value.scroll_down);
     put("scroll_up", value.scroll_up);
-    if (value.highlight) {
+    if (value.highlight)
+    {
         json["highlight"] = FormParser::NameOf(*value.highlight, kHighlightTests);
     }
 }

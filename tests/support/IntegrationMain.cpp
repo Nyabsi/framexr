@@ -20,7 +20,8 @@
 
 #include "TestApp.hpp"
 
-auto main(int argc, char** argv) -> int {
+auto main(int argc, char** argv) -> int
+{
     testing::InitGoogleTest(&argc, argv);
     testing::AddGlobalTestEnvironment(new TestApp());
     return RUN_ALL_TESTS();

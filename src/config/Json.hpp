@@ -23,7 +23,8 @@
 #include <Eigen/Geometry>
 #include <nlohmann/json.hpp>
 
-class Json {
+class Json
+{
   public:
     static auto ShortestFloat(float value) -> double;
     static auto VariantName(const nlohmann::json& json) -> std::string;
@@ -31,21 +32,24 @@ class Json {
 };
 
 template <>
-class nlohmann::adl_serializer<Eigen::Vector3f> {
+class nlohmann::adl_serializer<Eigen::Vector3f>
+{
   public:
     static auto from_json(const nlohmann::json& json, Eigen::Vector3f& value) -> void;
     static auto to_json(nlohmann::json& json, const Eigen::Vector3f& value) -> void;
 };
 
 template <>
-class nlohmann::adl_serializer<Eigen::Quaternionf> {
+class nlohmann::adl_serializer<Eigen::Quaternionf>
+{
   public:
     static auto from_json(const nlohmann::json& json, Eigen::Quaternionf& value) -> void;
     static auto to_json(nlohmann::json& json, const Eigen::Quaternionf& value) -> void;
 };
 
 template <>
-class nlohmann::adl_serializer<Eigen::Affine3f> {
+class nlohmann::adl_serializer<Eigen::Affine3f>
+{
   public:
     static auto from_json(const nlohmann::json& json, Eigen::Affine3f& value) -> void;
     static auto to_json(nlohmann::json& json, const Eigen::Affine3f& value) -> void;

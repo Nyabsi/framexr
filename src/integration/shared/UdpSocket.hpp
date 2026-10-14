@@ -26,12 +26,14 @@
 
 #include "Error.hpp"
 
-enum class UdpAddress : uint8_t {
+enum class UdpAddress : uint8_t
+{
     Any,
     Loopback,
 };
 
-class UdpSocket final {
+class UdpSocket final
+{
   public:
     static auto Bind(UdpAddress address, uint16_t port) -> Result<UdpSocket>;
 

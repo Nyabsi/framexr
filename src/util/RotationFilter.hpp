@@ -24,7 +24,8 @@
 
 #include "OneEuroFilter.hpp"
 
-class RotationFilter final {
+class RotationFilter final
+{
   public:
     explicit RotationFilter(OneEuroSettings settings);
 

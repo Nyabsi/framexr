@@ -35,7 +35,8 @@
 
 class Keymap;
 
-enum class KeyHitKind : uint8_t {
+enum class KeyHitKind : uint8_t
+{
     None,
     Key,
     Cell,
@@ -45,7 +46,8 @@ enum class KeyHitKind : uint8_t {
     RemoveRow,
 };
 
-struct KeyHit {
+struct KeyHit
+{
     KeyHitKind kind = KeyHitKind::None;
     size_t index = 0;
     float x = 0.0f;
@@ -54,7 +56,8 @@ struct KeyHit {
     auto operator==(const KeyHit&) const -> bool = default;
 };
 
-enum class KeyTemplate : uint8_t {
+enum class KeyTemplate : uint8_t
+{
     Key,
     Numpad,
     Navigation,
@@ -62,7 +65,8 @@ enum class KeyTemplate : uint8_t {
     Function,
 };
 
-class KeyboardDesigner final {
+class KeyboardDesigner final
+{
   public:
     static constexpr float kScale = 0.6f;
     static constexpr float kControls = 90.0f;
@@ -116,7 +120,8 @@ class KeyboardDesigner final {
     static auto TemplateName(KeyTemplate key_template) -> std::string_view;
 
   private:
-    struct Drag {
+    struct Drag
+    {
         KeyHit hit;
         Eigen::Vector2f start = Eigen::Vector2f::Zero();
         Eigen::Vector2f grab = Eigen::Vector2f::Zero();

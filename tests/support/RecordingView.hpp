@@ -31,14 +31,16 @@
 #include "Compose.hpp"
 #include "View.hpp"
 
-enum class RecordedKind : uint8_t {
+enum class RecordedKind : uint8_t
+{
     Hover,
     Left,
     Press,
     Scroll,
 };
 
-struct RecordedEvent {
+struct RecordedEvent
+{
     RecordedKind kind = RecordedKind::Hover;
     size_t pointer = 0;
     Eigen::Vector2f uv = Eigen::Vector2f::Zero();
@@ -49,7 +51,8 @@ struct RecordedEvent {
     float delta_x = 0.0f;
 };
 
-class RecordingView final : public View {
+class RecordingView final : public View
+{
   public:
     RecordingView(VkExtent2D extent, std::shared_ptr<std::vector<RecordedEvent>> events);
 

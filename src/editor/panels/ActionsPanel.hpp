@@ -40,13 +40,15 @@ enum class ButtonTrigger : uint8_t;
 
 using ActionsChange = std::function<void(std::vector<ButtonAction>&)>;
 
-struct TriggerSlot {
+struct TriggerSlot
+{
     ButtonTrigger trigger;
     std::string_view name;
     std::optional<std::vector<ButtonAction>> ButtonData::* actions;
 };
 
-class ActionsPanel final : public FormComponent {
+class ActionsPanel final : public FormComponent
+{
   public:
     static auto Triggers() -> std::span<const TriggerSlot>;
     static auto Describe(const ButtonAction& action) -> std::string;

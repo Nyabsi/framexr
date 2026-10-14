@@ -21,14 +21,18 @@
 #include <algorithm>
 #include <cctype>
 
-auto TextSearch::Fold(std::string_view text) -> std::string {
+auto TextSearch::Fold(std::string_view text) -> std::string
+{
     std::string folded(text);
-    std::ranges::transform(folded, folded.begin(), [](unsigned char c) -> char {
-        return c == '_' ? ' ' : static_cast<char>(std::tolower(c));
-    });
+    std::ranges::transform(
+        folded,
+        folded.begin(),
+        [](unsigned char c) -> char { return c == '_' ? ' ' : static_cast<char>(std::tolower(c)); }
+    );
     return folded;
 }
 
-auto TextSearch::Matches(std::string_view text, std::string_view query) -> bool {
+auto TextSearch::Matches(std::string_view text, std::string_view query) -> bool
+{
     return query.empty() || Fold(text).contains(Fold(query));
 }

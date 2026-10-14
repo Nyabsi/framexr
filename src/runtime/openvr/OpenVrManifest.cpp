@@ -34,11 +34,13 @@
 #include "Logger.hpp"
 #include "Platform.hpp"
 
-namespace {
+namespace
+{
 
 constexpr const char* kAppKey = "nyabsi.framexr";
 
-auto ManifestPath() -> std::filesystem::path {
+auto ManifestPath() -> std::filesystem::path
+{
     return ConfigStore::Root() / "framexr.vrmanifest";
 }
 
@@ -48,29 +50,36 @@ constexpr const char* kBinaryPathKey = "binary_path_windows";
 constexpr const char* kBinaryPathKey = "binary_path_linux";
 #endif
 
-auto ExecutablePath() -> Result<std::string> {
+auto ExecutablePath() -> Result<std::string>
+{
     ASSIGN_OR_RETURN(const auto path, Platform::ExecutablePath());
     return path.string();
 }
 
-auto ApplicationError(vr::EVRApplicationError error) -> const char* {
+auto ApplicationError(vr::EVRApplicationError error) -> const char*
+{
     return vr::VRApplications()->GetApplicationsErrorNameFromEnum(error);
 }
 
 } // namespace
 
-auto OpenVrManifest::Install() -> Result<> {
+auto OpenVrManifest::Install() -> Result<>
+{
     const auto manifest_path = ManifestPath();
     ASSIGN_OR_RETURN(const auto executable_path, ExecutablePath());
 
-    if (vr::VRApplications()->IsApplicationInstalled(kAppKey)) {
-        if (const auto contents = ConfigStore::ReadFile(manifest_path)) {
+    if (vr::VRApplications()->IsApplicationInstalled(kAppKey))
+    {
+        if (const auto contents = ConfigStore::ReadFile(manifest_path))
+        {
             const auto manifest = nlohmann::json::parse(*contents, nullptr, false);
-            if (manifest.is_discarded()) {
+            if (manifest.is_discarded())
+            {
                 return Unexpected(std::format("Invalid manifest at {}", manifest_path.string()));
             }
             const auto& binary = manifest["applications"][0][kBinaryPathKey];
-            if (binary.is_string() && binary.get<std::string>() == executable_path) {
+            if (binary.is_string() && binary.get<std::string>() == executable_path)
+            {
                 LOG_INFO("Manifest already up to date");
                 return {};
             }
@@ -93,31 +102,38 @@ auto OpenVrManifest::Install() -> Result<> {
     manifest["applications"] = nlohmann::ordered_json::array({application});
 
     std::ofstream stream(manifest_path, std::ios::trunc);
-    if (!stream) {
+    if (!stream)
+    {
         return Unexpected(std::format("Failed to create manifest file at {}", manifest_path.string()));
     }
     stream << manifest.dump();
-    if (!stream) {
+    if (!stream)
+    {
         return Unexpected(std::format("Failed to write manifest file at {}", manifest_path.string()));
     }
     stream.close();
 
     if (const auto error = vr::VRApplications()->AddApplicationManifest(manifest_path.string().c_str(), false);
-        error != vr::VRApplicationError_None) {
+        error != vr::VRApplicationError_None)
+    {
         return Unexpected(std::format("Failed to add manifest to OpenVR: {}", ApplicationError(error)));
     }
-    if (const auto error = vr::VRApplications()->SetApplicationAutoLaunch(kAppKey, true); error != vr::VRApplicationError_None) {
+    if (const auto error = vr::VRApplications()->SetApplicationAutoLaunch(kAppKey, true); error != vr::VRApplicationError_None)
+    {
         return Unexpected(std::format("Failed to set auto launch: {}", ApplicationError(error)));
     }
     return {};
 }
 
-auto OpenVrManifest::Uninstall() -> Result<> {
-    if (!vr::VRApplications()->IsApplicationInstalled(kAppKey)) {
+auto OpenVrManifest::Uninstall() -> Result<>
+{
+    if (!vr::VRApplications()->IsApplicationInstalled(kAppKey))
+    {
         return {};
     }
     if (const auto error = vr::VRApplications()->RemoveApplicationManifest(ManifestPath().string().c_str());
-        error != vr::VRApplicationError_None) {
+        error != vr::VRApplicationError_None)
+    {
         return Unexpected(std::format("Failed to remove manifest from OpenVR: {}", ApplicationError(error)));
     }
     LOG_INFO("Uninstalled manifest");

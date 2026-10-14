@@ -23,7 +23,8 @@
 
 #include "FormComponent.hpp"
 
-class RowComponent final : public FormComponent {
+class RowComponent final : public FormComponent
+{
   public:
     RowComponent(std::string name, float height, float gap);
 

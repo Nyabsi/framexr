@@ -24,7 +24,8 @@
 
 class Editor;
 
-class GhostPanel final : public FormComponent {
+class GhostPanel final : public FormComponent
+{
   public:
     GhostPanel(const Editor& editor, const Eigen::Vector2f& size);
 };

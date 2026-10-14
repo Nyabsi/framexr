@@ -36,18 +36,21 @@
 #include "OpenXrSwapchain.hpp"
 #include "Pipeline.hpp"
 
-struct OpenXrLine {
+struct OpenXrLine
+{
     size_t color = 0;
     XrPosef pose{};
     float length = 0.0f;
 };
 
-struct OpenXrLineContainer {
+struct OpenXrLineContainer
+{
     std::unique_ptr<OpenXrSwapchain> swapchain;
     std::optional<OpenXrLine> line;
 };
 
-class OpenXrLines final {
+class OpenXrLines final
+{
   public:
     static auto Create() -> Result<std::unique_ptr<OpenXrLines>>;
 

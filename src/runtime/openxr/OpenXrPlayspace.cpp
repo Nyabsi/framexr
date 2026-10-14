@@ -30,11 +30,13 @@
 #include "Monado.hpp"
 #include "Container.hpp"
 
-auto OpenXrPlayspace::Create(Monado& monado) -> Result<OpenXrPlayspace> {
+auto OpenXrPlayspace::Create(Monado& monado) -> Result<OpenXrPlayspace>
+{
     LOG_INFO("Monado: using space offset API");
 
     const auto stage = monado.ReferenceSpaceOffset(MonadoReferenceSpace::Stage);
-    if (!stage) {
+    if (!stage)
+    {
         return Unexpected("Space offsets not supported.");
     }
 
@@ -57,13 +59,18 @@ auto OpenXrPlayspace::Create(Monado& monado) -> Result<OpenXrPlayspace> {
     return OpenXrPlayspace(last_transform);
 }
 
-OpenXrPlayspace::OpenXrPlayspace(const Eigen::Affine3f& last_transform) : m_last_transform(last_transform) {
+OpenXrPlayspace::OpenXrPlayspace(const Eigen::Affine3f& last_transform) : m_last_transform(last_transform)
+{
 }
 
-auto OpenXrPlayspace::Update(Monado& monado) -> void {
-    for (const auto& pointer : g_interaction->Pointers()) {
-        if (pointer.Now().space_reset) {
-            if (!pointer.Before().space_reset) {
+auto OpenXrPlayspace::Update(Monado& monado) -> void
+{
+    for (const auto& pointer : g_interaction->Pointers())
+    {
+        if (pointer.Now().space_reset)
+        {
+            if (!pointer.Before().space_reset)
+            {
                 LOG_INFO("Space reset");
                 ResetOffset(monado);
             }
@@ -71,16 +78,20 @@ auto OpenXrPlayspace::Update(Monado& monado) -> void {
         }
     }
 
-    if (UpdateRotate(monado)) {
+    if (UpdateRotate(monado))
+    {
         return;
     }
     UpdateDrag(monado);
 }
 
-auto OpenXrPlayspace::UpdateRotate(Monado& monado) -> bool {
-    if (m_rotate) {
+auto OpenXrPlayspace::UpdateRotate(Monado& monado) -> bool
+{
+    if (m_rotate)
+    {
         const auto& pointer = g_interaction->Pointers().at(m_rotate->hand);
-        if (!pointer.Now().space_rotate) {
+        if (!pointer.Now().space_rotate)
+        {
             m_last_transform = m_rotate->pose;
             m_rotate.reset();
             LOG_INFO("End space rotate");
@@ -91,9 +102,12 @@ auto OpenXrPlayspace::UpdateRotate(Monado& monado) -> bool {
         const Eigen::Quaternionf dq = new_hand * m_rotate->hand_rotation.conjugate();
 
         Eigen::Affine3f space_transform = Eigen::Affine3f::Identity();
-        if (g_config->space_rotate_unlocked) {
+        if (g_config->space_rotate_unlocked)
+        {
             space_transform.linear() = dq.toRotationMatrix();
-        } else {
+        }
+        else
+        {
             const float rel_y = std::atan2(
                 2.0f * std::fma(dq.y(), dq.w(), dq.x() * dq.z()),
                 std::fma(2.0f, std::fma(dq.w(), dq.w(), dq.x() * dq.x()), -1.0f)
@@ -110,9 +124,11 @@ auto OpenXrPlayspace::UpdateRotate(Monado& monado) -> bool {
         return false;
     }
 
-    for (size_t i = 0; i < g_interaction->Pointers().size(); ++i) {
+    for (size_t i = 0; i < g_interaction->Pointers().size(); ++i)
+    {
         const auto& pointer = g_interaction->Pointers().at(i);
-        if (!pointer.Now().space_rotate) {
+        if (!pointer.Now().space_rotate)
+        {
             continue;
         }
         const Eigen::Quaternionf hand_rotation(Eigen::Matrix3f((m_last_transform * pointer.RawPose()).linear()));
@@ -124,10 +140,13 @@ auto OpenXrPlayspace::UpdateRotate(Monado& monado) -> bool {
     return false;
 }
 
-auto OpenXrPlayspace::UpdateDrag(Monado& monado) -> void {
-    if (m_drag) {
+auto OpenXrPlayspace::UpdateDrag(Monado& monado) -> void
+{
+    if (m_drag)
+    {
         const auto& pointer = g_interaction->Pointers().at(m_drag->hand);
-        if (!pointer.Now().space_drag) {
+        if (!pointer.Now().space_drag)
+        {
             m_last_transform = m_drag->pose;
             m_drag.reset();
             LOG_INFO("End space drag");
@@ -136,15 +155,18 @@ auto OpenXrPlayspace::UpdateDrag(Monado& monado) -> void {
 
         const Eigen::Vector3f new_hand = m_drag->pose * pointer.RawPose().translation();
         const Eigen::Vector3f relative = (new_hand - m_drag->hand_position) * g_config->space_drag_multiplier;
-        if (relative.squaredNorm() > 1000.0f) {
+        if (relative.squaredNorm() > 1000.0f)
+        {
             LOG_WARN("Space drag too fast, ignoring");
             return;
         }
 
         const Eigen::Matrix3f inverse_rotation = Eigen::Affine3f(m_drag->pose.matrix().inverse()).linear();
         const Eigen::Vector3f overlay_offset = inverse_rotation * relative * -1.0f;
-        for (auto& overlay : g_container->Views()) {
-            if (overlay->Grabbable()) {
+        for (auto& overlay : g_container->Views())
+        {
+            if (overlay->Grabbable())
+            {
                 overlay->SetDirty(true);
                 overlay->Transform().translation() += overlay_offset;
             }
@@ -156,9 +178,11 @@ auto OpenXrPlayspace::UpdateDrag(Monado& monado) -> void {
         return;
     }
 
-    for (size_t i = 0; i < g_interaction->Pointers().size(); ++i) {
+    for (size_t i = 0; i < g_interaction->Pointers().size(); ++i)
+    {
         const auto& pointer = g_interaction->Pointers().at(i);
-        if (!pointer.Now().space_drag) {
+        if (!pointer.Now().space_drag)
+        {
             continue;
         }
         m_drag = OpenXrPlayspaceDrag{
@@ -171,24 +195,29 @@ auto OpenXrPlayspace::UpdateDrag(Monado& monado) -> void {
     }
 }
 
-auto OpenXrPlayspace::InterruptMoves(std::string_view reason) -> void {
-    if (m_drag) {
+auto OpenXrPlayspace::InterruptMoves(std::string_view reason) -> void
+{
+    if (m_drag)
+    {
         LOG_INFO("Space drag interrupted by {}", reason);
         m_drag.reset();
     }
-    if (m_rotate) {
+    if (m_rotate)
+    {
         LOG_INFO("Space rotate interrupted by {}", reason);
         m_rotate.reset();
     }
 }
 
-auto OpenXrPlayspace::ResetOffset(Monado& monado) -> void {
+auto OpenXrPlayspace::ResetOffset(Monado& monado) -> void
+{
     InterruptMoves("manual reset");
     m_last_transform = Eigen::Affine3f::Identity();
     ApplyOffset(m_last_transform, monado);
 }
 
-auto OpenXrPlayspace::FixFloor(Monado& monado) -> void {
+auto OpenXrPlayspace::FixFloor(Monado& monado) -> void
+{
     InterruptMoves("fix floor");
     const float y1 = g_interaction->Pointers()[0].RawPose().translation().y();
     const float y2 = g_interaction->Pointers()[1].RawPose().translation().y();
@@ -196,12 +225,14 @@ auto OpenXrPlayspace::FixFloor(Monado& monado) -> void {
     ApplyOffset(m_last_transform, monado);
 }
 
-auto OpenXrPlayspace::ApplyOffset(const Eigen::Affine3f& transform, Monado& monado) -> void {
+auto OpenXrPlayspace::ApplyOffset(const Eigen::Affine3f& transform, Monado& monado) -> void
+{
     const MonadoPose pose{
         .orientation = Eigen::Quaternionf(Eigen::Matrix3f(transform.linear())),
         .position = transform.translation(),
     };
-    if (const auto result = monado.SetReferenceSpaceOffset(MonadoReferenceSpace::Stage, pose); !result) {
+    if (const auto result = monado.SetReferenceSpaceOffset(MonadoReferenceSpace::Stage, pose); !result)
+    {
         LOG_DEBUG("Failed to set STAGE offset: {}", Monado::ResultName(result.error()));
     }
 }

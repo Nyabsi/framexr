@@ -32,12 +32,14 @@ struct ma_engine;
 struct ma_decoder;
 struct ma_sound;
 
-struct PlayingSound {
+struct PlayingSound
+{
     std::unique_ptr<ma_decoder> decoder;
     std::unique_ptr<ma_sound> sound;
 };
 
-class AudioPlayback final {
+class AudioPlayback final
+{
   public:
     explicit AudioPlayback(std::string_view notification_sound);
     ~AudioPlayback();

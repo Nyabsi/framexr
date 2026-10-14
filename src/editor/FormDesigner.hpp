@@ -33,7 +33,8 @@
 #include "Form.hpp"
 #include "History.hpp"
 
-enum class FormHitKind : uint8_t {
+enum class FormHitKind : uint8_t
+{
     None,
     Element,
     Resize,
@@ -42,17 +43,20 @@ enum class FormHitKind : uint8_t {
     ToolbarCorner,
 };
 
-struct FormHit {
+struct FormHit
+{
     FormHitKind kind = FormHitKind::None;
     size_t index = 0;
 };
 
-struct Guide {
+struct Guide
+{
     bool vertical = true;
     float position = 0.0f;
 };
 
-enum class FormPart : uint8_t {
+enum class FormPart : uint8_t
+{
     Form,
     Button,
     Label,
@@ -63,7 +67,8 @@ enum class FormPart : uint8_t {
     Screens,
 };
 
-class FormDesigner final {
+class FormDesigner final
+{
   public:
     static constexpr float kPad = 24.0f;
     static constexpr float kScale = 1.5f;
@@ -140,7 +145,8 @@ class FormDesigner final {
     static auto PartName(FormPart part) -> std::string_view;
 
   private:
-    struct Drag {
+    struct Drag
+    {
         FormHit hit;
         Eigen::Vector2f start = Eigen::Vector2f::Zero();
         FormDocument before;
@@ -154,7 +160,8 @@ class FormDesigner final {
         size_t form = 0;
     };
 
-    struct SnapLock {
+    struct SnapLock
+    {
         bool active = false;
         size_t edge = 0;
         float target = 0.0f;

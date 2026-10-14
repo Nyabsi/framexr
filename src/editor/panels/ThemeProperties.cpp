@@ -35,7 +35,8 @@
 #include "TextLineComponent.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr auto kRoundings = std::to_array<Rounding>({Rounding::Square, Rounding::Subtle, Rounding::Round});
 
@@ -43,7 +44,8 @@ constexpr auto kRoundings = std::to_array<Rounding>({Rounding::Square, Rounding:
 
 ThemeProperties::ThemeProperties(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("theme"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
@@ -60,7 +62,8 @@ ThemeProperties::ThemeProperties(Editor& editor, const Eigen::Vector2f& size)
     AddColours(editor);
 }
 
-auto ThemeProperties::AddThemes(Editor& editor) -> void {
+auto ThemeProperties::AddThemes(Editor& editor) -> void
+{
     const auto& current = editor.ThemeHistory().Current();
     const auto& themes = g_themes->All();
 
@@ -68,8 +71,10 @@ auto ThemeProperties::AddThemes(Editor& editor) -> void {
 
     std::vector<std::string> names;
     std::optional<size_t> selected;
-    for (const auto& theme : themes) {
-        if (theme.name == current.name) {
+    for (const auto& theme : themes)
+    {
+        if (theme.name == current.name)
+        {
             selected = names.size();
         }
         names.push_back(theme.name);
@@ -86,7 +91,8 @@ auto ThemeProperties::AddThemes(Editor& editor) -> void {
     create.SetEllipsize(true);
     create.SetOnRelease([&editor]() -> void { editor.NewTheme(); });
 
-    if (!FormTheme::IsBuiltIn(current.name) && !current.source.empty()) {
+    if (!FormTheme::IsBuiltIn(current.name) && !current.source.empty())
+    {
         auto& remove = actions.AddComponent<ButtonComponent>("delete", editor.DeleteArmed() ? "Sure?" : "Delete");
         remove.SetFontSize(PanelStyle::kTextFont);
         remove.SetFgColor(FormTheme::Rgba("@on-accent"));
@@ -95,7 +101,8 @@ auto ThemeProperties::AddThemes(Editor& editor) -> void {
         remove.SetOnRelease([&editor]() -> void { editor.DeleteTheme(); });
     }
 
-    if (!FormTheme::IsBuiltIn(current.name)) {
+    if (!FormTheme::IsBuiltIn(current.name))
+    {
         m_stack.AddComponent<LaserInputComponent>(
             "theme.name",
             "Name",
@@ -106,15 +113,18 @@ auto ThemeProperties::AddThemes(Editor& editor) -> void {
     }
 }
 
-auto ThemeProperties::AddCorners(Editor& editor) -> void {
+auto ThemeProperties::AddCorners(Editor& editor) -> void
+{
     const auto& current = editor.ThemeHistory().Current();
 
     m_stack.AddComponent<SectionComponent>("corners", "Corners");
 
     std::vector<std::string> names;
     std::optional<size_t> selected;
-    for (const auto rounding : kRoundings) {
-        if (current.rounding == rounding) {
+    for (const auto rounding : kRoundings)
+    {
+        if (current.rounding == rounding)
+        {
             selected = names.size();
         }
         names.emplace_back(FormTheme::Name(rounding));
@@ -126,12 +136,14 @@ auto ThemeProperties::AddCorners(Editor& editor) -> void {
         kRoundings.size(),
         PanelStyle::kRowHeight
     );
-    roundings.SetOnChoose([&editor](size_t index) -> void {
-        editor.EditTheme([index](ThemeDefinition& edited) -> void { edited.rounding = kRoundings.at(index); });
-    });
+    roundings.SetOnChoose(
+        [&editor](size_t index) -> void
+        { editor.EditTheme([index](ThemeDefinition& edited) -> void { edited.rounding = kRoundings.at(index); }); }
+    );
 }
 
-auto ThemeProperties::AddFont(Editor& editor) -> void {
+auto ThemeProperties::AddFont(Editor& editor) -> void
+{
     const auto& font = editor.ThemeHistory().Current().font;
     const bool picking = editor.Dialog() == DialogKind::Font;
 
@@ -148,7 +160,8 @@ auto ThemeProperties::AddFont(Editor& editor) -> void {
     pick.SetOnRelease([&editor]() -> void { editor.OpenFonts(); });
 }
 
-auto ThemeProperties::AddColours(Editor& editor) -> void {
+auto ThemeProperties::AddColours(Editor& editor) -> void
+{
     const auto& current = editor.ThemeHistory().Current();
 
     m_stack.AddComponent<SectionComponent>("colours", "Colours");
@@ -160,34 +173,45 @@ auto ThemeProperties::AddColours(Editor& editor) -> void {
         PanelStyle::kCaptionHeight
     );
 
-    for (size_t start = 0; start < current.colors.size(); start += 2) {
+    for (size_t start = 0; start < current.colors.size(); start += 2)
+    {
         auto& row = m_stack.AddComponent<RowComponent>("colour-row", PanelStyle::kListRow, PanelStyle::kGap);
-        for (size_t i = start; i < start + 2; ++i) {
-            if (i >= current.colors.size()) {
+        for (size_t i = start; i < start + 2; ++i)
+        {
+            if (i >= current.colors.size())
+            {
                 row.AddComponent<FormComponent>("empty");
                 continue;
             }
             const auto name = current.colors[i].name;
             auto& swatch = row.AddComponent<SwatchComponent>(name, name, FormTheme::Rgba(current.colors[i].hex));
-            swatch.SetOnRelease([&editor, name]() -> void {
-                editor.OpenColor({
-                    .title = FormTheme::Token(name),
-                    .get = [&editor, name]() -> std::string {
-                        return FormTheme::Lookup(editor.ThemeHistory().Current(), name).value_or("#ffffff");
-                    },
-                    .set = [&editor, name](const std::string& picked) -> void {
-                        editor.EditTheme([&name, &picked](ThemeDefinition& edited) -> void {
-                            for (auto& entry : edited.colors) {
-                                if (entry.name == name) {
-                                    entry.hex = picked;
+            swatch.SetOnRelease(
+                [&editor, name]() -> void
+                {
+                    editor.OpenColor({
+                        .title = FormTheme::Token(name),
+                        .get = [&editor, name]() -> std::string
+                        { return FormTheme::Lookup(editor.ThemeHistory().Current(), name).value_or("#ffffff"); },
+                        .set = [&editor, name](const std::string& picked) -> void
+                        {
+                            editor.EditTheme(
+                                [&name, &picked](ThemeDefinition& edited) -> void
+                                {
+                                    for (auto& entry : edited.colors)
+                                    {
+                                        if (entry.name == name)
+                                        {
+                                            entry.hex = picked;
+                                        }
+                                    }
                                 }
-                            }
-                        });
-                    },
-                    .reset = nullptr,
-                    .tokens = false,
-                });
-            });
+                            );
+                        },
+                        .reset = nullptr,
+                        .tokens = false,
+                    });
+                }
+            );
         }
     }
 }

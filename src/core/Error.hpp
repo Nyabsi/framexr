@@ -22,7 +22,8 @@
 #include <string>
 #include <string_view>
 
-class Error {
+class Error
+{
   public:
     explicit Error(std::string message);
 
@@ -44,8 +45,10 @@ using Result = std::expected<T, Error>;
 
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define RETURN_IF_ERROR(expr)                         \
-    do {                                              \
-        if (auto m_result = (expr); !m_result) {      \
+    do                                                \
+    {                                                 \
+        if (auto m_result = (expr); !m_result)        \
+        {                                             \
             return std::unexpected(m_result.error()); \
         }                                             \
     } while (false)
@@ -54,7 +57,8 @@ using Result = std::expected<T, Error>;
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ASSIGN_OR_RETURN_IMPL(result, lhs, expr) \
     auto result = (expr);                        \
-    if (!result) {                               \
+    if (!result)                                 \
+    {                                            \
         return std::unexpected(result.error());  \
     }                                            \
     lhs = std::move(*result)

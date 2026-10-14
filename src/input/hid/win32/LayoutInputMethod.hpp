@@ -20,7 +20,8 @@
 
 #include "InputMethod.hpp"
 
-class LayoutInputMethod final : public InputMethod {
+class LayoutInputMethod final : public InputMethod
+{
   public:
     LayoutInputMethod() = default;
     ~LayoutInputMethod() override;

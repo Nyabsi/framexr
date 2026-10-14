@@ -27,7 +27,8 @@
 
 class Editor;
 
-class EditorPanel final : public View {
+class EditorPanel final : public View
+{
   public:
     EditorPanel(const std::shared_ptr<Editor>& editor, PanelKind kind);
 

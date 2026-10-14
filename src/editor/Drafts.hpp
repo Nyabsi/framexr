@@ -26,7 +26,8 @@ class Editor;
 
 enum class EditTarget : uint8_t;
 
-class Drafts final {
+class Drafts final
+{
   public:
     static auto File(EditTarget target) -> std::filesystem::path;
 

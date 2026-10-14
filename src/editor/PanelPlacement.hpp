@@ -32,7 +32,8 @@
 
 class Editor;
 
-enum class PanelKind : uint8_t {
+enum class PanelKind : uint8_t
+{
     Preview,
     Toolbar,
     Palette,
@@ -44,7 +45,8 @@ enum class PanelKind : uint8_t {
     FrontLayer,
 };
 
-class PanelPlacement final {
+class PanelPlacement final
+{
   public:
     static constexpr std::array<PanelKind, 9> kPanels{
         PanelKind::Preview,

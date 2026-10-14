@@ -24,7 +24,8 @@
 #include "Config.hpp"
 #include "ConfigStore.hpp"
 
-TEST(Config, DefaultsMatchOriginal) {
+TEST(Config, DefaultsMatchOriginal)
+{
     const auto config = ConfigStore::Load();
     EXPECT_EQ(config.capture_method, "auto");
     EXPECT_EQ(config.keyboard_scale, 1.0f);
@@ -41,7 +42,8 @@ TEST(Config, DefaultsMatchOriginal) {
     EXPECT_EQ(config.timezones.size(), 2U);
 }
 
-TEST(Config, MergeReplacesScalarsAndArraysButMergesTables) {
+TEST(Config, MergeReplacesScalarsAndArraysButMergesTables)
+{
     auto target = nlohmann::json::parse(R"({"a": 1, "list": [1, 2], "table": {"x": 1, "y": 2}})");
     ConfigStore::Merge(target, nlohmann::json::parse(R"({"a": 5, "list": [3], "table": {"y": 9, "z": 3}})"));
     EXPECT_EQ(target, nlohmann::json::parse(R"({"a": 5, "list": [3], "table": {"x": 1, "y": 9, "z": 3}})"));

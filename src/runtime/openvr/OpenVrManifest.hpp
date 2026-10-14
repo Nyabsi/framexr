@@ -23,7 +23,8 @@
 
 #include "Error.hpp"
 
-class OpenVrManifest {
+class OpenVrManifest
+{
   public:
     static auto Install() -> Result<>;
     static auto Uninstall() -> Result<>;

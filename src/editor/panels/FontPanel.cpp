@@ -31,7 +31,8 @@
 #include "TextSearch.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr size_t kResults = 16;
 
@@ -39,11 +40,13 @@ constexpr size_t kResults = 16;
 
 FontPanel::FontPanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("fonts"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
-    if (editor.Target() != EditTarget::Theme || g_fonts == nullptr) {
+    if (editor.Target() != EditTarget::Theme || g_fonts == nullptr)
+    {
         return;
     }
     const auto text = FormTheme::Rgba("@text");
@@ -52,8 +55,10 @@ FontPanel::FontPanel(Editor& editor, const Eigen::Vector2f& size)
     const auto accent = FormTheme::Rgba("@accent");
     const auto on_accent = FormTheme::Rgba("@on-accent");
     const auto& current = editor.ThemeHistory().Current().font;
-    const auto choose = [&editor](std::optional<std::string> family) -> std::function<void()> {
-        return [&editor, family = std::move(family)]() -> void {
+    const auto choose = [&editor](std::optional<std::string> family) -> std::function<void()>
+    {
+        return [&editor, family = std::move(family)]() -> void
+        {
             editor.EditTheme([&family](ThemeDefinition& edited) -> void { edited.font = family; });
             editor.Text().End();
             editor.CloseDialog();
@@ -83,12 +88,15 @@ FontPanel::FontPanel(Editor& editor, const Eigen::Vector2f& size)
     const auto& query = searching ? editor.Text().Buffer() : editor.FontQuery();
     size_t shown = 0;
     size_t matches = 0;
-    for (const auto& family : g_fonts->Families()) {
-        if (!TextSearch::Matches(family, query)) {
+    for (const auto& family : g_fonts->Families())
+    {
+        if (!TextSearch::Matches(family, query))
+        {
             continue;
         }
         ++matches;
-        if (shown >= kResults) {
+        if (shown >= kResults)
+        {
             continue;
         }
         const bool chosen = current == family;
@@ -101,10 +109,13 @@ FontPanel::FontPanel(Editor& editor, const Eigen::Vector2f& size)
         row.SetOnRelease(choose(family));
         ++shown;
     }
-    if (matches > shown) {
+    if (matches > shown)
+    {
         const auto more = std::format("{} more, keep typing to narrow it down", matches - shown);
         m_stack.AddComponent<TextLineComponent>("more", more, PanelStyle::kCaptionFont, subtle, PanelStyle::kCaptionHeight);
-    } else if (matches == 0) {
+    }
+    else if (matches == 0)
+    {
         m_stack.AddComponent<TextLineComponent>(
             "none",
             "No font matches that",
@@ -120,8 +131,11 @@ FontPanel::FontPanel(Editor& editor, const Eigen::Vector2f& size)
     done.SetFgColor(text);
     done.SetBgColor(surface);
     done.SetEllipsize(true);
-    done.SetOnRelease([&editor]() -> void {
-        editor.Text().End();
-        editor.CloseDialog();
-    });
+    done.SetOnRelease(
+        [&editor]() -> void
+        {
+            editor.Text().End();
+            editor.CloseDialog();
+        }
+    );
 }

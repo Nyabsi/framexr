@@ -22,7 +22,8 @@
 #include <array>
 #include <utility>
 
-namespace {
+namespace
+{
 
 constexpr uint32_t kEvdevOffset = 8;
 constexpr uint32_t kLastDirectEvdev = 83;
@@ -91,13 +92,16 @@ constexpr auto kScancodes = std::to_array<std::pair<VirtualKey, uint16_t>>({
 
 } // namespace
 
-auto Scancodes::ForKey(VirtualKey key) -> std::optional<uint16_t> {
+auto Scancodes::ForKey(VirtualKey key) -> std::optional<uint16_t>
+{
     const auto code = static_cast<uint32_t>(key);
-    if (code > kEvdevOffset && code - kEvdevOffset <= kLastDirectEvdev) {
+    if (code > kEvdevOffset && code - kEvdevOffset <= kLastDirectEvdev)
+    {
         return static_cast<uint16_t>(code - kEvdevOffset);
     }
     const auto* found = std::ranges::find(kScancodes, key, &std::pair<VirtualKey, uint16_t>::first);
-    if (found == kScancodes.end()) {
+    if (found == kScancodes.end())
+    {
         return std::nullopt;
     }
     return found->second;

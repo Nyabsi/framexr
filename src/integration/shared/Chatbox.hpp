@@ -33,13 +33,15 @@
 #include "Osc.hpp"
 #include "TextInput.hpp"
 
-struct QueuedKey {
+struct QueuedKey
+{
     VirtualKey key;
     uint8_t modifiers;
     std::string text;
 };
 
-class Chatbox final : public TextInput, public std::enable_shared_from_this<Chatbox> {
+class Chatbox final : public TextInput, public std::enable_shared_from_this<Chatbox>
+{
   public:
     static constexpr size_t kMaxLength = 144;
 

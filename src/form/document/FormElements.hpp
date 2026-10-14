@@ -57,7 +57,8 @@ using FormElement = std::variant<
     BatteryListElement,
     OverlayListElement>;
 
-class FormElements final {
+class FormElements final
+{
   public:
     static auto Rect(const FormElement& element) -> const std::array<float, 4>&;
     static auto Rect(FormElement& element) -> std::array<float, 4>&;

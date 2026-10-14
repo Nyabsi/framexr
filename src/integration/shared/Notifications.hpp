@@ -39,7 +39,8 @@
 
 struct DBusConnection;
 
-class Notifications final {
+class Notifications final
+{
   public:
     Notifications();
     ~Notifications();

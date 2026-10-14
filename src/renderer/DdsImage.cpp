@@ -24,9 +24,11 @@
 #include <cstring>
 #include <format>
 
-namespace {
+namespace
+{
 
-constexpr auto MakeFourcc(char a, char b, char c, char d) -> uint32_t {
+constexpr auto MakeFourcc(char a, char b, char c, char d) -> uint32_t
+{
     return static_cast<uint32_t>(a) | (static_cast<uint32_t>(b) << 8) | (static_cast<uint32_t>(c) << 16)
          | (static_cast<uint32_t>(d) << 24);
 }
@@ -38,14 +40,17 @@ constexpr uint32_t kPixelFormatFourcc = 0x4;
 constexpr uint32_t kPixelFormatRgb = 0x40;
 constexpr uint32_t kPixelFormatLuminance = 0x20000;
 
-auto ReadU32(std::span<const std::byte> bytes, size_t offset) -> uint32_t {
+auto ReadU32(std::span<const std::byte> bytes, size_t offset) -> uint32_t
+{
     uint32_t value = 0;
     std::memcpy(&value, bytes.data() + offset, sizeof(value));
     return value;
 }
 
-auto FormatFromDxgi(uint32_t dxgi_format) -> VkFormat {
-    switch (dxgi_format) {
+auto FormatFromDxgi(uint32_t dxgi_format) -> VkFormat
+{
+    switch (dxgi_format)
+    {
     case 2: return VK_FORMAT_R32G32B32A32_SFLOAT;
     case 10: return VK_FORMAT_R16G16B16A16_SFLOAT;
     case 28: return VK_FORMAT_R8G8B8A8_UNORM;
@@ -71,8 +76,10 @@ auto FormatFromDxgi(uint32_t dxgi_format) -> VkFormat {
     }
 }
 
-auto FormatFromFourcc(uint32_t fourcc) -> VkFormat {
-    switch (fourcc) {
+auto FormatFromFourcc(uint32_t fourcc) -> VkFormat
+{
+    switch (fourcc)
+    {
     case MakeFourcc('D', 'X', 'T', '1'): return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
     case MakeFourcc('D', 'X', 'T', '2'):
     case MakeFourcc('D', 'X', 'T', '3'): return VK_FORMAT_BC2_UNORM_BLOCK;
@@ -90,15 +97,20 @@ auto FormatFromFourcc(uint32_t fourcc) -> VkFormat {
     }
 }
 
-auto FormatFromMasks(uint32_t flags, uint32_t bit_count, uint32_t red_mask, uint32_t blue_mask) -> VkFormat {
-    if ((flags & kPixelFormatLuminance) != 0 && bit_count == 8) {
+auto FormatFromMasks(uint32_t flags, uint32_t bit_count, uint32_t red_mask, uint32_t blue_mask) -> VkFormat
+{
+    if ((flags & kPixelFormatLuminance) != 0 && bit_count == 8)
+    {
         return VK_FORMAT_R8_UNORM;
     }
-    if ((flags & kPixelFormatRgb) != 0 && bit_count == 32) {
-        if (red_mask == 0x000000FF && blue_mask == 0x00FF0000) {
+    if ((flags & kPixelFormatRgb) != 0 && bit_count == 32)
+    {
+        if (red_mask == 0x000000FF && blue_mask == 0x00FF0000)
+        {
             return VK_FORMAT_R8G8B8A8_UNORM;
         }
-        if (red_mask == 0x00FF0000 && blue_mask == 0x000000FF) {
+        if (red_mask == 0x00FF0000 && blue_mask == 0x000000FF)
+        {
             return VK_FORMAT_B8G8R8A8_UNORM;
         }
     }
@@ -107,8 +119,10 @@ auto FormatFromMasks(uint32_t flags, uint32_t bit_count, uint32_t red_mask, uint
 
 } // namespace
 
-auto DdsImage::Parse(std::span<const std::byte> file) -> Result<DdsImage> {
-    if (file.size() < kHeaderSize || ReadU32(file, 0) != kMagic) {
+auto DdsImage::Parse(std::span<const std::byte> file) -> Result<DdsImage>
+{
+    if (file.size() < kHeaderSize || ReadU32(file, 0) != kMagic)
+    {
         return Unexpected("Not a valid DDS file.\nSee: https://github.com/galister/wlx-overlay-s/wiki/Custom-Textures");
     }
 
@@ -119,24 +133,32 @@ auto DdsImage::Parse(std::span<const std::byte> file) -> Result<DdsImage> {
     const auto pixel_flags = ReadU32(file, 80);
     const auto fourcc = ReadU32(file, 84);
 
-    if (depth > 1) {
+    if (depth > 1)
+    {
         return Unexpected("Not a 2D texture.");
     }
 
     size_t data_offset = kHeaderSize;
-    if ((pixel_flags & kPixelFormatFourcc) != 0 && fourcc == MakeFourcc('D', 'X', '1', '0')) {
-        if (file.size() < kHeaderSize + kDx10HeaderSize) {
+    if ((pixel_flags & kPixelFormatFourcc) != 0 && fourcc == MakeFourcc('D', 'X', '1', '0'))
+    {
+        if (file.size() < kHeaderSize + kDx10HeaderSize)
+        {
             return Unexpected("Truncated DDS DX10 header.");
         }
         image.m_format = FormatFromDxgi(ReadU32(file, kHeaderSize));
         data_offset += kDx10HeaderSize;
-    } else if ((pixel_flags & kPixelFormatFourcc) != 0) {
+    }
+    else if ((pixel_flags & kPixelFormatFourcc) != 0)
+    {
         image.m_format = FormatFromFourcc(fourcc);
-    } else {
+    }
+    else
+    {
         image.m_format = FormatFromMasks(pixel_flags, ReadU32(file, 88), ReadU32(file, 92), ReadU32(file, 100));
     }
 
-    if (image.m_format == VK_FORMAT_UNDEFINED) {
+    if (image.m_format == VK_FORMAT_UNDEFINED)
+    {
         return Unexpected(std::format("Unsupported DDS format (fourcc {:#x})", fourcc));
     }
 

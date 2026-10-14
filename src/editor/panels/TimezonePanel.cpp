@@ -35,18 +35,25 @@
 #include "TextSearch.hpp"
 #include "panels/PanelStyle.hpp"
 
-namespace {
+namespace
+{
 
 constexpr size_t kResults = 16;
 
-auto AllZones() -> const std::vector<std::string>& {
-    static const auto zones = []() -> std::vector<std::string> {
+auto AllZones() -> const std::vector<std::string>&
+{
+    static const auto zones = []() -> std::vector<std::string>
+    {
         std::vector<std::string> names;
-        try {
-            for (const auto& zone : std::chrono::get_tzdb().zones) {
+        try
+        {
+            for (const auto& zone : std::chrono::get_tzdb().zones)
+            {
                 names.emplace_back(zone.name());
             }
-        } catch (const std::runtime_error&) {
+        }
+        catch (const std::runtime_error&)
+        {
             return {};
         }
         std::ranges::sort(names);
@@ -57,12 +64,17 @@ auto AllZones() -> const std::vector<std::string>& {
 
 } // namespace
 
-auto TimezonePanel::ZoneName(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string {
+auto TimezonePanel::ZoneName(const std::optional<std::variant<size_t, std::string>>& zone) -> std::string
+{
     std::string name = "Local";
-    if (zone) {
-        if (const auto* index = std::get_if<size_t>(&*zone)) {
+    if (zone)
+    {
+        if (const auto* index = std::get_if<size_t>(&*zone))
+        {
             name = *index < g_config->timezones.size() ? g_config->timezones[*index] : std::string("Local");
-        } else {
+        }
+        else
+        {
             name = std::get<std::string>(*zone);
         }
     }
@@ -70,28 +82,35 @@ auto TimezonePanel::ZoneName(const std::optional<std::variant<size_t, std::strin
     return name;
 }
 
-auto TimezonePanel::LocalZone() -> std::string {
-    try {
+auto TimezonePanel::LocalZone() -> std::string
+{
+    try
+    {
         return std::string(std::chrono::current_zone()->name());
-    } catch (const std::runtime_error&) {
+    }
+    catch (const std::runtime_error&)
+    {
         return "UTC";
     }
 }
 
 TimezonePanel::TimezonePanel(Editor& editor, const Eigen::Vector2f& size)
     : FormComponent("timezones"),
-      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap)) {
+      m_stack(AddComponent<StackComponent>("stack", PanelStyle::kPadding, PanelStyle::kGap))
+{
     SetSize(size);
     m_stack.SetSize(size);
     m_stack.SetBgColor(FormTheme::Rgba("@panel"));
     const auto& components = editor.WatchDesign().Document().Components();
     const size_t index = editor.TimezoneElement();
-    if (editor.Target() != EditTarget::Watch || index >= components.size()) {
+    if (editor.Target() != EditTarget::Watch || index >= components.size())
+    {
         return;
     }
     const auto* clock = std::get_if<ClockElement>(&components.at(index));
     const auto* zone_name = std::get_if<TimezoneElement>(&components.at(index));
-    if (clock == nullptr && zone_name == nullptr) {
+    if (clock == nullptr && zone_name == nullptr)
+    {
         return;
     }
     const auto text = FormTheme::Rgba("@text");
@@ -99,17 +118,25 @@ TimezonePanel::TimezonePanel(Editor& editor, const Eigen::Vector2f& size)
     const auto surface = FormTheme::Rgba("@surface");
     const auto accent = FormTheme::Rgba("@accent");
     const auto on_accent = FormTheme::Rgba("@on-accent");
-    const auto choose = [&editor, index](std::optional<std::string> zone) -> std::function<void()> {
-        return [&editor, index, zone = std::move(zone)]() -> void {
-            editor.EditWatch([&editor, index, &zone](FormDocument& document) -> void {
-                auto& changed = document.Components().at(index);
-                if (auto* time = std::get_if<ClockElement>(&changed)) {
-                    time->timezone = zone ? std::optional<std::variant<size_t, std::string>>(*zone) : std::nullopt;
-                } else if (auto* name = std::get_if<TimezoneElement>(&changed)) {
-                    name->timezone = zone.value_or(LocalZone());
+    const auto choose = [&editor, index](std::optional<std::string> zone) -> std::function<void()>
+    {
+        return [&editor, index, zone = std::move(zone)]() -> void
+        {
+            editor.EditWatch(
+                [&editor, index, &zone](FormDocument& document) -> void
+                {
+                    auto& changed = document.Components().at(index);
+                    if (auto* time = std::get_if<ClockElement>(&changed))
+                    {
+                        time->timezone = zone ? std::optional<std::variant<size_t, std::string>>(*zone) : std::nullopt;
+                    }
+                    else if (auto* name = std::get_if<TimezoneElement>(&changed))
+                    {
+                        name->timezone = zone.value_or(LocalZone());
+                    }
+                    editor.WatchDesign().Fit(document, index);
                 }
-                editor.WatchDesign().Fit(document, index);
-            });
+            );
             editor.Text().End();
             editor.CloseDialog();
         };
@@ -139,12 +166,15 @@ TimezonePanel::TimezonePanel(Editor& editor, const Eigen::Vector2f& size)
     const auto& query = searching ? editor.Text().Buffer() : editor.TimezoneQuery();
     size_t shown = 0;
     size_t matches = 0;
-    for (const auto& zone : AllZones()) {
-        if (!TextSearch::Matches(zone, query)) {
+    for (const auto& zone : AllZones())
+    {
+        if (!TextSearch::Matches(zone, query))
+        {
             continue;
         }
         ++matches;
-        if (shown >= kResults) {
+        if (shown >= kResults)
+        {
             continue;
         }
         auto display = zone;
@@ -159,10 +189,13 @@ TimezonePanel::TimezonePanel(Editor& editor, const Eigen::Vector2f& size)
         row.SetOnRelease(choose(zone));
         ++shown;
     }
-    if (matches > shown) {
+    if (matches > shown)
+    {
         const auto more = std::format("{} more, keep typing to narrow it down", matches - shown);
         m_stack.AddComponent<TextLineComponent>("more", more, PanelStyle::kCaptionFont, subtle, PanelStyle::kCaptionHeight);
-    } else if (matches == 0) {
+    }
+    else if (matches == 0)
+    {
         m_stack.AddComponent<TextLineComponent>(
             "none",
             "No timezone matches that",
@@ -178,8 +211,11 @@ TimezonePanel::TimezonePanel(Editor& editor, const Eigen::Vector2f& size)
     done.SetFgColor(text);
     done.SetBgColor(surface);
     done.SetEllipsize(true);
-    done.SetOnRelease([&editor]() -> void {
-        editor.Text().End();
-        editor.CloseDialog();
-    });
+    done.SetOnRelease(
+        [&editor]() -> void
+        {
+            editor.Text().End();
+            editor.CloseDialog();
+        }
+    );
 }
