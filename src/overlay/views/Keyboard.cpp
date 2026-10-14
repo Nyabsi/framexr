@@ -168,6 +168,7 @@ auto Keyboard::Fill(
             region_keymap && keymap ? std::make_shared<const KeyTranslator>(KeyTranslator::Create(region_keymap, keymap)) : nullptr
         );
         owner->m_letters.clear();
+        owner->m_keys.clear();
     }
     const Keymap* typing_keymap = typing.get();
     const bool has_altgr = typing_keymap != nullptr && typing_keymap->HasAltGr();
@@ -182,6 +183,7 @@ auto Keyboard::Fill(
 
         if (owner != nullptr) {
             owner->Bind(placed, key, keymap);
+            owner->m_keys.push_back(&placed);
         }
         if (const auto* typed = std::get_if<TypeKey>(&key.action)) {
             const auto virtual_key = typed->key;
@@ -260,6 +262,7 @@ auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const Keyboard
     form->SetSize(size.array().floor().matrix());
     Fill(*form, layout, keymap, {}, this);
     m_uppercase = false;
+    m_emphasis = {};
     ASSIGN_OR_RETURN(auto canvas, Compose::Create(std::move(form)));
     SetComposer(std::move(canvas));
     SetSpawnScale(size.x() / kPixelsPerUnit * kMetersPerUnit * g_config->keyboard_scale);
@@ -276,6 +279,12 @@ auto Keyboard::Update() -> void {
         m_uppercase = m_input.Uppercase();
         for (const auto& letter : m_letters) {
             letter.label->SetText(m_uppercase ? letter.upper : letter.lower);
+        }
+    }
+    if (const KeyEmphasis emphasis{.shifted = m_input.Holds(kModShift), .altgr = m_input.Holds(kModMeta)}; emphasis != m_emphasis) {
+        m_emphasis = emphasis;
+        for (auto* key : m_keys) {
+            key->Emphasize(emphasis);
         }
     }
 }

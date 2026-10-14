@@ -243,3 +243,27 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
     EXPECT_GT(brightness(after, 84, 262), brightness(before, 84, 262) + 150);
     EXPECT_GT(GpuReadback::DistinctColors(after), 2U);
 }
+
+TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {
+    auto form = std::make_unique<Form>("key");
+    form->SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    auto& key = form->AddComponent<KeyComponent>();
+    key.SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
+    key.SetFgColor(Eigen::Vector4f::Ones());
+    const std::vector<std::string> labels{"1", "!"};
+    key.SetLegends(KeyCapType::Reversed, labels);
+    ASSERT_EQ(key.Legends().size(), 2U);
+    const auto bright = [&key]() -> std::string {
+        std::string found;
+        for (const auto* legend : key.Legends()) {
+            if (legend->FgColor().w() > 0.99f) {
+                found += legend->Text();
+            }
+        }
+        return found;
+    };
+
+    EXPECT_EQ(bright(), "1");
+    key.Emphasize({.shifted = true});
+    EXPECT_EQ(bright(), "!");
+}

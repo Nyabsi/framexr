@@ -20,6 +20,12 @@
 
 #include <cmath>
 
+namespace {
+
+constexpr float kDimmedLegend = 0.4f;
+
+} // namespace
+
 KeyComponent::KeyComponent(std::string name) : FormComponent(std::move(name)) {
 }
 
@@ -56,29 +62,46 @@ auto KeyComponent::SetLegends(KeyCapType cap_type, std::span<const std::string> 
     const auto size = static_cast<float>(m_font_size);
     std::vector<KeyCapLegend> layout;
     switch (cap_type) {
-    case KeyCapType::Regular: layout.push_back({true, {0.0f, 0.0f, w, h - size}, 1.0f}); break;
+    case KeyCapType::Regular: layout.push_back({true, {0.0f, 0.0f, w, h - size}}); break;
     case KeyCapType::RegularAltGr:
-        layout.push_back({false, {12.0f, size + 12.0f, w, h}, 1.0f});
-        layout.push_back({false, {std::fma(w, 0.5f, 12.0f), h - size + 8.0f, w, h}, 0.8f});
+        layout.push_back({false, {12.0f, size + 12.0f, w, h}});
+        layout.push_back({false, {std::fma(w, 0.5f, 12.0f), h - size + 8.0f, w, h}});
         break;
     case KeyCapType::Reversed:
-        layout.push_back({true, {0.0f, std::fma(h, 0.5f, 2.0f), w, h * 0.5f}, 1.0f});
-        layout.push_back({true, {0.0f, 2.0f, w, h * 0.5f}, 0.8f});
+        layout.push_back({true, {0.0f, std::fma(h, 0.5f, 2.0f), w, h * 0.5f}});
+        layout.push_back({true, {0.0f, 2.0f, w, h * 0.5f}});
         break;
     case KeyCapType::ReversedAltGr:
-        layout.push_back({false, {12.0f, h - size + 4.0f, w, h}, 1.0f});
-        layout.push_back({false, {12.0f, size + 8.0f, w, h}, 0.8f});
-        layout.push_back({false, {std::fma(w, 0.5f, 8.0f), h - size + 4.0f, w, h}, 0.8f});
+        layout.push_back({false, {12.0f, h - size + 4.0f, w, h}});
+        layout.push_back({false, {12.0f, size + 8.0f, w, h}});
+        layout.push_back({false, {std::fma(w, 0.5f, 8.0f), h - size + 4.0f, w, h}});
         break;
     }
 
+    m_cap_type = cap_type;
     for (size_t i = 0; i < layout.size() && i < labels.size(); ++i) {
         auto& legend = AddComponent<LabelComponent>("", labels[i]);
         legend.SetRect(layout[i].rect);
-        legend.SetFgColor(m_fg_color * layout[i].alpha);
         legend.SetFontSize(m_font_size);
         legend.SetCentered(layout[i].centered);
         m_legends.push_back(&legend);
+    }
+    Emphasize({});
+}
+
+auto KeyComponent::Emphasize(const KeyEmphasis& emphasis) -> void {
+    size_t active = 0;
+    if (emphasis.altgr && m_cap_type == KeyCapType::ReversedAltGr) {
+        active = 2;
+    } else if (
+        (emphasis.altgr && m_cap_type == KeyCapType::RegularAltGr)
+        || (emphasis.shifted && (m_cap_type == KeyCapType::Reversed || m_cap_type == KeyCapType::ReversedAltGr))
+    ) {
+        active = 1;
+    }
+    active = active < m_legends.size() ? active : 0;
+    for (size_t i = 0; i < m_legends.size(); ++i) {
+        m_legends[i]->SetFgColor(m_fg_color * (i == active || m_legends.size() == 1 ? 1.0f : kDimmedLegend));
     }
     MarkDirty();
 }

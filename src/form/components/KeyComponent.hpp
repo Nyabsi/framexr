@@ -40,7 +40,13 @@ enum class KeyCapType : uint8_t {
 struct KeyCapLegend {
     bool centered = false;
     CanvasRect rect;
-    float alpha = 1.0f;
+};
+
+struct KeyEmphasis {
+    bool shifted = false;
+    bool altgr = false;
+
+    auto operator==(const KeyEmphasis&) const -> bool = default;
 };
 
 class KeyComponent final : public FormComponent {
@@ -56,6 +62,7 @@ class KeyComponent final : public FormComponent {
     auto SetCornerRadius(std::optional<float> corner_radius) -> void;
     auto SetInteractive(bool interactive) -> void;
     auto SetLegends(KeyCapType cap_type, std::span<const std::string> labels) -> void;
+    auto Emphasize(const KeyEmphasis& emphasis) -> void;
 
   protected:
     auto Emit(FormState& state, const FormFrame& frame) -> void override;
@@ -67,4 +74,5 @@ class KeyComponent final : public FormComponent {
     std::optional<float> m_corner_radius;
     bool m_interactive = true;
     std::vector<LabelComponent*> m_legends;
+    KeyCapType m_cap_type = KeyCapType::Regular;
 };

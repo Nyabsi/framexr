@@ -81,5 +81,7 @@ class Keyboard final : public View {
 
     KeyboardInput m_input;
     std::vector<LetterLegend> m_letters;
+    std::vector<KeyComponent*> m_keys;
+    KeyEmphasis m_emphasis;
     bool m_uppercase = false;
 };
