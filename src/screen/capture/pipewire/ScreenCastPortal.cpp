@@ -23,15 +23,22 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <mutex>
 #include <random>
+#include <ranges>
 #include <string_view>
+#include <system_error>
+#include <vector>
 
 #include <dbus/dbus.h>
 
+#include "ConfigStore.hpp"
 #include "Logger.hpp"
+#include "Platform.hpp"
 
 namespace {
 
@@ -39,6 +46,8 @@ constexpr auto kPortalBus = "org.freedesktop.portal.Desktop";
 constexpr auto kPortalPath = "/org/freedesktop/portal/desktop";
 constexpr auto kScreenCastInterface = "org.freedesktop.portal.ScreenCast";
 constexpr auto kRequestInterface = "org.freedesktop.portal.Request";
+constexpr auto kRegistryInterface = "org.freedesktop.host.portal.Registry";
+constexpr auto kAppId = "framexr";
 
 auto MakeMessagePtr(DBusMessage* message) -> std::unique_ptr<DBusMessage, decltype(&dbus_message_unref)> {
     return {message, &dbus_message_unref};
@@ -138,6 +147,63 @@ auto ReadStreams(DBusMessageIter& variant) -> std::vector<PipewireStream> {
     return streams;
 }
 
+auto DataDirectories() -> std::vector<std::filesystem::path> {
+    const char* home = std::getenv("XDG_DATA_HOME");
+    const char* user = std::getenv("HOME");
+    std::vector<std::filesystem::path> directories{
+        home != nullptr && *home != '\0' ? std::filesystem::path(home)
+                                         : std::filesystem::path(user != nullptr ? user : "") / ".local/share"
+    };
+    const char* dirs = std::getenv("XDG_DATA_DIRS");
+    std::string_view list = dirs != nullptr && *dirs != '\0' ? dirs : "/usr/local/share:/usr/share";
+    for (const auto directory : std::views::split(list, ':')) {
+        directories.emplace_back(std::string_view(directory));
+    }
+    return directories;
+}
+
+auto EnsureDesktopEntry() -> void {
+    const auto directories = DataDirectories();
+    const auto file = std::format("applications/{}.desktop", kAppId);
+    if (std::ranges::any_of(directories, [&](const auto& directory) -> bool {
+            std::error_code error;
+            return std::filesystem::exists(directory / file, error);
+        })) {
+        return;
+    }
+    const auto executable = Platform::ExecutablePath();
+    if (!executable) {
+        return;
+    }
+    const auto entry = std::format(
+        "[Desktop Entry]\nType=Application\nName=FrameXR\nExec={}\nIcon=framexr\nTerminal=true\nNoDisplay=true\n",
+        executable->string()
+    );
+    if (const auto written = ConfigStore::WriteFile(directories.front() / file, entry); !written) {
+        LOG_WARN("Screen permissions will not be remembered: {}", written.error().Message());
+    }
+}
+
+auto Register(DBusConnection* connection) -> void {
+    EnsureDesktopEntry();
+    auto message = MakeMessagePtr(dbus_message_new_method_call(kPortalBus, kPortalPath, kRegistryInterface, "Register"));
+    DBusMessageIter args;
+    DBusMessageIter options;
+    const char* app_id = kAppId;
+    dbus_message_iter_init_append(message.get(), &args);
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, static_cast<const void*>(&app_id));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &options);
+    dbus_message_iter_close_container(&args, &options);
+    DBusError error;
+    dbus_error_init(&error);
+    auto reply = MakeMessagePtr(
+        dbus_connection_send_with_reply_and_block(connection, message.get(), DBUS_TIMEOUT_USE_DEFAULT, &error)
+    );
+    if (!reply) {
+        LOG_WARN("Screen permissions are remembered per launcher, registering {} failed: {}", kAppId, TakeError(error));
+    }
+}
+
 auto CursorModeName(PortalCursorMode mode) -> std::string_view {
     switch (mode) {
     case PortalCursorMode::Hidden: return "Hidden";
@@ -181,6 +247,7 @@ auto ScreenCastPortal::Connection() -> Result<DBusConnection*> {
         return Unexpected(std::format("Failed to connect to the session bus: {}", TakeError(error)));
     }
     dbus_connection_set_exit_on_disconnect(connection, FALSE);
+    Register(connection);
     return connection;
 }
 
