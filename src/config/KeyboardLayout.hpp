@@ -31,6 +31,7 @@
 
 #include "document/Actions.hpp"
 #include "Error.hpp"
+#include "ImeScript.hpp"
 #include "VirtualKeys.hpp"
 
 constexpr float kKeyStep = 0.25f;
@@ -52,14 +53,16 @@ struct TypeKey {
 
 struct ProfileKey {};
 
+struct ImeKey {};
+
 struct ActionKey {
     std::vector<ButtonAction> press;
     std::vector<ButtonAction> release;
 };
 
-using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ActionKey>;
+using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ImeKey, ActionKey>;
 
-struct UsLabel {
+struct FixedLabel {
     VirtualKey key;
     std::string_view lower;
     std::string_view upper;
@@ -91,6 +94,8 @@ class KeyboardLayout {
     [[nodiscard]] auto AltKey() const -> AltModifier { return m_alt_key; }
     [[nodiscard]] auto AutoLabels() const -> const std::optional<bool>& { return m_auto_labels; }
     [[nodiscard]] auto AutoLabels() -> std::optional<bool>& { return m_auto_labels; }
+    [[nodiscard]] auto Ime() const -> ImeScript { return m_ime; }
+    [[nodiscard]] auto Locales() const -> const std::vector<std::string>& { return m_locales; }
     [[nodiscard]] auto Region() const -> const std::optional<std::string>& { return m_region; }
     [[nodiscard]] auto Region() -> std::optional<std::string>& { return m_region; }
     [[nodiscard]] auto Source() const -> const std::filesystem::path& { return m_source; }
@@ -101,6 +106,8 @@ class KeyboardLayout {
     auto SetRows(int rows) -> void { m_rows = rows; }
     auto SetAltKey(AltModifier alt_key) -> void { m_alt_key = alt_key; }
     auto SetAutoLabels(std::optional<bool> auto_labels) -> void { m_auto_labels = auto_labels; }
+    auto SetIme(ImeScript ime) -> void { m_ime = ime; }
+    auto SetLocales(std::vector<std::string> locales) -> void { m_locales = std::move(locales); }
     auto SetRegion(std::optional<std::string> region) -> void { m_region = std::move(region); }
     auto SetSource(std::filesystem::path source) -> void { m_source = std::move(source); }
 
@@ -110,6 +117,7 @@ class KeyboardLayout {
     static auto Load(std::span<const std::string_view> built_in, const std::filesystem::path& user_directory)
         -> std::vector<KeyboardLayout>;
     static auto All() -> const std::vector<KeyboardLayout>&;
+    static auto ForLocale(std::span<const KeyboardLayout> profiles, std::string_view locale) -> const KeyboardLayout&;
     static auto Find(std::string_view name) -> const KeyboardLayout&;
     static auto After(std::string_view name) -> const KeyboardLayout&;
     static auto Reload() -> void;
@@ -123,6 +131,7 @@ class KeyboardLayout {
     [[nodiscard]] auto Fits(float x, int row, float width, std::optional<size_t> ignore = std::nullopt) const -> bool;
     [[nodiscard]] auto FreeCells() const -> std::vector<std::pair<float, int>>;
     [[nodiscard]] auto Labels(const KeyDefinition& key) const -> std::vector<std::string>;
+    [[nodiscard]] auto ImeLabels(const KeyDefinition& key) const -> std::vector<std::string>;
     [[nodiscard]] auto AltModifierMask() const -> uint8_t;
     auto SortKeys() -> void;
 
@@ -132,11 +141,14 @@ class KeyboardLayout {
     int m_rows = 0;
     std::vector<KeyDefinition> m_keys;
     AltModifier m_alt_key = AltModifier::None;
+    ImeScript m_ime = ImeScript::None;
     std::optional<bool> m_auto_labels;
     std::optional<std::string> m_region;
+    std::vector<std::string> m_locales;
     std::filesystem::path m_source;
 };
 
 auto from_json(const nlohmann::json& json, AltModifier& value) -> void;
+auto from_json(const nlohmann::json& json, ImeScript& value) -> void;
 auto from_json(const nlohmann::json& json, KeyboardLayout& value) -> void;
 auto to_json(nlohmann::ordered_json& json, const KeyboardLayout& value) -> void;

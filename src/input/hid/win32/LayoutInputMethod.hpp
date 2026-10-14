@@ -16,30 +16,21 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-#include "NullHidProvider.hpp"
+#pragma once
 
-#include "VirtualKeys.hpp"
+#include "InputMethod.hpp"
 
-auto NullHidProvider::MouseMove(const Eigen::Vector2f&) -> void {
-}
+class LayoutInputMethod final : public InputMethod {
+  public:
+    LayoutInputMethod() = default;
+    ~LayoutInputMethod() override;
+    LayoutInputMethod(const LayoutInputMethod&) = delete;
+    auto operator=(const LayoutInputMethod&) -> LayoutInputMethod& = delete;
 
-auto NullHidProvider::SendButton(uint16_t, bool) -> void {
-}
+    auto Select(ImeScript script) -> void override;
 
-auto NullHidProvider::Wheel(int32_t, int32_t) -> void {
-}
-
-auto NullHidProvider::SetModifiers(uint8_t) -> void {
-}
-
-auto NullHidProvider::SendKey(VirtualKey, bool) -> void {
-}
-
-auto NullHidProvider::SetDesktopExtent(const Eigen::Vector2f&) -> void {
-}
-
-auto NullHidProvider::SetDesktopOrigin(const Eigen::Vector2f&) -> void {
-}
-
-auto NullHidProvider::Commit() -> void {
-}
+  private:
+    ImeScript m_active = ImeScript::None;
+    void* m_previous = nullptr;
+    void* m_loaded = nullptr;
+};

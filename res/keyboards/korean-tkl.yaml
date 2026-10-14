@@ -7,6 +7,7 @@
 # What a key does:
 # - key: <VirtualKey>      types it, modifiers are single use and Caps Lock latches
 # - action: Profile        switches to the next keyboard profile
+# - action: Ime            toggles native script and Latin
 # - press / release: [..]  runs actions, like a Shortcut or an Exec command
 # Optional per key: label: [lower, upper], shifted_label, style: { bg_color, fg_color, corner_radius }
 # Labels follow the keyboard region unless the key sets its own.
@@ -17,9 +18,15 @@ rows: 6
 # When using the purple pointer: None, Shift (same as orange), Ctrl, Alt, Super or Meta (AltGr) is held for the key
 alt_modifier: None
 
+# Native script legends: None, Hangul, Kana or Cangjie
+ime: Hangul
+
 # Region of this keyboard, as an xkb layout like fi, de or fi(classic).
 # Leave it out to follow keyboard_region from the config, or the desktop layout.
 region: kr
+
+# Locales this keyboard is the default for, like ja or zh_TW
+locales: [ko]
 
 keys:
     - { at: [0, 0], width: 1.5, key: Escape, label: ["Esc"] }
@@ -96,7 +103,7 @@ keys:
     - { at: [2.5, 5], width: 1.25, key: LAlt, label: ["Alt"] }
     - { at: [3.75, 5], width: 1.25, key: Hanja, label: ["한자"] }
     - { at: [5, 5], width: 3.75, key: Space, label: [] }
-    - { at: [8.75, 5], width: 1.25, key: Hangul, label: ["한/영"] }
+    - { at: [8.75, 5], width: 1.25, action: Ime, label: ["한/영"] }
     - { at: [10, 5], width: 1.25, key: Meta, label: ["Alt"] }
     - { at: [11.25, 5], width: 1.25, key: RSuper, label: ["Super"] }
     - { at: [12.5, 5], width: 1.25, key: Menu }

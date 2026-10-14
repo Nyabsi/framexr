@@ -83,7 +83,7 @@ struct Config {
     std::string notification_sound;
     bool keyboard_sound_enabled = true;
     float keyboard_scale = 1.0f;
-    std::string keyboard_profile = "keychron-v1-ansi";
+    std::string keyboard_profile;
     std::string keyboard_region;
     std::string theme = "macchiato";
     std::string watch_profile = "default";

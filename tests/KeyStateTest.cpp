@@ -251,8 +251,9 @@ TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {
     key.SetSize({kKeyCanvasWidth, kKeyCanvasHeight});
     key.SetFgColor(Eigen::Vector4f::Ones());
     const std::vector<std::string> labels{"1", "!"};
-    key.SetLegends(KeyCapType::Reversed, labels);
-    ASSERT_EQ(key.Legends().size(), 2U);
+    const std::vector<std::string> ime{"ㅂ", "ㅃ"};
+    key.SetLegends(KeyCapType::Reversed, labels, ime);
+    ASSERT_EQ(key.Legends().size(), 4U);
     const auto bright = [&key]() -> std::string {
         std::string found;
         for (const auto* legend : key.Legends()) {
@@ -266,4 +267,8 @@ TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {
     EXPECT_EQ(bright(), "1");
     key.Emphasize({.shifted = true});
     EXPECT_EQ(bright(), "!");
+    key.Emphasize({.native = true});
+    EXPECT_EQ(bright(), "ㅂ");
+    key.Emphasize({.shifted = true, .native = true});
+    EXPECT_EQ(bright(), "ㅃ");
 }

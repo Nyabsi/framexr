@@ -229,7 +229,7 @@ TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
     };
     const auto ime = std::to_array<std::tuple<std::string_view, std::string_view, VirtualKey>>({
         {"jis", "jp", VirtualKey::Henkan},
-        {"korean", "kr", VirtualKey::Hangul},
+        {"korean", "kr", VirtualKey::Hanja},
         {"chinese", "cn", VirtualKey::Space},
     });
     for (const auto& [family, region, special] : ime) {
@@ -245,9 +245,69 @@ TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
             EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
                 return std::holds_alternative<ProfileKey>(key.action);
             })) << name;
+            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
+                return std::holds_alternative<ImeKey>(key.action);
+            })) << name;
         }
     }
     EXPECT_TRUE(has(KeyboardLayout::Find("jis-tkl"), VirtualKey::Yen));
     EXPECT_TRUE(has(KeyboardLayout::Find("jis-tkl"), VirtualKey::AbntC1));
     EXPECT_TRUE(has(KeyboardLayout::Find("korean-tkl"), VirtualKey::Hanja));
+}
+
+TEST(KeyboardProfiles, ImeKeyboardsPrintTheirNativeScript) {
+    const auto label = [](std::string_view profile, VirtualKey wanted) -> std::vector<std::string> {
+        const auto& layout = KeyboardLayout::Find(profile);
+        const auto found = std::ranges::find_if(layout.Keys(), [wanted](const KeyDefinition& key) -> bool {
+            const auto* typed = std::get_if<TypeKey>(&key.action);
+            return typed != nullptr && typed->key == wanted;
+        });
+        return found == layout.Keys().end() ? std::vector<std::string>{} : layout.ImeLabels(*found);
+    };
+    EXPECT_EQ(label("korean-tkl", VirtualKey::Q), (std::vector<std::string>{"ㅂ", "ㅃ"}));
+    EXPECT_EQ(label("korean-full-size", VirtualKey::A), std::vector<std::string>{"ㅁ"});
+    EXPECT_EQ(label("jis-tkl", VirtualKey::Q), std::vector<std::string>{"た"});
+    EXPECT_EQ(label("jis-full-size", VirtualKey::AbntC1), std::vector<std::string>{"ろ"});
+    EXPECT_EQ(label("chinese-tkl", VirtualKey::A), std::vector<std::string>{"日"});
+    EXPECT_TRUE(label("keychron-v1-ansi", VirtualKey::Q).empty());
+
+    const auto& korean = KeyboardLayout::Find("korean-tkl");
+    const auto reparsed = KeyboardLayout::Parse(Yaml::Emit(nlohmann::ordered_json(korean)));
+    ASSERT_TRUE(reparsed.has_value());
+    EXPECT_EQ(reparsed->Ime(), ImeScript::Hangul);
+}
+
+TEST(KeyboardProfiles, LocalePicksTheDefaultKeyboard) {
+    const auto pick = [](std::string_view locale) -> std::string {
+        return KeyboardLayout::ForLocale(KeyboardLayout::All(), locale).Name();
+    };
+    EXPECT_EQ(pick("ko_KR.UTF-8"), "korean-tkl");
+    EXPECT_EQ(pick("ja-JP"), "jis-tkl");
+    EXPECT_EQ(pick("ja_JP@custom"), "jis-tkl");
+    EXPECT_EQ(pick("zh_TW.UTF-8"), "chinese-tkl");
+    EXPECT_EQ(pick("fi_FI.UTF-8"), "keychron-v1-ansi");
+    EXPECT_EQ(pick(""), "keychron-v1-ansi");
+}
+
+TEST(KeyboardProfiles, OwnProfilesClaimTheirLocales) {
+    std::vector<KeyboardLayout> profiles(KeyboardLayout::All().begin(), KeyboardLayout::All().end());
+    auto zhuyin = KeyboardLayout::Find("chinese-tkl");
+    zhuyin.SetName("zhuyin");
+    zhuyin.SetLocales({"zh_TW"});
+    profiles.push_back(zhuyin);
+    auto klingon = KeyboardLayout::Find("keychron-v1-ansi");
+    klingon.SetName("klingon");
+    klingon.SetLocales({"tlh"});
+    profiles.push_back(klingon);
+    const auto pick = [&profiles](std::string_view locale) -> std::string {
+        return KeyboardLayout::ForLocale(profiles, locale).Name();
+    };
+    EXPECT_EQ(pick("zh_TW.UTF-8"), "zhuyin");
+    EXPECT_EQ(pick("zh-TW"), "zhuyin");
+    EXPECT_EQ(pick("zh_CN.UTF-8"), "chinese-tkl");
+    EXPECT_EQ(pick("tlh"), "klingon");
+
+    const auto reparsed = KeyboardLayout::Parse(Yaml::Emit(nlohmann::ordered_json(zhuyin)));
+    ASSERT_TRUE(reparsed.has_value());
+    EXPECT_EQ(reparsed->Locales(), std::vector<std::string>{"zh_TW"});
 }

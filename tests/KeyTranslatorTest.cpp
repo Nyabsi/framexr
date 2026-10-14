@@ -97,3 +97,22 @@ TEST(KeyTranslator, CapsLockPicksTheCaseOnTheDesktop) {
         EXPECT_EQ(german->KeySym(upper->key, static_cast<uint8_t>(upper->modifiers | kModCapsLock)), wanted);
     }
 }
+
+TEST(KeyTranslator, JisSymbolsAreTypedWithTheDesktopKeys) {
+    const auto japanese = Load("jp");
+    const auto us = Load("us");
+    if (!japanese || !us) {
+        GTEST_SKIP() << "xkb layout data not installed";
+    }
+    const auto translator = KeyTranslator::Create(japanese, us);
+    for (const auto key : {VirtualKey::Oem4, VirtualKey::Oem7, VirtualKey::Yen, VirtualKey::AbntC1}) {
+        const uint32_t wanted = japanese->KeySym(key, 0);
+        const auto typed = translator.Translate(key, 0, false);
+        if (us->KeySym(key, 0) == wanted) {
+            EXPECT_FALSE(typed.has_value());
+            continue;
+        }
+        ASSERT_TRUE(typed.has_value()) << VirtualKeys::Name(key);
+        EXPECT_EQ(us->KeySym(typed->key, typed->modifiers), wanted) << VirtualKeys::Name(key);
+    }
+}

@@ -35,6 +35,7 @@ class ScopedRecordingHid final {
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_recording->Events(); }
     [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_recording->Buttons(); }
     [[nodiscard]] auto Wheels() const -> size_t { return m_recording->Wheels(); }
+    [[nodiscard]] auto InputMethods() const -> const std::vector<ImeScript>& { return m_recording->InputMethods(); }
     auto Clear() -> void { m_recording->Clear(); }
 
   private:

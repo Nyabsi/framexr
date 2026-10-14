@@ -31,6 +31,7 @@
 
 #include <Eigen/Core>
 
+#include "ImeScript.hpp"
 #include "VirtualKeys.hpp"
 
 constexpr uint16_t kMouseLeft = 0x110;
@@ -55,6 +56,7 @@ class HidProvider {
     virtual auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void = 0;
     virtual auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void = 0;
     virtual auto Commit() -> void = 0;
+    virtual auto SelectInputMethod(ImeScript script) -> void = 0;
 
   private:
     static inline std::atomic<bool> m_use_native{true};

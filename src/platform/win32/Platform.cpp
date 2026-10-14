@@ -74,6 +74,12 @@ auto Platform::ConfigHome() -> std::optional<std::filesystem::path> {
     return path;
 }
 
+auto Platform::Locale() -> std::string {
+    std::array<wchar_t, LOCALE_NAME_MAX_LENGTH> name{};
+    const int length = GetUserDefaultLocaleName(name.data(), static_cast<int>(name.size()));
+    return length > 1 ? std::filesystem::path(std::wstring(name.data(), static_cast<size_t>(length - 1))).string() : std::string();
+}
+
 auto Platform::RuntimeDirectory() -> std::filesystem::path {
     std::error_code error;
     auto path = std::filesystem::temp_directory_path(error);

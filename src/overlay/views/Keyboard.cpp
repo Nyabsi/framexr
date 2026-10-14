@@ -232,7 +232,7 @@ auto Keyboard::Fill(
         placed.SetFontSize(kKeyFontSize);
         placed.SetFgColor(key.style.fg_color ? Color(*key.style.fg_color) : fg_color);
         placed.SetBgColor(key.style.bg_color ? Color(*key.style.bg_color) : bg_color);
-        placed.SetLegends(cap_type, labels);
+        placed.SetLegends(cap_type, labels, layout.ImeLabels(key));
         if (owner != nullptr && upper_case && !placed.Legends().empty()) {
             owner->m_letters.push_back(
                 {.label = placed.Legends().front(), .lower = labels.front(), .upper = std::move(*upper_case)}
@@ -262,6 +262,8 @@ auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const Keyboard
     form->SetSize(size.array().floor().matrix());
     Fill(*form, layout, keymap, {}, this);
     m_uppercase = false;
+    m_ime = layout.Ime();
+    m_native = m_native && m_ime != ImeScript::None;
     m_emphasis = {};
     ASSIGN_OR_RETURN(auto canvas, Compose::Create(std::move(form)));
     SetComposer(std::move(canvas));
@@ -275,13 +277,18 @@ auto Keyboard::Update() -> void {
     if (!WantVisible()) {
         m_input.Reset();
     }
+    if (const auto ime = WantVisible() && m_native ? m_ime : ImeScript::None; ime != m_selected_ime) {
+        m_selected_ime = ime;
+        g_hid->SelectInputMethod(ime);
+    }
     if (m_input.Uppercase() != m_uppercase) {
         m_uppercase = m_input.Uppercase();
         for (const auto& letter : m_letters) {
             letter.label->SetText(m_uppercase ? letter.upper : letter.lower);
         }
     }
-    if (const KeyEmphasis emphasis{.shifted = m_input.Holds(kModShift), .altgr = m_input.Holds(kModMeta)}; emphasis != m_emphasis) {
+    if (const KeyEmphasis emphasis{.shifted = m_input.Holds(kModShift), .altgr = m_input.Holds(kModMeta), .native = m_native};
+        emphasis != m_emphasis) {
         m_emphasis = emphasis;
         for (auto* key : m_keys) {
             key->Emphasize(emphasis);
@@ -294,6 +301,17 @@ auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const st
         key.SetOnPress([keymap](PointerMode) -> void {
             Click();
             KeyboardPicker::Open(keymap);
+        });
+    } else if (std::holds_alternative<ImeKey>(definition.action)) {
+        key.SetOnPress([this](PointerMode) -> void {
+            Click();
+            m_native = !m_native && m_ime != ImeScript::None;
+        });
+        key.SetHighlightColor([this]() -> std::optional<Eigen::Vector4f> {
+            return m_native ? std::optional(LatchedColor()) : std::nullopt;
+        });
+        key.SetOutline([this]() -> std::optional<HighlightOutline> {
+            return m_native ? std::optional(LatchedOutline()) : std::nullopt;
         });
     } else if (const auto* action = std::get_if<ActionKey>(&definition.action)) {
         auto runner = std::make_shared<ActionRunner>();

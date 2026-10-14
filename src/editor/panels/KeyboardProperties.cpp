@@ -233,6 +233,7 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     const bool is_macro = action != nullptr && !is_shortcut;
     const bool is_layout = std::holds_alternative<ProfileKey>(key.action);
     const bool is_blank = std::holds_alternative<BlankKey>(key.action);
+    const bool is_ime = std::holds_alternative<ImeKey>(key.action);
 
     m_stack.AddComponent<SectionComponent>("action", "Action");
 
@@ -301,6 +302,15 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     as_layout.SetEllipsize(true);
     as_layout.SetOnRelease([&editor, index]() -> void {
         editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ProfileKey{}; });
+    });
+
+    auto& as_ime = others.AddComponent<ButtonComponent>("ime", "IME");
+    as_ime.SetFontSize(PanelStyle::kTextFont);
+    as_ime.SetFgColor(is_ime ? on_accent : text);
+    as_ime.SetBgColor(is_ime ? accent : surface);
+    as_ime.SetEllipsize(true);
+    as_ime.SetOnRelease([&editor, index]() -> void {
+        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ImeKey{}; });
     });
 
     auto& as_blank = others.AddComponent<ButtonComponent>("nothing", "Nothing");

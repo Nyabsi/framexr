@@ -8,7 +8,8 @@ framexr_inc = include_directories(
   'form/components',
   'form/shared',
   'input',
-  'input/hid',
+  'input/hid/null',
+  'input/hid/shared',
   'integration/shared',
   'overlay',
   'overlay/views',
@@ -193,19 +194,23 @@ editor_sources = files(
 hid_sources = files(
   'input/hid/HidProvider.cpp',
   'input/hid/KeyTranslator.cpp',
-  'input/hid/NullHidProvider.cpp',
+  'input/hid/null/NullHidProvider.cpp',
   'input/hid/VirtualKeys.cpp',
 )
 if is_windows
   hid_sources += files(
     'input/hid/win32/HidProvider.cpp',
+    'input/hid/win32/InputMethod.cpp',
     'input/hid/win32/Keymap.cpp',
+    'input/hid/win32/LayoutInputMethod.cpp',
     'input/hid/win32/Scancodes.cpp',
     'input/hid/win32/SendInputProvider.cpp',
   )
 else
   hid_sources += files(
+    'input/hid/linux/DesktopInputMethod.cpp',
     'input/hid/linux/HidProvider.cpp',
+    'input/hid/linux/InputMethod.cpp',
     'input/hid/linux/Keymap.cpp',
     'input/hid/linux/UInputProvider.cpp',
   )

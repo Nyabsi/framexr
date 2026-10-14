@@ -18,6 +18,7 @@
 
 #include "KeyComponent.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace {
@@ -54,7 +55,7 @@ auto KeyComponent::SetInteractive(bool interactive) -> void {
     MarkDirty();
 }
 
-auto KeyComponent::SetLegends(KeyCapType cap_type, std::span<const std::string> labels) -> void {
+auto KeyComponent::SetLegends(KeyCapType cap_type, std::span<const std::string> labels, std::span<const std::string> ime) -> void {
     Clear();
     m_legends.clear();
     const float w = Size().x();
@@ -77,10 +78,26 @@ auto KeyComponent::SetLegends(KeyCapType cap_type, std::span<const std::string> 
         layout.push_back({false, {std::fma(w, 0.5f, 8.0f), h - size + 4.0f, w, h}});
         break;
     }
+    const size_t typed = layout.size();
+    if (!ime.empty()) {
+        for (auto& legend : layout) {
+            legend.rect.w = legend.centered ? w * 0.5f : legend.rect.w;
+        }
+        if (ime.size() == 1) {
+            layout.push_back({true, {w * 0.5f, 0.0f, w * 0.5f, h - size}});
+        } else {
+            layout.push_back({true, {w * 0.5f, std::fma(h, 0.5f, 2.0f), w * 0.5f, h * 0.5f}});
+            layout.push_back({true, {w * 0.5f, 2.0f, w * 0.5f, h * 0.5f}});
+        }
+    }
 
     m_cap_type = cap_type;
-    for (size_t i = 0; i < layout.size() && i < labels.size(); ++i) {
-        auto& legend = AddComponent<LabelComponent>("", labels[i]);
+    m_typed = std::min(typed, labels.size());
+    for (size_t i = 0; i < layout.size(); ++i) {
+        if (i < typed && i >= labels.size()) {
+            continue;
+        }
+        auto& legend = AddComponent<LabelComponent>("", i < typed ? labels[i] : ime[i - typed]);
         legend.SetRect(layout[i].rect);
         legend.SetFontSize(m_font_size);
         legend.SetCentered(layout[i].centered);
@@ -90,8 +107,11 @@ auto KeyComponent::SetLegends(KeyCapType cap_type, std::span<const std::string> 
 }
 
 auto KeyComponent::Emphasize(const KeyEmphasis& emphasis) -> void {
+    const size_t native = m_legends.size() - m_typed;
     size_t active = 0;
-    if (emphasis.altgr && m_cap_type == KeyCapType::ReversedAltGr) {
+    if (emphasis.native && native > 0) {
+        active = m_typed + (emphasis.shifted && native > 1 ? 1 : 0);
+    } else if (emphasis.altgr && m_cap_type == KeyCapType::ReversedAltGr) {
         active = 2;
     } else if (
         (emphasis.altgr && m_cap_type == KeyCapType::RegularAltGr)

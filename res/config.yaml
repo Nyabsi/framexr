@@ -12,10 +12,12 @@ keyboard_scale: 1.0
 desktop_view_scale: 1.0
 watch_scale: 1.0
 
-# Keyboard profile to show, built-in: keychron-v1-ansi, full-size
+# Keyboard profile to show, built-in: keychron-v1-ansi, full-size, jis-tkl, jis-full-size,
+# korean-tkl, korean-full-size, chinese-tkl, chinese-full-size
 # Your own profiles go in ~/.config/framexr/keyboards/*.yaml
-# Default: keychron-v1-ansi
-keyboard_profile: keychron-v1-ansi
+# Empty picks the one matching your locale
+# Default: ""
+keyboard_profile: ""
 
 # Region of the keyboard, as an xkb layout like fi, de or fi(classic). Labels follow it, and keys type
 # its characters by sending whatever keys produce them on your desktop layout. A profile's own region

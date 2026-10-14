@@ -66,6 +66,15 @@ auto Platform::ConfigHome() -> std::optional<std::filesystem::path> {
     return std::nullopt;
 }
 
+auto Platform::Locale() -> std::string {
+    for (const char* name : {"LC_ALL", "LC_CTYPE", "LANG"}) {
+        if (const char* value = std::getenv(name); value != nullptr && *value != '\0') {
+            return value;
+        }
+    }
+    return {};
+}
+
 auto Platform::RuntimeDirectory() -> std::filesystem::path {
     const char* runtime_dir = std::getenv("XDG_RUNTIME_DIR");
     return runtime_dir != nullptr ? std::filesystem::path(runtime_dir) : std::filesystem::path("/tmp");

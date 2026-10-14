@@ -32,6 +32,7 @@
 #include <Eigen/Core>
 
 #include "HidProvider.hpp"
+#include "InputMethod.hpp"
 #include "VirtualKeys.hpp"
 
 class SendInputProvider final : public HidProvider {
@@ -44,10 +45,12 @@ class SendInputProvider final : public HidProvider {
     auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void override;
     auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void override;
     auto Commit() -> void override;
+    auto SelectInputMethod(ImeScript script) -> void override { m_input_method->Select(script); }
 
   private:
     Eigen::Vector2f m_desktop_extent = Eigen::Vector2f::Ones();
     Eigen::Vector2f m_desktop_origin = Eigen::Vector2f::Zero();
     uint8_t m_current_modifiers = 0;
     PendingMouseAction m_pending;
+    std::unique_ptr<InputMethod> m_input_method = InputMethod::Create();
 };

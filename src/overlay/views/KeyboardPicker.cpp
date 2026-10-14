@@ -75,7 +75,7 @@ auto KeyboardPicker::Create(const std::shared_ptr<const Keymap>& keymap) -> std:
     std::vector<std::string> names;
     std::optional<size_t> current;
     for (const auto& profile : KeyboardLayout::All()) {
-        if (profile.Name() == g_config->keyboard_profile) {
+        if (profile.Name() == KeyboardLayout::Find(g_config->keyboard_profile).Name()) {
             current = names.size();
         }
         names.push_back(profile.Name());

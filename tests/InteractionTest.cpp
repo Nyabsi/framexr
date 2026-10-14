@@ -638,6 +638,32 @@ TEST_F(LaserInteraction, KeyboardUsesTheConfiguredProfile) {
     EXPECT_NEAR((*compact)->SpawnScale() * 23.35f, (*keyboard)->SpawnScale() * 16.35f, 1e-4f);
 }
 
+TEST_F(LaserInteraction, ImeKeySelectsTheInputMethodWhileShown) {
+    ScopedRecordingHid hid;
+    g_config->keyboard_profile = "korean-tkl";
+    auto created = Keyboard::Create(nullptr);
+    ASSERT_TRUE(created.has_value());
+    auto& keyboard = **created;
+    keyboard.SetWantVisible(true);
+    keyboard.Update();
+    EXPECT_TRUE(hid.InputMethods().empty());
+
+    ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+    auto* toggle = keyboard.Composer()->FindText("한/영");
+    ASSERT_NE(toggle, nullptr);
+    toggle->Parent()->OnPress(PointerMode::Left);
+    keyboard.Update();
+    keyboard.Update();
+    keyboard.SetWantVisible(false);
+    keyboard.Update();
+    keyboard.SetWantVisible(true);
+    keyboard.Update();
+    toggle->Parent()->OnPress(PointerMode::Left);
+    keyboard.Update();
+    EXPECT_EQ(hid.InputMethods(), (std::vector<ImeScript>{ImeScript::Hangul, ImeScript::None, ImeScript::Hangul, ImeScript::None}));
+    g_config->keyboard_profile = "keychron-v1-ansi";
+}
+
 TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards) {
     auto created = Keyboard::Create(nullptr);
     ASSERT_TRUE(created.has_value());

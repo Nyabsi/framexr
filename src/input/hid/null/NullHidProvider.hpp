@@ -44,4 +44,5 @@ class NullHidProvider final : public HidProvider {
     auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void override;
     auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void override;
     auto Commit() -> void override;
+    auto SelectInputMethod(ImeScript script) -> void override;
 };

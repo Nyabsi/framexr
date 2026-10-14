@@ -19,9 +19,11 @@
 #include "Process.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cerrno>
 #include <cstring>
 #include <format>
+#include <thread>
 #include <utility>
 
 #include <fcntl.h>
@@ -186,4 +188,28 @@ auto Process::ReadStdout() -> std::optional<std::string> {
     close(m_stdout_fd);
     m_stdout_fd = -1;
     return output;
+}
+
+auto Process::Output(const std::vector<std::string>& command) -> std::optional<std::string> {
+    auto process = Spawn(command, {.capture_stdout = true});
+    if (!process) {
+        return std::nullopt;
+    }
+    auto output = process->ReadStdout();
+    while (true) {
+        const auto status = process->TryWait();
+        if (!status) {
+            return std::nullopt;
+        }
+        if (*status) {
+            if (!(*status)->Success() || !output) {
+                return std::nullopt;
+            }
+            while (!output->empty() && (output->back() == '\n' || output->back() == ' ')) {
+                output->pop_back();
+            }
+            return output;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
 }

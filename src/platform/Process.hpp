@@ -42,6 +42,7 @@ struct ProcessOptions {
 class Process final {
   public:
     static auto Spawn(const std::vector<std::string>& command, const ProcessOptions& options = {}) -> Result<Process>;
+    static auto Output(const std::vector<std::string>& command) -> std::optional<std::string>;
 
     ~Process();
     Process(Process&& other) noexcept;

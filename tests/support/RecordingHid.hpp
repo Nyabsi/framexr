@@ -44,6 +44,7 @@ class RecordingHid final : public HidProvider {
     [[nodiscard]] auto Events() const -> const std::vector<HidEvent>& { return m_events; }
     [[nodiscard]] auto Buttons() const -> const std::vector<ButtonEvent>& { return m_buttons; }
     [[nodiscard]] auto Wheels() const -> size_t { return m_wheels; }
+    [[nodiscard]] auto InputMethods() const -> const std::vector<ImeScript>& { return m_input_methods; }
 
     auto MouseMove(const Eigen::Vector2f& position) -> void override;
     auto SendButton(uint16_t button, bool down) -> void override;
@@ -53,11 +54,13 @@ class RecordingHid final : public HidProvider {
     auto SetDesktopExtent(const Eigen::Vector2f& extent) -> void override;
     auto SetDesktopOrigin(const Eigen::Vector2f& origin) -> void override;
     auto Commit() -> void override;
+    auto SelectInputMethod(ImeScript script) -> void override;
     auto Clear() -> void;
 
   private:
     std::vector<HidEvent> m_events;
     std::vector<ButtonEvent> m_buttons;
     size_t m_wheels = 0;
+    std::vector<ImeScript> m_input_methods;
     uint8_t m_modifiers = 0;
 };

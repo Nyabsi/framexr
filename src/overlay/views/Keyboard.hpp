@@ -83,5 +83,8 @@ class Keyboard final : public View {
     std::vector<LetterLegend> m_letters;
     std::vector<KeyComponent*> m_keys;
     KeyEmphasis m_emphasis;
+    bool m_native = false;
     bool m_uppercase = false;
+    ImeScript m_ime = ImeScript::None;
+    ImeScript m_selected_ime = ImeScript::None;
 };

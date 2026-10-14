@@ -45,6 +45,7 @@ struct KeyCapLegend {
 struct KeyEmphasis {
     bool shifted = false;
     bool altgr = false;
+    bool native = false;
 
     auto operator==(const KeyEmphasis&) const -> bool = default;
 };
@@ -61,7 +62,7 @@ class KeyComponent final : public FormComponent {
     auto SetFontSize(int font_size) -> void;
     auto SetCornerRadius(std::optional<float> corner_radius) -> void;
     auto SetInteractive(bool interactive) -> void;
-    auto SetLegends(KeyCapType cap_type, std::span<const std::string> labels) -> void;
+    auto SetLegends(KeyCapType cap_type, std::span<const std::string> labels, std::span<const std::string> ime = {}) -> void;
     auto Emphasize(const KeyEmphasis& emphasis) -> void;
 
   protected:
@@ -75,4 +76,5 @@ class KeyComponent final : public FormComponent {
     bool m_interactive = true;
     std::vector<LabelComponent*> m_legends;
     KeyCapType m_cap_type = KeyCapType::Regular;
+    size_t m_typed = 0;
 };

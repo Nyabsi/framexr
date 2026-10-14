@@ -23,6 +23,7 @@
 #include <ctime>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 #include "Error.hpp"
 
@@ -30,6 +31,7 @@ class Platform final {
   public:
     static auto Init() -> void;
     static auto ConfigHome() -> std::optional<std::filesystem::path>;
+    static auto Locale() -> std::string;
     static auto RuntimeDirectory() -> std::filesystem::path;
     static auto DefaultLogFile() -> std::filesystem::path;
     static auto OpenLogFile(const std::filesystem::path& path) -> Result<std::FILE*>;

@@ -46,6 +46,10 @@ auto RecordingHid::SetDesktopOrigin(const Eigen::Vector2f&) -> void {
 auto RecordingHid::Commit() -> void {
 }
 
+auto RecordingHid::SelectInputMethod(ImeScript script) -> void {
+    m_input_methods.push_back(script);
+}
+
 auto RecordingHid::Clear() -> void {
     m_events.clear();
 }
