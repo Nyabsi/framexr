@@ -20,14 +20,28 @@
 
 #include <cstdlib>
 
+#include "AudioPlayback.hpp"
+#include "Config.hpp"
+#include "ConfigStore.hpp"
 #include "Device.hpp"
+#include "Devices.hpp"
+#include "FontCache.hpp"
+#include "FormTheme.hpp"
 #include "HidProvider.hpp"
+#include "Interaction.hpp"
 #include "Logger.hpp"
-#include "AppState.hpp"
+#include "TaskQueue.hpp"
 
 std::unique_ptr<Logger> TestApp::m_logger;
 std::unique_ptr<Device> TestApp::m_device;
-std::unique_ptr<AppState> TestApp::m_app;
+std::unique_ptr<FormTheme> TestApp::m_themes;
+std::unique_ptr<Config> TestApp::m_config;
+std::unique_ptr<TaskQueue> TestApp::m_tasks;
+std::unique_ptr<Devices> TestApp::m_devices;
+std::unique_ptr<Interaction> TestApp::m_interaction;
+std::unique_ptr<AudioPlayback> TestApp::m_audio;
+std::unique_ptr<FontCache> TestApp::m_fonts;
+std::unique_ptr<HidProvider> TestApp::m_hid;
 std::filesystem::path TestApp::m_output_dir;
 
 auto TestApp::OutputDir() -> const std::filesystem::path& {
@@ -45,13 +59,39 @@ auto TestApp::SetUp() -> void {
     auto device = Device::Create({});
     ASSERT_TRUE(device.has_value()) << device.error().Message();
     m_device = std::move(*device);
-    auto app = AppState::Create();
-    ASSERT_TRUE(app.has_value()) << app.error().Message();
-    m_app = std::move(*app);
+    m_themes = std::make_unique<FormTheme>();
+    g_themes = m_themes.get();
+    ConfigStore::EnsureDirectories();
+    m_config = std::make_unique<Config>(ConfigStore::Load());
+    g_config = m_config.get();
+    g_themes->SetActive(g_themes->Find(g_config->theme));
+    m_tasks = std::make_unique<TaskQueue>();
+    g_tasks = m_tasks.get();
+    m_devices = std::make_unique<Devices>();
+    g_devices = m_devices.get();
+    m_interaction = std::make_unique<Interaction>();
+    g_interaction = m_interaction.get();
+    m_audio = std::make_unique<AudioPlayback>(g_config->notification_sound);
+    g_audio = m_audio.get();
+    auto fonts = FontCache::Create(g_config->primary_font);
+    ASSERT_TRUE(fonts.has_value()) << fonts.error().Message();
+    m_fonts = std::move(*fonts);
+    m_fonts->SetFamily(g_themes->Active().font);
+    g_fonts = m_fonts.get();
+    m_hid = HidProvider::Create();
+    g_hid = m_hid.get();
 }
 
 auto TestApp::TearDown() -> void {
-    m_app.reset();
+    m_hid.reset();
+    m_fonts.reset();
+    g_fonts = nullptr;
+    m_audio.reset();
+    m_interaction.reset();
+    m_devices.reset();
+    m_tasks.reset();
+    m_config.reset();
+    m_themes.reset();
     m_device.reset();
     m_logger.reset();
     g_logger = nullptr;

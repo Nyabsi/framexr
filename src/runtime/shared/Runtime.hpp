@@ -31,11 +31,11 @@
 #include <Eigen/Geometry>
 
 #include "Error.hpp"
+#include "FontCache.hpp"
 #include "Notifications.hpp"
 #include "View.hpp"
 #include "Container.hpp"
 #include "methods/LaserPointer.hpp"
-#include "AppState.hpp"
 #include "TaskQueue.hpp"
 
 enum class FrameStatus : uint8_t {
@@ -89,7 +89,7 @@ class Runtime {
     auto DispatchTasks() -> void;
     auto Interact() -> void;
 
-    std::unique_ptr<AppState> m_app;
+    std::unique_ptr<FontCache> m_fonts;
     std::unique_ptr<Container> m_overlays;
     std::unique_ptr<Notifications> m_notifications;
     OverlayId m_watch_id{};

@@ -48,7 +48,6 @@
 #include "Container.hpp"
 #include "Png.hpp"
 #include "ScopedRecordingHid.hpp"
-#include "AppState.hpp"
 #include "TaskQueue.hpp"
 #include "TestApp.hpp"
 #include "FormTheme.hpp"

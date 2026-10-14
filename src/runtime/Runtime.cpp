@@ -29,7 +29,9 @@
 #include <variant>
 
 #include "CommandLine.hpp"
+#include "Config.hpp"
 #include "Devices.hpp"
+#include "FormTheme.hpp"
 #include "HidProvider.hpp"
 #include "Interaction.hpp"
 #include "Logger.hpp"
@@ -122,7 +124,9 @@ auto Runtime::BeamPose(Eigen::Affine3f from, float length, const Eigen::Affine3f
 }
 
 auto Runtime::Start() -> Result<> {
-    ASSIGN_OR_RETURN(m_app, AppState::Create());
+    ASSIGN_OR_RETURN(m_fonts, FontCache::Create(g_config->primary_font));
+    m_fonts->SetFamily(g_themes->Active().font);
+    g_fonts = m_fonts.get();
     g_devices->SetOnConnect([](const TrackedDevice& device) -> void {
         if (device.role != TrackedDeviceRole::None) {
             Toast::Show({.title = std::format("{} connected", Devices::RoleName(device.role))});
@@ -147,7 +151,8 @@ auto Runtime::Start() -> Result<> {
 auto Runtime::Stop() -> void {
     m_notifications.reset();
     m_overlays.reset();
-    m_app.reset();
+    m_fonts.reset();
+    g_fonts = nullptr;
 }
 
 auto Runtime::WatchOverlay() -> View& {

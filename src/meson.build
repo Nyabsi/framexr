@@ -46,10 +46,6 @@ else
   )
 endif
 
-app_sources = files(
-  'AppState.cpp',
-)
-
 config_sources = files(
   'config/Config.cpp',
   'config/ConfigStore.cpp',
@@ -234,7 +230,7 @@ renderer_sources = files(
   'renderer/Shaders.cpp',
 )
 
-framexr_all_sources = (app_sources + config_sources + core_sources + editor_sources + form_sources + hid_sources
+framexr_all_sources = (config_sources + core_sources + editor_sources + form_sources + hid_sources
   + input_sources + integration_sources + overlay_sources + screen_sources + runtime_sources + util_sources + capture_sources + renderer_sources + openvr_sources
   + openxr_sources)
 

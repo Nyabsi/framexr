@@ -32,12 +32,19 @@
 #include <string>
 #include <thread>
 
+#include "AudioPlayback.hpp"
 #include "CommandLine.hpp"
 #include "Config.hpp"
 #include "ConfigStore.hpp"
+#include "Devices.hpp"
+#include "FormTheme.hpp"
+#include "HidProvider.hpp"
+#include "Interaction.hpp"
 #include "Logger.hpp"
+#include "Osc.hpp"
 #include "Platform.hpp"
 #include "Runtime.hpp"
+#include "TaskQueue.hpp"
 #include "framexr_config.h"
 #include "version.h"
 
@@ -95,7 +102,7 @@ auto InitLogging() -> void {
         std::fflush(stdout);
         g_logger->SetOutputFile(*file);
     } else {
-        std::fputs(std::format("Failed to open log file (path: {}): {}\n", file.error().Message(), path.string()).c_str(), stdout);
+        std::fputs(std::format("Failed to open log file (path: {}): {}\n", path.string(), file.error().Message()).c_str(), stdout);
         std::fflush(stdout);
     }
 }
@@ -145,8 +152,6 @@ auto LocalTime() -> std::string {
 }
 
 auto Run(std::span<char*> arguments) -> int {
-    auto logger = std::make_unique<Logger>();
-    g_logger = logger.get();
     auto command_line = std::make_unique<CommandLine>();
     g_command_line = command_line.get();
     if (const auto exit_code = g_command_line->Parse(arguments)) {
@@ -170,6 +175,27 @@ auto Run(std::span<char*> arguments) -> int {
         return 0;
     }
 
+    auto themes = std::make_unique<FormTheme>();
+    g_themes = themes.get();
+    LOG_INFO("Config root path: \"{}\"", ConfigStore::EnsureDirectories().string());
+    auto config = std::make_unique<Config>(ConfigStore::Load());
+    g_config = config.get();
+    g_themes->SetActive(g_themes->Find(g_config->theme));
+    auto tasks = std::make_unique<TaskQueue>();
+    g_tasks = tasks.get();
+    auto devices = std::make_unique<Devices>();
+    g_devices = devices.get();
+    auto interaction = std::make_unique<Interaction>();
+    g_interaction = interaction.get();
+    auto audio = std::make_unique<AudioPlayback>(g_config->notification_sound);
+    g_audio = audio.get();
+    auto hid = HidProvider::Create();
+    g_hid = hid.get();
+#if FRAMEXR_FEATURE_OSC
+    auto osc = Osc::Create(g_config->osc_out_port).value_or(nullptr);
+    g_osc = osc.get();
+#endif
+
     Platform::OnTerminate(OnTerminate);
     Runtime::Run(running);
     return 0;
@@ -178,6 +204,8 @@ auto Run(std::span<char*> arguments) -> int {
 } // namespace
 
 auto main(int argc, char** argv) -> int {
+    auto logger = std::make_unique<Logger>();
+    g_logger = logger.get();
     try {
         return Run(std::span(argv, static_cast<size_t>(argc)));
     } catch (const std::exception& exception) {

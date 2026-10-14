@@ -23,9 +23,16 @@
 
 #include <gtest/gtest.h>
 
-class AppState;
+class AudioPlayback;
 class Device;
+class Devices;
+class FontCache;
+class FormTheme;
+class HidProvider;
+class Interaction;
 class Logger;
+class TaskQueue;
+struct Config;
 
 class TestApp final : public testing::Environment {
   public:
@@ -37,6 +44,13 @@ class TestApp final : public testing::Environment {
   private:
     static std::unique_ptr<Logger> m_logger;
     static std::unique_ptr<Device> m_device;
-    static std::unique_ptr<AppState> m_app;
+    static std::unique_ptr<FormTheme> m_themes;
+    static std::unique_ptr<Config> m_config;
+    static std::unique_ptr<TaskQueue> m_tasks;
+    static std::unique_ptr<Devices> m_devices;
+    static std::unique_ptr<Interaction> m_interaction;
+    static std::unique_ptr<AudioPlayback> m_audio;
+    static std::unique_ptr<FontCache> m_fonts;
+    static std::unique_ptr<HidProvider> m_hid;
     static std::filesystem::path m_output_dir;
 };

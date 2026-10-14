@@ -43,7 +43,6 @@
 #include "ScopedRecordingHid.hpp"
 #include "Desktop.hpp"
 #include "ScreenInteraction.hpp"
-#include "AppState.hpp"
 #include "TaskQueue.hpp"
 #include "Watch.hpp"
 #include "Yaml.hpp"
