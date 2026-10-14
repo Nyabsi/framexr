@@ -1,29 +1,29 @@
 framexr_inc = include_directories(
   '.',
   '..',
-  'capture',
-  'capture/pipewire',
-  'capture/wayland',
-  'capture/win32',
-  'capture/x11',
   'config',
   'core',
-  'desktop',
   'editor',
   'form',
   'form/components',
   'form/shared',
-  'renderer',
-  'hid',
   'input',
-  'net/shared',
+  'input/hid',
+  'integration/shared',
   'overlay',
   'overlay/views',
   'platform',
+  'renderer',
   'runtime',
   'runtime/openvr',
   'runtime/openxr',
   'runtime/shared',
+  'screen',
+  'screen/capture',
+  'screen/capture/pipewire',
+  'screen/capture/wayland',
+  'screen/capture/win32',
+  'screen/capture/x11',
   'util',
 )
 
@@ -68,24 +68,24 @@ input_sources = files(
   'input/methods/LaserPointer.cpp',
 )
 
-net_sources = files(
-  'net/Notifications.cpp',
-  'net/Osc.cpp',
-  'net/ToastIngest.cpp',
+integration_sources = files(
+  'integration/Notifications.cpp',
+  'integration/Osc.cpp',
+  'integration/ToastIngest.cpp',
 )
 
 if is_windows
-  net_sources += files(
-    'net/win32/Notifications.cpp',
-    'net/win32/UdpSocket.cpp',
+  integration_sources += files(
+    'integration/win32/Notifications.cpp',
+    'integration/win32/UdpSocket.cpp',
   )
 else
-  net_sources += files(
-    'net/linux/Dbus.cpp',
-    'net/linux/DbusNotificationSender.cpp',
-    'net/linux/Notifications.cpp',
-    'net/linux/ToastIngest.cpp',
-    'net/linux/UdpSocket.cpp',
+  integration_sources += files(
+    'integration/linux/Dbus.cpp',
+    'integration/linux/DbusNotificationSender.cpp',
+    'integration/linux/Notifications.cpp',
+    'integration/linux/ToastIngest.cpp',
+    'integration/linux/UdpSocket.cpp',
   )
 endif
 
@@ -105,17 +105,17 @@ util_sources = files(
   'util/TextSearch.cpp',
 )
 
-desktop_sources = files(
-  'desktop/CapturedFrame.cpp',
-  'desktop/FrameUploader.cpp',
-  'desktop/PendingFrame.cpp',
-  'desktop/ScreenInteraction.cpp',
-  'desktop/ScreenPipeline.cpp',
-  'desktop/ScreenRenderer.cpp',
+screen_sources = files(
+  'screen/CapturedFrame.cpp',
+  'screen/FrameUploader.cpp',
+  'screen/PendingFrame.cpp',
+  'screen/ScreenInteraction.cpp',
+  'screen/ScreenPipeline.cpp',
+  'screen/ScreenRenderer.cpp',
 )
 
 if get_option('wayland').allowed()
-  desktop_sources += files('desktop/Mirror.cpp')
+  screen_sources += files('screen/Mirror.cpp')
 endif
 
 overlay_sources = files(
@@ -195,27 +195,27 @@ editor_sources = files(
 )
 
 hid_sources = files(
-  'hid/HidProvider.cpp',
-  'hid/KeyTranslator.cpp',
-  'hid/NullHidProvider.cpp',
-  'hid/VirtualKeys.cpp',
+  'input/hid/HidProvider.cpp',
+  'input/hid/KeyTranslator.cpp',
+  'input/hid/NullHidProvider.cpp',
+  'input/hid/VirtualKeys.cpp',
 )
 if is_windows
   hid_sources += files(
-    'hid/win32/HidProvider.cpp',
-    'hid/win32/Keymap.cpp',
-    'hid/win32/Scancodes.cpp',
-    'hid/win32/SendInputProvider.cpp',
+    'input/hid/win32/HidProvider.cpp',
+    'input/hid/win32/Keymap.cpp',
+    'input/hid/win32/Scancodes.cpp',
+    'input/hid/win32/SendInputProvider.cpp',
   )
 else
   hid_sources += files(
-    'hid/linux/HidProvider.cpp',
-    'hid/linux/Keymap.cpp',
-    'hid/linux/UInputProvider.cpp',
+    'input/hid/linux/HidProvider.cpp',
+    'input/hid/linux/Keymap.cpp',
+    'input/hid/linux/UInputProvider.cpp',
   )
 endif
 
-subdir('capture')
+subdir('screen/capture')
 subdir('runtime/openvr')
 subdir('runtime/openxr')
 subdir('renderer/shaders')
@@ -234,8 +234,8 @@ renderer_sources = files(
   'renderer/Shaders.cpp',
 )
 
-framexr_all_sources = (app_sources + config_sources + core_sources + desktop_sources + editor_sources + form_sources + hid_sources
-  + input_sources + net_sources + overlay_sources + runtime_sources + util_sources + capture_sources + renderer_sources + openvr_sources
+framexr_all_sources = (app_sources + config_sources + core_sources + editor_sources + form_sources + hid_sources
+  + input_sources + integration_sources + overlay_sources + screen_sources + runtime_sources + util_sources + capture_sources + renderer_sources + openvr_sources
   + openxr_sources)
 
 hid_deps = []
