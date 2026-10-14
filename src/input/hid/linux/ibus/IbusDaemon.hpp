@@ -18,16 +18,29 @@
 
 #pragma once
 
-#include <dbus/dbus.h>
+#include <filesystem>
+#include <memory>
+#include <string>
 
 #include "Error.hpp"
+#include "Process.hpp"
 
-class Dbus final {
+class IbusDaemon final {
   public:
-    static constexpr char kNotificationsInterface[] = "org.freedesktop.Notifications";
-    static constexpr char kNotificationsPath[] = "/org/freedesktop/Notifications";
+    static auto Start() -> Result<std::unique_ptr<IbusDaemon>>;
 
-    static auto ConnectSessionBus() -> Result<DBusConnection*>;
-    static auto CloseConnection(DBusConnection* connection) -> void;
-    static auto CallMethod(DBusConnection* connection, DBusMessage* message, int timeout_ms) -> Result<DBusMessage*>;
+    ~IbusDaemon();
+    IbusDaemon(const IbusDaemon&) = delete;
+    auto operator=(const IbusDaemon&) -> IbusDaemon& = delete;
+
+    [[nodiscard]] auto Address() const -> const std::string& { return m_address; }
+    [[nodiscard]] auto Running() -> bool;
+    [[nodiscard]] auto Listening() const -> bool;
+
+  private:
+    IbusDaemon(Process process, std::filesystem::path socket);
+
+    Process m_process;
+    std::filesystem::path m_socket;
+    std::string m_address;
 };

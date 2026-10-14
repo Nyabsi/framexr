@@ -53,6 +53,8 @@ struct TypeKey {
 
 struct ProfileKey {};
 
+struct ChatboxKey {};
+
 struct ImeKey {};
 
 struct ActionKey {
@@ -60,7 +62,7 @@ struct ActionKey {
     std::vector<ButtonAction> release;
 };
 
-using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ImeKey, ActionKey>;
+using KeyAction = std::variant<BlankKey, TypeKey, ProfileKey, ChatboxKey, ImeKey, ActionKey>;
 
 struct FixedLabel {
     VirtualKey key;

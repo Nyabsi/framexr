@@ -26,6 +26,7 @@
 #include <gtest/gtest.h>
 
 #include "ButtonComponent.hpp"
+#include "Config.hpp"
 #include "Compose.hpp"
 #include "CommandBatch.hpp"
 #include "CommandBuffer.hpp"
@@ -35,9 +36,11 @@
 #include "KeyComponent.hpp"
 #include "Keyboard.hpp"
 #include "LabelComponent.hpp"
+#include "Osc.hpp"
 #include "PanelComponent.hpp"
 #include "Png.hpp"
 #include "TestApp.hpp"
+#include "UdpSocket.hpp"
 
 namespace {
 
@@ -242,6 +245,47 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters) {
 
     EXPECT_GT(brightness(after, 84, 262), brightness(before, 84, 262) + 150);
     EXPECT_GT(GpuReadback::DistinctColors(after), 2U);
+}
+
+TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt) {
+    uint16_t port = 0;
+    {
+        auto closed = UdpSocket::Bind(UdpAddress::Loopback, 0);
+        ASSERT_TRUE(closed.has_value());
+        port = closed->LocalPort();
+    }
+    auto osc = Osc::Create(port);
+    ASSERT_TRUE(osc.has_value());
+    g_osc = osc->get();
+    g_config->keyboard_profile = "keychron-v1-ansi";
+    auto keyboard = Keyboard::Create(nullptr);
+    ASSERT_TRUE(keyboard.has_value());
+    auto& backend = *(*keyboard)->Composer();
+    ASSERT_TRUE(backend.ShouldRender().has_value());
+    const auto meta = backend.Meta();
+    ASSERT_TRUE(meta.has_value());
+    const auto& layout = KeyboardLayout::Find("keychron-v1-ansi");
+    const auto chat = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
+        return std::holds_alternative<ChatboxKey>(key.action);
+    });
+    ASSERT_NE(chat, layout.Keys().end());
+    const auto rect = Keyboard::KeyRect(*chat, {});
+    const PointerHit hit{
+        .uv = Eigen::Vector2f(
+            (rect.x + (rect.w * 0.5f)) / static_cast<float>(meta->extent.width),
+            (rect.y + (rect.h * 0.5f)) / static_cast<float>(meta->extent.height)
+        ),
+    };
+
+    backend.OnPointer(hit, true);
+    ASSERT_TRUE(backend.ShouldRender().has_value());
+    EXPECT_NE(backend.FindText("VRChat chatbox"), nullptr);
+    backend.OnPointer(hit, false);
+    backend.OnPointer(hit, true);
+    ASSERT_TRUE(backend.ShouldRender().has_value());
+    backend.OnPointer(hit, false);
+    EXPECT_EQ(backend.FindText("VRChat chatbox"), nullptr);
+    g_osc = nullptr;
 }
 
 TEST(KeyState, TheLegendThatWillBeTypedIsTheBrightOne) {

@@ -7,6 +7,7 @@
 # What a key does:
 # - key: <VirtualKey>      types it, modifiers are single use and Caps Lock latches
 # - action: Profile        switches to the next keyboard profile
+# - action: Chatbox        types into the VRChat chatbox
 # - action: Ime            toggles native script and Latin
 # - press / release: [..]  runs actions, like a Shortcut or an Exec command
 # Optional per key: label: [lower, upper], shifted_label, style: { bg_color, fg_color, corner_radius }
@@ -122,6 +123,7 @@ keys:
     - { at: [15.5, 2], key: Delete, label: ["Del"] }
     - { at: [16.5, 2], key: End }
     - { at: [17.5, 2], key: Next, label: ["PgDn"] }
+    - { at: [16.5, 3], action: Chatbox, label: ["Chat"] }
     - { at: [16.5, 4], key: Up }
     - { at: [15.5, 5], key: Left }
     - { at: [16.5, 5], key: Down }

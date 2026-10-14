@@ -217,6 +217,8 @@ auto ParseKey(const nlohmann::json& json) -> KeyDefinition {
         const auto action_name = action->get<std::string>();
         if (action_name == "Profile") {
             key.action = ProfileKey{};
+        } else if (action_name == "Chatbox") {
+            key.action = ChatboxKey{};
         } else if (action_name == "Ime") {
             key.action = ImeKey{};
         } else if (action_name == "Blank") {
@@ -260,6 +262,8 @@ auto KeyJson(const KeyDefinition& key) -> nlohmann::ordered_json {
                 json["key"] = VirtualKeys::Name(action.key);
             } else if constexpr (std::is_same_v<Action, ProfileKey>) {
                 json["action"] = "Profile";
+            } else if constexpr (std::is_same_v<Action, ChatboxKey>) {
+                json["action"] = "Chatbox";
             } else if constexpr (std::is_same_v<Action, ImeKey>) {
                 json["action"] = "Ime";
             } else if constexpr (std::is_same_v<Action, BlankKey>) {
@@ -485,6 +489,8 @@ auto KeyboardLayout::Labels(const KeyDefinition& key) const -> std::vector<std::
                 return DefaultLabel(VirtualKeys::Name(action.key));
             } else if constexpr (std::is_same_v<Action, ProfileKey>) {
                 return {"Layout"};
+            } else if constexpr (std::is_same_v<Action, ChatboxKey>) {
+                return {"Chat"};
             } else if constexpr (std::is_same_v<Action, ImeKey>) {
                 return {"IME"};
             } else {

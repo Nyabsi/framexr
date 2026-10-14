@@ -10,6 +10,7 @@ framexr_inc = include_directories(
   'input',
   'input/hid/null',
   'input/hid/shared',
+  'integration/linux',
   'integration/shared',
   'overlay',
   'overlay/views',
@@ -38,6 +39,7 @@ if is_windows
     'platform/win32/ExitStatus.cpp',
     'platform/win32/Platform.cpp',
     'platform/win32/Process.cpp',
+    'platform/win32/Utf16.cpp',
   )
 else
   core_sources += files(
@@ -66,6 +68,7 @@ input_sources = files(
 )
 
 integration_sources = files(
+  'integration/Chatbox.cpp',
   'integration/Notifications.cpp',
   'integration/Osc.cpp',
   'integration/ToastIngest.cpp',
@@ -200,19 +203,26 @@ hid_sources = files(
 if is_windows
   hid_sources += files(
     'input/hid/win32/HidProvider.cpp',
+    'input/hid/win32/ImeContext.cpp',
     'input/hid/win32/InputMethod.cpp',
     'input/hid/win32/Keymap.cpp',
     'input/hid/win32/LayoutInputMethod.cpp',
     'input/hid/win32/Scancodes.cpp',
     'input/hid/win32/SendInputProvider.cpp',
+    'input/hid/win32/tsf/TsfCandidateSink.cpp',
+    'input/hid/win32/tsf/TsfContext.cpp',
+    'input/hid/win32/tsf/TsfTextStore.cpp',
   )
 else
   hid_sources += files(
     'input/hid/linux/DesktopInputMethod.cpp',
     'input/hid/linux/HidProvider.cpp',
+    'input/hid/linux/ImeContext.cpp',
     'input/hid/linux/InputMethod.cpp',
     'input/hid/linux/Keymap.cpp',
     'input/hid/linux/UInputProvider.cpp',
+    'input/hid/linux/ibus/IbusContext.cpp',
+    'input/hid/linux/ibus/IbusDaemon.cpp',
   )
 endif
 

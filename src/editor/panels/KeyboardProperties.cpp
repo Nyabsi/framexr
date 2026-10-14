@@ -233,6 +233,7 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     const bool is_macro = action != nullptr && !is_shortcut;
     const bool is_layout = std::holds_alternative<ProfileKey>(key.action);
     const bool is_blank = std::holds_alternative<BlankKey>(key.action);
+    const bool is_chatbox = std::holds_alternative<ChatboxKey>(key.action);
     const bool is_ime = std::holds_alternative<ImeKey>(key.action);
 
     m_stack.AddComponent<SectionComponent>("action", "Action");
@@ -302,6 +303,15 @@ auto KeyboardProperties::AddKeyAction(Editor& editor, size_t index) -> void {
     as_layout.SetEllipsize(true);
     as_layout.SetOnRelease([&editor, index]() -> void {
         editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ProfileKey{}; });
+    });
+
+    auto& as_chatbox = others.AddComponent<ButtonComponent>("chatbox", "Chat");
+    as_chatbox.SetFontSize(PanelStyle::kTextFont);
+    as_chatbox.SetFgColor(is_chatbox ? on_accent : text);
+    as_chatbox.SetBgColor(is_chatbox ? accent : surface);
+    as_chatbox.SetEllipsize(true);
+    as_chatbox.SetOnRelease([&editor, index]() -> void {
+        editor.EditKeyboard([index](KeyboardLayout& edited) -> void { edited.Keys().at(index).action = ChatboxKey{}; });
     });
 
     auto& as_ime = others.AddComponent<ButtonComponent>("ime", "IME");

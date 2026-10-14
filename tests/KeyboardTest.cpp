@@ -82,6 +82,12 @@ TEST(KeyboardLayout, DefaultIsKeychronV1Ansi) {
     });
     ASSERT_NE(profile, layout.Keys().end());
     EXPECT_EQ(layout.Labels(*profile), std::vector<std::string>{"Layout"});
+    const auto chatbox = std::ranges::find_if(layout.Keys(), [](const KeyDefinition& key) -> bool {
+        return std::holds_alternative<ChatboxKey>(key.action);
+    });
+    ASSERT_NE(chatbox, layout.Keys().end());
+    EXPECT_EQ(chatbox->row, 5);
+    EXPECT_FLOAT_EQ(chatbox->x, 11.0f);
 }
 
 TEST(KeyboardLayout, LabelsFollowOriginalRules) {
@@ -244,6 +250,9 @@ TEST(KeyboardProfiles, ImeKeyboardsShipWithAndWithoutTheNumpad) {
             EXPECT_EQ(has(layout, VirtualKey::Kp5), std::string_view(variant) == "full-size") << name;
             EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
                 return std::holds_alternative<ProfileKey>(key.action);
+            })) << name;
+            EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
+                return std::holds_alternative<ChatboxKey>(key.action);
             })) << name;
             EXPECT_TRUE(std::ranges::any_of(layout.Keys(), [](const KeyDefinition& key) -> bool {
                 return std::holds_alternative<ImeKey>(key.action);

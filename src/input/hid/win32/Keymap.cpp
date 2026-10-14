@@ -29,6 +29,7 @@
 #include <windows.h>
 
 #include "Scancodes.hpp"
+#include "Utf16.hpp"
 
 namespace {
 
@@ -48,16 +49,6 @@ constexpr auto kLayouts = std::to_array<std::pair<std::string_view, std::wstring
     {"gr", L"00000408"}, {"tr", L"0000041F"},         {"il", L"0000040D"},       {"jp", L"00000411"}, {"kr", L"00000412"},
     {"cn", L"00000804"}, {"tw", L"00000404"},
 });
-
-auto Narrow(std::wstring_view text) -> std::string {
-    if (text.empty()) {
-        return {};
-    }
-    const int size = WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
-    std::string narrow(static_cast<size_t>(size), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), narrow.data(), size, nullptr, nullptr);
-    return narrow;
-}
 
 auto FirstCodepoint(std::wstring_view text) -> uint32_t {
     if (text.empty()) {
@@ -191,7 +182,7 @@ auto Keymap::KeySym(VirtualKey key, uint8_t modifiers) const -> uint32_t {
 
 auto Keymap::Text(VirtualKey key, uint8_t modifiers) const -> std::string {
     const auto translated = Translate(static_cast<HKL>(m_layout.get()), key, modifiers);
-    return translated.dead ? std::string() : Narrow(translated.text);
+    return translated.dead ? std::string() : Utf16::Narrow(translated.text);
 }
 
 auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
@@ -208,7 +199,7 @@ auto Keymap::Find(char32_t character) const -> std::optional<TranslatedKey> {
 }
 
 auto Keymap::LabelForKey(VirtualKey key, uint8_t modifier) const -> std::string {
-    return Narrow(Translate(static_cast<HKL>(m_layout.get()), key, modifier).text);
+    return Utf16::Narrow(Translate(static_cast<HKL>(m_layout.get()), key, modifier).text);
 }
 
 auto Keymap::HasAltGr() const -> bool {

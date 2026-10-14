@@ -19,11 +19,13 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdlib>
 #include <deque>
 #include <format>
 #include <memory>
 #include <numbers>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -33,6 +35,7 @@
 #include "Config.hpp"
 #include "Interaction.hpp"
 #include "Keyboard.hpp"
+#include "Osc.hpp"
 #include "KeyboardPicker.hpp"
 #include "ActionBinding.hpp"
 #include "Compose.hpp"
@@ -44,6 +47,7 @@
 #include "Desktop.hpp"
 #include "ScreenInteraction.hpp"
 #include "TaskQueue.hpp"
+#include "UdpSocket.hpp"
 #include "Watch.hpp"
 #include "Yaml.hpp"
 
@@ -662,6 +666,165 @@ TEST_F(LaserInteraction, ImeKeySelectsTheInputMethodWhileShown) {
     keyboard.Update();
     EXPECT_EQ(hid.InputMethods(), (std::vector<ImeScript>{ImeScript::Hangul, ImeScript::None, ImeScript::Hangul, ImeScript::None}));
     g_config->keyboard_profile = "keychron-v1-ansi";
+}
+
+TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox) {
+    auto receiver = UdpSocket::Bind(UdpAddress::Loopback, 0);
+    ASSERT_TRUE(receiver.has_value());
+    ASSERT_TRUE(receiver->SetReceiveTimeout(std::chrono::milliseconds(500)).has_value());
+    auto osc = Osc::Create(receiver->LocalPort());
+    ASSERT_TRUE(osc.has_value());
+    g_osc = osc->get();
+    const auto receive = [&receiver]() -> std::string {
+        std::array<std::byte, 512> buffer{};
+        const auto size = receiver->Receive(buffer);
+        return size ? std::string(reinterpret_cast<const char*>(buffer.data()), *size) : std::string();
+    };
+    const auto shows = [](View& view, std::string_view text) -> bool {
+        EXPECT_TRUE(view.Composer()->ShouldRender().has_value());
+        return view.Composer()->FindText(text) != nullptr;
+    };
+
+    ScopedRecordingHid hid;
+    g_config->keyboard_profile = "keychron-v1-ansi";
+    auto created = Keyboard::Create(nullptr);
+    ASSERT_TRUE(created.has_value());
+    (*created)->SetWantVisible(true);
+    m_overlays->Add(std::move(*created));
+    auto& keyboard = dynamic_cast<Keyboard&>(*m_overlays->ByName(kKeyboardName));
+    ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+    auto* chat = keyboard.Composer()->FindText("Chat");
+    ASSERT_NE(chat, nullptr);
+    ASSERT_NE(chat->Parent(), nullptr);
+
+    chat->Parent()->OnPress(PointerMode::Left);
+    EXPECT_TRUE(shows(keyboard, "VRChat chatbox"));
+    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return}) {
+        keyboard.Input().Press(key, PointerMode::Left);
+        keyboard.Input().Release(key);
+        if (key == VirtualKey::I) {
+            EXPECT_TRUE(shows(keyboard, "hi"));
+        }
+    }
+    EXPECT_TRUE(hid.Events().empty());
+
+    const auto probe = receive();
+    EXPECT_TRUE(probe.starts_with("/chatbox/typing")) << probe;
+    EXPECT_NE(probe.find(",F"), std::string::npos);
+    const auto typing = receive();
+    EXPECT_TRUE(typing.starts_with("/chatbox/typing")) << typing;
+    EXPECT_NE(typing.find(",T"), std::string::npos);
+    const auto message = receive();
+    EXPECT_TRUE(message.starts_with("/chatbox/input")) << message;
+    EXPECT_NE(message.find(",sTT"), std::string::npos);
+    EXPECT_NE(message.find("hi"), std::string::npos);
+    const auto stopped = receive();
+    EXPECT_TRUE(stopped.starts_with("/chatbox/typing")) << stopped;
+    EXPECT_NE(stopped.find(",F"), std::string::npos);
+
+    EXPECT_TRUE(shows(keyboard, "VRChat chatbox"));
+    chat->Parent()->OnPress(PointerMode::Left);
+    EXPECT_FALSE(shows(keyboard, "VRChat chatbox"));
+    g_osc = nullptr;
+}
+
+TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus) {
+    if (std::getenv("FRAMEXR_IBUS_TEST") == nullptr) {
+        GTEST_SKIP() << "needs ibus with anthy, table:cangjie5 and hangul, set FRAMEXR_IBUS_TEST=1";
+    }
+    struct Composition {
+        std::string_view profile;
+        std::string_view toggle;
+        std::vector<VirtualKey> keys;
+        std::string_view expected;
+    };
+    const auto compositions = std::to_array<Composition>({
+        {"jis-tkl",
+         "かな",
+         {VirtualKey::N, VirtualKey::I, VirtualKey::H, VirtualKey::O, VirtualKey::N, VirtualKey::Space, VirtualKey::Return},
+         "日本"},
+        {"chinese-tkl", "中/英", {VirtualKey::A, VirtualKey::B, VirtualKey::Space}, "明"},
+        {"korean-tkl", "한/영", {VirtualKey::G, VirtualKey::K, VirtualKey::S, VirtualKey::R, VirtualKey::M, VirtualKey::F}, "한글"},
+    });
+    auto receiver = UdpSocket::Bind(UdpAddress::Loopback, 0);
+    ASSERT_TRUE(receiver.has_value());
+    ASSERT_TRUE(receiver->SetReceiveTimeout(std::chrono::milliseconds(500)).has_value());
+    auto osc = Osc::Create(receiver->LocalPort());
+    ASSERT_TRUE(osc.has_value());
+    g_osc = osc->get();
+    ScopedRecordingHid hid;
+
+    for (const auto& composition : compositions) {
+        SCOPED_TRACE(composition.profile);
+        g_config->keyboard_profile = std::string(composition.profile);
+        auto created = Keyboard::Create(nullptr);
+        ASSERT_TRUE(created.has_value());
+        auto& keyboard = **created;
+        keyboard.SetWantVisible(true);
+        ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+        keyboard.Composer()->FindText(composition.toggle)->Parent()->OnPress(PointerMode::Left);
+        keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+        for (const auto key : composition.keys) {
+            keyboard.Input().Press(key, PointerMode::Left);
+            keyboard.Input().Release(key);
+        }
+        bool composed = false;
+        for (int wait = 0; wait < 200 && !composed; ++wait) {
+            keyboard.Update();
+            ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+            composed = keyboard.Composer()->FindText(composition.expected) != nullptr;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        EXPECT_TRUE(composed);
+        keyboard.Input().Press(VirtualKey::Return, PointerMode::Left);
+        keyboard.Input().Release(VirtualKey::Return);
+
+        std::string message;
+        for (int i = 0; i < 6 && !message.starts_with("/chatbox/input"); ++i) {
+            std::array<std::byte, 512> buffer{};
+            const auto size = receiver->Receive(buffer);
+            message = size ? std::string(reinterpret_cast<const char*>(buffer.data()), *size) : std::string();
+        }
+        EXPECT_NE(message.find(composition.expected), std::string::npos) << message;
+        keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+    }
+    EXPECT_TRUE(hid.Events().empty());
+    g_osc = nullptr;
+    g_config->keyboard_profile = "keychron-v1-ansi";
+}
+
+TEST_F(LaserInteraction, ChatKeyTellsTheUserWhenVrchatIsNotListening) {
+    uint16_t port = 0;
+    {
+        auto closed = UdpSocket::Bind(UdpAddress::Loopback, 0);
+        ASSERT_TRUE(closed.has_value());
+        port = closed->LocalPort();
+    }
+    auto osc = Osc::Create(port);
+    ASSERT_TRUE(osc.has_value());
+    g_osc = osc->get();
+
+    ScopedRecordingHid hid;
+    g_config->keyboard_profile = "keychron-v1-ansi";
+    auto created = Keyboard::Create(nullptr);
+    ASSERT_TRUE(created.has_value());
+    (*created)->SetWantVisible(true);
+    m_overlays->Add(std::move(*created));
+    auto& keyboard = dynamic_cast<Keyboard&>(*m_overlays->ByName(kKeyboardName));
+    ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+    auto* chat = keyboard.Composer()->FindText("Chat");
+    ASSERT_NE(chat, nullptr);
+    chat->Parent()->OnPress(PointerMode::Left);
+    for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return, VirtualKey::H}) {
+        keyboard.Input().Press(key, PointerMode::Left);
+        keyboard.Input().Release(key);
+        RunTasks();
+    }
+    auto* toast = m_overlays->ByName("toast");
+    ASSERT_NE(toast, nullptr);
+    ASSERT_TRUE(toast->Composer()->ShouldRender().has_value());
+    EXPECT_NE(toast->Composer()->FindText("VRChat isn't receiving OSC"), nullptr);
+    g_osc = nullptr;
 }
 
 TEST_F(LaserInteraction, LayoutKeyOpensAPickerThatSwitchesKeyboards) {

@@ -23,7 +23,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <variant>
+#include <vector>
 
 #include "Device.hpp"
 #include "FontCache.hpp"
@@ -94,7 +96,36 @@ auto Compose::Resize(uint32_t width, uint32_t height) -> Result<> {
 }
 
 auto Compose::Rebuild() -> void {
+    std::vector<const FormComponent*> owners(m_items.size(), nullptr);
+    for (size_t index = 0; index < m_items.size(); ++index) {
+        if (const auto* interact = std::get_if<InteractItem>(&m_items[index])) {
+            owners[index] = interact->owner;
+        }
+    }
     m_items = m_form->Build(m_scale);
+    const auto remap = [this, &owners](std::optional<size_t>& index) -> void {
+        const auto* owner = index && *index < owners.size() ? owners[*index] : nullptr;
+        index.reset();
+        for (size_t moved = 0; owner != nullptr && moved < m_items.size(); ++moved) {
+            if (const auto* interact = std::get_if<InteractItem>(&m_items[moved]);
+                interact != nullptr && interact->owner == owner) {
+                index = moved;
+                return;
+            }
+        }
+    };
+    for (auto& index : m_hovered) {
+        remap(index);
+    }
+    for (auto& index : m_pressed) {
+        remap(index);
+    }
+    std::erase_if(m_released, [&remap](PressFlash& flash) -> bool {
+        std::optional<size_t> index = flash.index;
+        remap(index);
+        flash.index = index.value_or(0);
+        return !index;
+    });
     std::ranges::fill(m_interact_map, std::nullopt);
     for (size_t index = 0; index < m_items.size(); ++index) {
         if (const auto* interact = std::get_if<InteractItem>(&m_items[index]); interact != nullptr && interact->clickable) {
