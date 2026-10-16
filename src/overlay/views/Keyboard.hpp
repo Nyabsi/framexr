@@ -82,7 +82,6 @@ class Keyboard final : public View
     Keyboard();
 
     auto Bind(KeyComponent& key, const KeyDefinition& definition, const std::shared_ptr<const Keymap>& keymap) -> void;
-    auto ShowDraft() -> void;
 
     KeyboardInput m_input;
     std::vector<LetterLegend> m_letters;
@@ -90,9 +89,6 @@ class Keyboard final : public View
     std::shared_ptr<Chatbox> m_chatbox = std::make_shared<Chatbox>();
     KeyEmphasis m_emphasis;
     bool m_native = false;
-    KeyComponent* m_space = nullptr;
-    KeyCapType m_space_cap = KeyCapType::Regular;
-    std::vector<std::string> m_space_labels;
     bool m_uppercase = false;
     ImeScript m_ime = ImeScript::None;
     ImeScript m_selected_ime = ImeScript::None;

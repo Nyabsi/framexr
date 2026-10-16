@@ -21,7 +21,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,7 +48,6 @@ class Chatbox final : public TextInput, public std::enable_shared_from_this<Chat
     [[nodiscard]] auto Draft() const -> const std::string& { return m_draft; }
     [[nodiscard]] auto Display() const -> std::string;
 
-    auto SetOnChange(std::function<void()> on_change) -> void { m_on_change = std::move(on_change); }
     auto SetScript(ImeScript script) -> void;
 
     auto Toggle() -> void;
@@ -72,7 +70,6 @@ class Chatbox final : public TextInput, public std::enable_shared_from_this<Chat
     std::unique_ptr<ImeContext> m_ime;
     std::optional<std::chrono::steady_clock::time_point> m_connecting;
     std::vector<QueuedKey> m_queued;
-    std::function<void()> m_on_change;
     ImeScript m_script = ImeScript::None;
     bool m_open = false;
     bool m_typing = false;

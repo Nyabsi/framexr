@@ -315,8 +315,4 @@ auto Chatbox::Changed() -> void
         m_typing = typing;
         Deliver("/chatbox/typing", {typing});
     }
-    if (m_on_change)
-    {
-        m_on_change();
-    }
 }

@@ -124,6 +124,7 @@ overlay_sources = files(
   'overlay/Compose.cpp',
   'overlay/Container.cpp',
   'overlay/View.cpp',
+  'overlay/views/ChatboxPreview.cpp',
   'overlay/views/Desktop.cpp',
   'overlay/views/EditorPanel.cpp',
   'overlay/views/Keyboard.cpp',

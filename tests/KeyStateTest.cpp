@@ -33,6 +33,7 @@
 #include "Device.hpp"
 #include "Form.hpp"
 #include "GpuReadback.hpp"
+#include "Interaction.hpp"
 #include "KeyComponent.hpp"
 #include "Keyboard.hpp"
 #include "LabelComponent.hpp"
@@ -267,7 +268,7 @@ TEST(KeyState, CapsLockOnTheKeyboardLatchesAndUppercasesLetters)
     EXPECT_GT(GpuReadback::DistinctColors(after), 2U);
 }
 
-TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt)
+TEST(KeyState, ChatKeyTogglesTheChatboxFocus)
 {
     uint16_t port = 0;
     {
@@ -300,13 +301,11 @@ TEST(KeyState, ReleasingAKeyThatRelabelledAnEarlierKeyStillReleasesIt)
     };
 
     backend.OnPointer(hit, true);
-    ASSERT_TRUE(backend.ShouldRender().has_value());
-    EXPECT_NE(backend.FindText("VRChat chatbox"), nullptr);
     backend.OnPointer(hit, false);
+    EXPECT_NE(g_interaction->FocusedTextInput(), nullptr);
     backend.OnPointer(hit, true);
-    ASSERT_TRUE(backend.ShouldRender().has_value());
     backend.OnPointer(hit, false);
-    EXPECT_EQ(backend.FindText("VRChat chatbox"), nullptr);
+    EXPECT_EQ(g_interaction->FocusedTextInput(), nullptr);
     g_osc = nullptr;
 }
 

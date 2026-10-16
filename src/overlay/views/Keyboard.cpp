@@ -33,6 +33,7 @@
 #include <locale.h>
 
 #include "ActionRunner.hpp"
+#include "views/ChatboxPreview.hpp"
 #include "KeyboardPicker.hpp"
 #include "AudioPlayback.hpp"
 #include "Compose.hpp"
@@ -115,25 +116,6 @@ auto RegionKeymap(const std::string& name) -> std::shared_ptr<const Keymap>
     return keymap;
 }
 
-auto Tail(std::string text, int size, float width) -> std::string
-{
-    if (FontCache::Width(text, size) <= width)
-    {
-        return text;
-    }
-    constexpr std::string_view kEllipsis = "\u2026";
-    while (!text.empty() && FontCache::Width(std::string(kEllipsis) + text, size) > width)
-    {
-        size_t end = 1;
-        while (end < text.size() && (static_cast<unsigned char>(text[end]) & 0xC0U) == 0x80U)
-        {
-            ++end;
-        }
-        text.erase(0, end);
-    }
-    return std::string(kEllipsis) + text;
-}
-
 auto StartsWithLetter(std::string_view text) -> bool
 {
     const auto codepoints = FontCache::DecodeUtf8(text);
@@ -207,7 +189,6 @@ auto Keyboard::Fill(
             region_keymap && keymap ? std::make_shared<const KeyTranslator>(KeyTranslator::Create(region_keymap, keymap)) : nullptr
         );
         owner->m_letters.clear();
-        owner->m_space = nullptr;
         owner->m_keys.clear();
     }
     const Keymap* typing_keymap = typing.get();
@@ -289,12 +270,6 @@ auto Keyboard::Fill(
         placed.SetFgColor(key.style.fg_color ? Color(*key.style.fg_color) : fg_color);
         placed.SetBgColor(key.style.bg_color ? Color(*key.style.bg_color) : bg_color);
         placed.SetLegends(cap_type, labels, layout.ImeLabels(key));
-        if (const auto* typed = std::get_if<TypeKey>(&key.action); owner != nullptr && typed && typed->key == VirtualKey::Space)
-        {
-            owner->m_space = &placed;
-            owner->m_space_cap = cap_type;
-            owner->m_space_labels = labels;
-        }
         if (owner != nullptr && upper_case && !placed.Legends().empty())
         {
             owner->m_letters.push_back(
@@ -312,7 +287,6 @@ Keyboard::Keyboard()
     SetInteractable(true);
     SetSpawnPoint(Eigen::Vector3f(0.0f, -kKeyboardDrop, -kKeyboardReach));
     SetSpawnRotation(Eigen::Quaternionf(Eigen::AngleAxisf(-std::atan2(kKeyboardDrop, kKeyboardReach), Eigen::Vector3f::UnitX())));
-    m_chatbox->SetOnChange([this]() -> void { ShowDraft(); });
 }
 
 auto Keyboard::Create(const std::shared_ptr<const Keymap>& keymap) -> Result<std::unique_ptr<Keyboard>>
@@ -333,7 +307,6 @@ auto Keyboard::Apply(const std::shared_ptr<const Keymap>& keymap, const Keyboard
     m_native = m_native && m_ime != ImeScript::None;
     m_emphasis = {};
     m_chatbox->SetScript(m_native ? m_ime : ImeScript::None);
-    ShowDraft();
     ASSIGN_OR_RETURN(auto canvas, Compose::Create(std::move(form)));
     SetComposer(std::move(canvas));
     SetSpawnScale(size.x() / kPixelsPerUnit * kMetersPerUnit * g_config->keyboard_scale);
@@ -409,6 +382,10 @@ auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const st
             {
                 Click();
                 m_chatbox->Toggle();
+                if (m_chatbox->Active())
+                {
+                    ChatboxPreview::Open(m_chatbox);
+                }
             }
         );
         key.SetHighlightColor(
@@ -462,24 +439,6 @@ auto Keyboard::Bind(KeyComponent& key, const KeyDefinition& definition, const st
             );
         }
     }
-}
-
-auto Keyboard::ShowDraft() -> void
-{
-    if (m_space == nullptr)
-    {
-        return;
-    }
-    if (!m_chatbox->Active())
-    {
-        m_space->SetLegends(m_space_cap, m_space_labels);
-        return;
-    }
-    const auto draft = m_chatbox->Display();
-    const std::vector<std::string> legend{
-        draft.empty() ? std::string("VRChat chatbox") : Tail(draft, kKeyFontSize, m_space->Size().x() - (2.0f * kButtonPadding))
-    };
-    m_space->SetLegends(KeyCapType::Regular, legend);
 }
 
 auto Keyboard::SwitchProfile(std::shared_ptr<const Keymap> keymap, std::string profile) -> void

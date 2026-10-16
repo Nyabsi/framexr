@@ -32,13 +32,16 @@
 #include "CommandBuffer.hpp"
 #include "Config.hpp"
 #include "Settings.hpp"
+#include "ChatboxPreview.hpp"
 #include "Device.hpp"
 #include "GpuReadback.hpp"
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
 #include "Container.hpp"
+#include "Osc.hpp"
 #include "TaskQueue.hpp"
 #include "Toast.hpp"
+#include "UdpSocket.hpp"
 #include "Png.hpp"
 #include "TestApp.hpp"
 #include "Watch.hpp"
@@ -169,6 +172,60 @@ TEST(OverlayRender, LongToastWrapsIntoLines)
     EXPECT_LE(meta->extent.width, 560U);
     EXPECT_GT(meta->extent.height, 100U);
     RenderOverlay(*toast, "toast-wrapped");
+}
+
+TEST(OverlayRender, ChatboxPreviewFloatsAboveTheKeyboard)
+{
+    uint16_t port = 0;
+    {
+        auto closed = UdpSocket::Bind(UdpAddress::Loopback, 0);
+        ASSERT_TRUE(closed.has_value());
+        port = closed->LocalPort();
+    }
+    auto osc = Osc::Create(port);
+    ASSERT_TRUE(osc.has_value());
+    g_osc = osc->get();
+    const auto overlays = Container::CreateEmpty();
+    auto created = Keyboard::Create(nullptr);
+    ASSERT_TRUE(created.has_value());
+    (*created)->SetWantVisible(true);
+    overlays->Add(std::move(*created));
+    auto& keyboard = dynamic_cast<Keyboard&>(*overlays->ByName(kKeyboardName));
+    ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
+    keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+    CreateOverlays(*overlays);
+    auto* preview = overlays->ByName(kChatboxPreviewName);
+    ASSERT_NE(preview, nullptr);
+    for (const auto key :
+         {VirtualKey::H,
+          VirtualKey::E,
+          VirtualKey::Y,
+          VirtualKey::Space,
+          VirtualKey::T,
+          VirtualKey::H,
+          VirtualKey::E,
+          VirtualKey::R,
+          VirtualKey::E})
+    {
+        keyboard.Input().Press(key, PointerMode::Left);
+        keyboard.Input().Release(key);
+    }
+    preview->Update();
+    ASSERT_TRUE(preview->Composer()->ShouldRender().has_value());
+    EXPECT_NE(preview->Composer()->FindText("hey there"), nullptr);
+    EXPECT_GT(preview->Transform().translation().y(), keyboard.Transform().translation().y());
+    EXPECT_FALSE(preview->Curvature().has_value());
+    keyboard.SetCurvature(0.2f);
+    preview->Update();
+    ASSERT_TRUE(preview->Curvature().has_value());
+    const float ratio = preview->Composer()->Root()->Size().x() / keyboard.Composer()->Root()->Size().x();
+    EXPECT_FLOAT_EQ(*preview->Curvature(), 0.2f * ratio);
+    const float keyboard_radius = keyboard.Transform().linear().col(0).norm() / *keyboard.Curvature();
+    const float preview_radius = preview->Transform().linear().col(0).norm() / *preview->Curvature();
+    EXPECT_NEAR(preview_radius, keyboard_radius, 1e-4f);
+    RenderOverlay(*preview, "chatbox-preview");
+    keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+    g_osc = nullptr;
 }
 
 TEST(OverlayRender, SettingsPanel)

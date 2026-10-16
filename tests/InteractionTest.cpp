@@ -36,6 +36,7 @@
 #include "Interaction.hpp"
 #include "Keyboard.hpp"
 #include "Osc.hpp"
+#include "ChatboxPreview.hpp"
 #include "KeyboardPicker.hpp"
 #include "ActionBinding.hpp"
 #include "Compose.hpp"
@@ -746,10 +747,16 @@ TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox)
         const auto size = receiver->Receive(buffer);
         return size ? std::string(reinterpret_cast<const char*>(buffer.data()), *size) : std::string();
     };
-    const auto shows = [](View& view, std::string_view text) -> bool
+    const auto shows = [this](std::string_view text) -> bool
     {
-        EXPECT_TRUE(view.Composer()->ShouldRender().has_value());
-        return view.Composer()->FindText(text) != nullptr;
+        auto* preview = m_overlays->ByName(kChatboxPreviewName);
+        if (preview == nullptr)
+        {
+            return false;
+        }
+        preview->Update();
+        EXPECT_TRUE(preview->Composer()->ShouldRender().has_value());
+        return preview->Composer()->FindText(text) != nullptr;
     };
 
     ScopedRecordingHid hid;
@@ -765,14 +772,17 @@ TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox)
     ASSERT_NE(chat->Parent(), nullptr);
 
     chat->Parent()->OnPress(PointerMode::Left);
-    EXPECT_TRUE(shows(keyboard, "VRChat chatbox"));
+    RunTasks();
+    EXPECT_TRUE(shows("VRChat chatbox  0/144"));
+    EXPECT_TRUE(shows("Type message to start"));
     for (const auto key : {VirtualKey::H, VirtualKey::I, VirtualKey::Return})
     {
         keyboard.Input().Press(key, PointerMode::Left);
         keyboard.Input().Release(key);
         if (key == VirtualKey::I)
         {
-            EXPECT_TRUE(shows(keyboard, "hi"));
+            EXPECT_TRUE(shows("hi"));
+            EXPECT_TRUE(shows("VRChat chatbox  2/144"));
         }
     }
     EXPECT_TRUE(hid.Events().empty());
@@ -791,9 +801,12 @@ TEST_F(LaserInteraction, ChatKeyTypesIntoTheVrchatChatbox)
     EXPECT_TRUE(stopped.starts_with("/chatbox/typing")) << stopped;
     EXPECT_NE(stopped.find(",F"), std::string::npos);
 
-    EXPECT_TRUE(shows(keyboard, "VRChat chatbox"));
+    EXPECT_TRUE(shows("Type message to start"));
     chat->Parent()->OnPress(PointerMode::Left);
-    EXPECT_FALSE(shows(keyboard, "VRChat chatbox"));
+    m_overlays->ByName(kChatboxPreviewName)->Update();
+    EXPECT_FALSE(m_overlays->ByName(kChatboxPreviewName)->WantVisible());
+    RunTasks();
+    EXPECT_EQ(m_overlays->ByName(kChatboxPreviewName), nullptr);
     g_osc = nullptr;
 }
 
@@ -832,11 +845,15 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus)
         g_config->keyboard_profile = std::string(composition.profile);
         auto created = Keyboard::Create(nullptr);
         ASSERT_TRUE(created.has_value());
-        auto& keyboard = **created;
-        keyboard.SetWantVisible(true);
+        (*created)->SetWantVisible(true);
+        m_overlays->Add(std::move(*created));
+        auto& keyboard = dynamic_cast<Keyboard&>(*m_overlays->ByName(kKeyboardName));
         ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
         keyboard.Composer()->FindText(composition.toggle)->Parent()->OnPress(PointerMode::Left);
         keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+        RunTasks();
+        auto* preview = m_overlays->ByName(kChatboxPreviewName);
+        ASSERT_NE(preview, nullptr);
         for (const auto key : composition.keys)
         {
             keyboard.Input().Press(key, PointerMode::Left);
@@ -846,8 +863,9 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus)
         for (int wait = 0; wait < 200 && !composed; ++wait)
         {
             keyboard.Update();
-            ASSERT_TRUE(keyboard.Composer()->ShouldRender().has_value());
-            composed = keyboard.Composer()->FindText(composition.expected) != nullptr;
+            preview->Update();
+            ASSERT_TRUE(preview->Composer()->ShouldRender().has_value());
+            composed = preview->Composer()->FindText(composition.expected) != nullptr;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         EXPECT_TRUE(composed);
@@ -863,6 +881,9 @@ TEST_F(LaserInteraction, ChatboxComposesNativeScriptThroughIbus)
         }
         EXPECT_NE(message.find(composition.expected), std::string::npos) << message;
         keyboard.Composer()->FindText("Chat")->Parent()->OnPress(PointerMode::Left);
+        preview->Update();
+        RunTasks();
+        m_overlays->Remove(std::string(kKeyboardName));
     }
     EXPECT_TRUE(hid.Events().empty());
     g_osc = nullptr;
