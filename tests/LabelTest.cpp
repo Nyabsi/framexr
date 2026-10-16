@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include "ClockComponent.hpp"
+#include "FontCache.hpp"
 
 namespace
 {
@@ -47,4 +48,17 @@ TEST(LabelFormatTime, MatchesChronoStrftime)
     EXPECT_EQ(Format("%D"), "03/05/24");
     EXPECT_EQ(Format("%j %u %w"), "065 2 2");
     EXPECT_EQ(Format("%%"), "%");
+}
+
+TEST(LabelWrap, BreaksAtSpacesWithinWidth)
+{
+    EXPECT_EQ(FontCache::Wrap("hello world again", 10, 60.0f), "hello\nworld\nagain");
+    EXPECT_EQ(FontCache::Wrap("short", 10, 60.0f), "short");
+    EXPECT_EQ(FontCache::Wrap("one two\nthree", 10, 60.0f), "one two\nthree");
+}
+
+TEST(LabelWrap, SplitsWordsLongerThanWidth)
+{
+    EXPECT_EQ(FontCache::Wrap("abcdefghijklmno", 10, 60.0f), "abcdefghij\nklmno");
+    EXPECT_EQ(FontCache::Wrap("x", 10, 1.0f), "x");
 }

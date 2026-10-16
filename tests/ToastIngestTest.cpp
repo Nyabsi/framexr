@@ -76,6 +76,19 @@ TEST(ToastIngest, XsOverlayNotificationMapsLikeOriginal)
     EXPECT_TRUE(message.sound);
 }
 
+TEST(ToastIngest, XsOverlayReadsVrcxNotification)
+{
+    const auto toast = ToastIngest::FromXsOverlay(
+        R"({"messageType":1,"index":0,"volume":0,"audioPath":"","timeout":3,"title":"VRCX","content":"Friend has logged in",)"
+        R"("icon":"/tmp/icon.png","height":110,"opacity":0.8,"useBase64Icon":false,"sourceApp":"VRCX"})"
+    );
+    ASSERT_TRUE(toast.has_value() && toast->has_value());
+    EXPECT_EQ((*toast)->title, "VRCX");
+    EXPECT_EQ((*toast)->body, "Friend has logged in");
+    EXPECT_EQ((*toast)->timeout, 3.0f);
+    EXPECT_EQ((*toast)->opacity, 0.8f);
+}
+
 TEST(ToastIngest, XsOverlayDefaults)
 {
     const auto toast = ToastIngest::FromXsOverlay(R"({"messageType":1,"title":"Hi"})");
@@ -83,6 +96,7 @@ TEST(ToastIngest, XsOverlayDefaults)
     EXPECT_FALSE((*toast)->sound);
     EXPECT_EQ((*toast)->timeout, 5.0f);
     EXPECT_TRUE((*toast)->body.empty());
+    EXPECT_EQ((*toast)->opacity, 1.0f);
 }
 
 TEST(ToastIngest, XsOverlayIgnoresOtherMessageTypes)

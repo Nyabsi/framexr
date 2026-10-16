@@ -16,6 +16,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+#include <deque>
 #include <format>
 #include <memory>
 #include <optional>
@@ -36,6 +37,8 @@
 #include "Keyboard.hpp"
 #include "Keymap.hpp"
 #include "Container.hpp"
+#include "TaskQueue.hpp"
+#include "Toast.hpp"
 #include "Png.hpp"
 #include "TestApp.hpp"
 #include "Watch.hpp"
@@ -77,6 +80,23 @@ auto RenderOverlay(View& overlay, const std::string& name) -> void
     const auto meta = overlay.Composer()->Meta();
     ASSERT_TRUE(meta.has_value());
     Png::Write(TestApp::OutputDir() / std::format("{}.png", name), meta->extent.width, meta->extent.height, pixels);
+}
+
+auto CreateOverlays(Container& overlays) -> void
+{
+    std::deque<Task> due;
+    g_tasks->TakeDue(due);
+    for (auto& task : due)
+    {
+        if (auto* create = std::get_if<CreateOverlayTask>(&task);
+            create != nullptr && overlays.BySelector(create->selector) == nullptr)
+        {
+            if (auto made = create->create())
+            {
+                overlays.Add(std::move(made));
+            }
+        }
+    }
 }
 
 constexpr uint32_t kCornerCanvasSize = 64;
@@ -128,6 +148,27 @@ TEST(OverlayRender, ImeKeyboards)
         RenderOverlay(**keyboard, std::format("keyboard-{}", name));
     }
     g_config->keyboard_profile = "keychron-v1-ansi";
+}
+
+TEST(OverlayRender, LongToastWrapsIntoLines)
+{
+    const auto overlays = Container::CreateEmpty();
+    std::deque<Task> stale;
+    g_tasks->TakeDue(stale);
+    Toast::Show({
+        .title = "VRCX",
+        .body = "Someone has invited you to their instance in a world with a rather long name, and also left a message "
+                "that keeps going for a while so that it needs several lines to fit.",
+    });
+    CreateOverlays(*overlays);
+    auto* toast = overlays->ByName("toast");
+    ASSERT_NE(toast, nullptr);
+    ASSERT_TRUE(toast->Composer()->ShouldRender().has_value());
+    const auto meta = toast->Composer()->Meta();
+    ASSERT_TRUE(meta.has_value());
+    EXPECT_LE(meta->extent.width, 560U);
+    EXPECT_GT(meta->extent.height, 100U);
+    RenderOverlay(*toast, "toast-wrapped");
 }
 
 TEST(OverlayRender, SettingsPanel)

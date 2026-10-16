@@ -193,6 +193,7 @@ auto ToastIngest::FromXsOverlay(std::string_view json) -> Result<std::optional<T
         .topic = ToastTopic::XsNotification,
         .title = title->get<std::string>(),
         .body = std::move(body),
+        .opacity = optional_float("opacity", 1.0f),
         .timeout = optional_float("timeout", 5.0f),
         .sound = optional_float("volume", -1.0f) >= 0.0f,
     };

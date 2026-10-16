@@ -78,6 +78,7 @@ class FontCache final
     static auto EncodeUtf8(std::span<const uint32_t> codepoints) -> std::string;
     static auto Width(std::string_view text, int size) -> float;
     static auto Ellipsize(std::string_view text, int size, float width) -> std::string;
+    static auto Wrap(std::string_view text, int size, float width) -> std::string;
 
     ~FontCache();
     FontCache(const FontCache&) = delete;

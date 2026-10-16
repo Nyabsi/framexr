@@ -21,6 +21,7 @@
 
 #include "Toast.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <format>
@@ -44,6 +45,7 @@ namespace
 
 constexpr int kFontSize = 16;
 constexpr float kPaddingX = 25.0f;
+constexpr float kMaxTextWidth = 500.0f;
 constexpr float kPixelsToMeters = 1.0f / 2000.0f;
 constexpr std::string_view kToastName = "toast";
 
@@ -86,10 +88,13 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
         break;
     }
 
-    const std::string title = toast.title.empty() ? "Notification" : toast.title;
+    const std::string body = FontCache::Wrap(toast.body, kFontSize, kMaxTextWidth);
+    const std::string title = toast.title.empty() ? "Notification"
+                            : body.empty()        ? FontCache::Wrap(toast.title, kFontSize, kMaxTextWidth)
+                                                  : FontCache::Ellipsize(toast.title, kFontSize, kMaxTextWidth);
 
     TextSize size;
-    if (toast.body.empty())
+    if (body.empty())
     {
         const auto title_size = g_fonts->MeasureText(title, kFontSize);
         if (!title_size)
@@ -101,7 +106,7 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
     else
     {
         const auto title_size = g_fonts->MeasureText(title, kFontSize);
-        const auto body_size = g_fonts->MeasureText(toast.body, kFontSize);
+        const auto body_size = g_fonts->MeasureText(body, kFontSize);
         if (!title_size || !body_size)
         {
             return nullptr;
@@ -120,7 +125,7 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
     background.SetCornerRadius(16.0f);
     background.SetBgColor(Color("@panel"));
 
-    if (toast.body.empty())
+    if (body.empty())
     {
         auto& heading = form->AddComponent<LabelComponent>("title", title);
         heading.SetRect({kPaddingX, 0.0f, text_width, size.height});
@@ -130,10 +135,10 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
     }
     else
     {
-        auto& body = form->AddComponent<LabelComponent>("body", toast.body);
-        body.SetRect({kPaddingX, 54.0f, text_width, size.height - 54.0f});
-        body.SetFontSize(kFontSize);
-        body.SetFgColor(Color("@text"));
+        auto& content = form->AddComponent<LabelComponent>("body", body);
+        content.SetRect({kPaddingX, 54.0f, text_width, size.height - 54.0f});
+        content.SetFontSize(kFontSize);
+        content.SetFgColor(Color("@text"));
 
         auto& header = form->AddComponent<PanelComponent>("header");
         header.SetRect({0.0f, 0.0f, size.width, 30.0f});
@@ -157,6 +162,7 @@ auto Toast::Create(const ToastMessage& toast) -> std::unique_ptr<Toast>
     state->SetComposer(std::move(*created));
     state->SetName(std::string(kToastName));
     state->SetWantVisible(true);
+    state->SetAlpha(std::clamp(toast.opacity, 0.0f, 1.0f));
     state->SetSpawnScale(size.width * kPixelsToMeters);
     state->SetSpawnRotation(spawn_rotation);
     state->SetSpawnPoint(spawn_point);

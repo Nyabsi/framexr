@@ -184,6 +184,48 @@ auto FontCache::Ellipsize(std::string_view text, int size, float width) -> std::
     return "...";
 }
 
+auto FontCache::Wrap(std::string_view text, int size, float width) -> std::string
+{
+    std::string wrapped;
+    const auto lines = SplitLines(text);
+    for (size_t line = 0; line < lines.size(); ++line)
+    {
+        if (line > 0)
+        {
+            wrapped += '\n';
+        }
+        const auto codepoints = DecodeUtf8(lines[line]);
+        const std::span<const uint32_t> all(codepoints);
+        size_t start = 0;
+        while (start < codepoints.size())
+        {
+            size_t end = start;
+            size_t space = start;
+            while (end < codepoints.size() && Width(EncodeUtf8(all.subspan(start, end + 1 - start)), size) <= width)
+            {
+                if (codepoints[end] == U' ')
+                {
+                    space = end;
+                }
+                ++end;
+            }
+            if (end == codepoints.size())
+            {
+                wrapped += EncodeUtf8(all.subspan(start));
+                break;
+            }
+            const size_t cut = codepoints[end] == U' ' ? end : space > start ? space : std::max(end, start + 1);
+            wrapped += EncodeUtf8(all.subspan(start, cut - start));
+            start = cut < codepoints.size() && codepoints[cut] == U' ' ? cut + 1 : cut;
+            if (start < codepoints.size())
+            {
+                wrapped += '\n';
+            }
+        }
+    }
+    return wrapped;
+}
+
 auto FontCache::Families() -> const std::vector<std::string>&
 {
     if (!m_families)
