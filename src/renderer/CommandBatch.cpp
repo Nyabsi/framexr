@@ -44,7 +44,11 @@ auto CommandBatch::Submit() -> Result<>
     {
         RETURN_IF_ERROR(command_buffer.Finish());
         handles.push_back(command_buffer.m_command_buffer);
-        submission.pools.emplace_back(command_buffer.m_queue->Family(), std::exchange(command_buffer.m_pool, VK_NULL_HANDLE));
+        submission.pools.push_back({
+            .family = command_buffer.m_queue->Family(),
+            .pool = std::exchange(command_buffer.m_pool, VK_NULL_HANDLE),
+            .command_buffer = command_buffer.m_command_buffer,
+        });
         for (auto& resource : command_buffer.m_retained)
         {
             submission.retained.push_back(std::move(resource));

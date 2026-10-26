@@ -57,10 +57,17 @@ struct QueueFamilyRequest
     uint32_t count = 0;
 };
 
+struct PooledCommandBuffer
+{
+    uint32_t family = 0;
+    VkCommandPool pool = VK_NULL_HANDLE;
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+};
+
 struct Submission
 {
     VkFence fence = VK_NULL_HANDLE;
-    std::vector<std::pair<uint32_t, VkCommandPool>> pools;
+    std::vector<PooledCommandBuffer> pools;
     std::vector<std::shared_ptr<void>> retained;
 };
 
@@ -102,7 +109,7 @@ class Device final
     auto FreeDescriptorSet(VkDescriptorPool pool, VkDescriptorSet set) -> void;
 
     auto AcquireCommandPool(uint32_t family) -> Result<VkCommandPool>;
-    auto ReleaseCommandPool(uint32_t family, VkCommandPool pool) -> void;
+    auto ReleaseCommandPool(const PooledCommandBuffer& pooled) -> void;
     auto Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffers, Submission submission, bool wait) -> Result<>;
     auto CollectFinished() -> void;
 

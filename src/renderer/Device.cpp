@@ -558,7 +558,7 @@ auto Device::CreateCommandBuffer(Queue& queue) -> Result<CommandBuffer>
     VkCommandBuffer command_buffer = VK_NULL_HANDLE;
     if (const auto result = vkAllocateCommandBuffers(m_device, &allocate_info, &command_buffer); result != VK_SUCCESS)
     {
-        ReleaseCommandPool(queue.Family(), pool);
+        ReleaseCommandPool({.family = queue.Family(), .pool = pool});
         return Unexpected(std::format("vkAllocateCommandBuffers failed: {}", static_cast<int>(result)));
     }
 
@@ -1157,11 +1157,15 @@ auto Device::AcquireCommandPool(uint32_t family) -> Result<VkCommandPool>
     return pool;
 }
 
-auto Device::ReleaseCommandPool(uint32_t family, VkCommandPool pool) -> void
+auto Device::ReleaseCommandPool(const PooledCommandBuffer& pooled) -> void
 {
-    vkResetCommandPool(m_device, pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+    if (pooled.command_buffer != VK_NULL_HANDLE)
+    {
+        vkFreeCommandBuffers(m_device, pooled.pool, 1, &pooled.command_buffer);
+    }
+    vkResetCommandPool(m_device, pooled.pool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
     std::scoped_lock lock(m_submission_mutex);
-    m_free_command_pools.emplace(family, pool);
+    m_free_command_pools.emplace(pooled.family, pooled.pool);
 }
 
 auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffers, Submission submission, bool wait) -> Result<>
@@ -1177,9 +1181,9 @@ auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffe
     if (auto result = queue.Submit(command_buffers, submission.fence); !result)
     {
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools)
+        for (const auto& pooled : submission.pools)
         {
-            ReleaseCommandPool(family, pool);
+            ReleaseCommandPool(pooled);
         }
         return result;
     }
@@ -1188,9 +1192,9 @@ auto Device::Submit(Queue& queue, std::span<const VkCommandBuffer> command_buffe
     {
         vkWaitForFences(m_device, 1, &submission.fence, VK_TRUE, UINT64_MAX);
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools)
+        for (const auto& pooled : submission.pools)
         {
-            ReleaseCommandPool(family, pool);
+            ReleaseCommandPool(pooled);
         }
         return {};
     }
@@ -1215,9 +1219,9 @@ auto Device::CollectFinished() -> void
     for (auto& submission : finished)
     {
         vkDestroyFence(m_device, submission.fence, nullptr);
-        for (const auto& [family, pool] : submission.pools)
+        for (const auto& pooled : submission.pools)
         {
-            ReleaseCommandPool(family, pool);
+            ReleaseCommandPool(pooled);
         }
     }
 }

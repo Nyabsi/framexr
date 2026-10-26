@@ -40,7 +40,7 @@ CommandBuffer::~CommandBuffer()
 {
     if (m_pool != VK_NULL_HANDLE)
     {
-        g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
+        g_device->ReleaseCommandPool({.family = m_queue->Family(), .pool = m_pool, .command_buffer = m_command_buffer});
     }
 }
 
@@ -60,7 +60,7 @@ auto CommandBuffer::operator=(CommandBuffer&& other) noexcept -> CommandBuffer&
     {
         if (m_pool != VK_NULL_HANDLE)
         {
-            g_device->ReleaseCommandPool(m_queue->Family(), m_pool);
+            g_device->ReleaseCommandPool({.family = m_queue->Family(), .pool = m_pool, .command_buffer = m_command_buffer});
         }
         m_queue = other.m_queue;
         m_pool = std::exchange(other.m_pool, VK_NULL_HANDLE);
@@ -289,7 +289,7 @@ auto CommandBuffer::Submit() -> Result<>
 {
     RETURN_IF_ERROR(Finish());
     Submission submission{
-        .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
+        .pools = {{.family = m_queue->Family(), .pool = std::exchange(m_pool, VK_NULL_HANDLE), .command_buffer = m_command_buffer}},
         .retained = std::move(m_retained),
     };
     return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), false);
@@ -299,7 +299,7 @@ auto CommandBuffer::SubmitAndWait() -> Result<>
 {
     RETURN_IF_ERROR(Finish());
     Submission submission{
-        .pools = {{m_queue->Family(), std::exchange(m_pool, VK_NULL_HANDLE)}},
+        .pools = {{.family = m_queue->Family(), .pool = std::exchange(m_pool, VK_NULL_HANDLE), .command_buffer = m_command_buffer}},
         .retained = std::move(m_retained),
     };
     return g_device->Submit(*m_queue, {&m_command_buffer, 1}, std::move(submission), true);
